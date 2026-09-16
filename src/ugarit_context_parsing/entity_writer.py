@@ -113,11 +113,13 @@ def write_entity_artifact(
         ))
         if not saved:
             return False
-        staged = {p.name for p in stage.iterdir() if p.is_file() and not p.is_symlink()}
-        if staged != expected or any(p.is_symlink() for p in stage.iterdir()):
+        entries = tuple(stage.iterdir())
+        staged = {path.name for path in entries if path.is_file() and not path.is_symlink()}
+        invalid = sorted(path.name for path in entries if path.is_symlink() or not path.is_file())
+        if staged != expected or invalid:
             raise RuntimeError(
                 f"unexpected Burns entity stage inventory: missing={sorted(expected - staged)}, "
-                f"extra={sorted(staged - expected)}"
+                f"extra={sorted(staged - expected)}, invalid={invalid}"
             )
         (stage / REPORT_FILE).write_text(report_text, encoding="utf-8")
         if output.exists() or output.is_symlink():
