@@ -35,7 +35,7 @@ def _parser() -> argparse.ArgumentParser:
 
     module = sub.add_parser(
         "module",
-        help="primary CUC-aligned Text-Fabric feature-module materialization",
+        help="existing v1 feature-module materialization (JSON annotations; not native entities)",
     )
     _add_source_arguments(module)
     module.add_argument(
@@ -43,6 +43,18 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         required=True,
         help="exact reviewed CUC 0.2.8 Text-Fabric directory",
+    )
+
+    entities = sub.add_parser(
+        "entities",
+        help="experimental native entity-node extension over the exact reviewed CUC base",
+    )
+    _add_source_arguments(entities)
+    entities.add_argument(
+        "--cuc",
+        type=Path,
+        required=True,
+        help="exact reviewed CUC 0.2.8 Text-Fabric directory, loaded first at query time",
     )
 
     convert = sub.add_parser(
@@ -91,6 +103,52 @@ def _run_module(args: argparse.Namespace) -> int:
     return 0
 
 
+def _reject_entities_overlap(source: Path, cuc: Path, output: Path) -> None:
+    """Protect all three trees, including `..` and symlinked ancestors."""
+    source_root = source.resolve()
+    cuc_root = cuc.resolve()
+    output_root = output.resolve()
+    for root, label in ((source_root, "source"), (cuc_root, "CUC")):
+        if output_root == root or output_root.is_relative_to(root) or root.is_relative_to(output_root):
+            raise SystemExit(f"native Burns output overlaps {label} directory: {output}")
+
+
+def _run_entities(args: argparse.Namespace) -> int:
+    """Experimental native entity nodes; no implicit v1 publication migration."""
+    from tf.fabric import Fabric
+
+    from .entity_writer import write_entity_artifact
+
+    try:
+        source = _load_source(args)
+    except SourceValidationError as exc:
+        raise SystemExit(f"source validation failed: {exc}") from exc
+    _reject_entities_overlap(source.root, args.cuc, args.output)
+    if args.output.exists() or args.output.is_symlink():
+        raise SystemExit(f"native Burns output already exists (refusing to overwrite): {args.output}")
+
+    try:
+        normalized = normalize_workbook_records(source.records)
+    except BurnsNormalizationError as exc:
+        raise SystemExit(f"Burns normalization failed: {exc}") from exc
+    try:
+        index = build_reviewed_cuc_index(args.cuc)
+    except CucCompatibilityError as exc:
+        raise SystemExit(f"CUC validation failed: {exc}") from exc
+    alignments = align_burns_source(normalized, index)
+    api = Fabric(locations=[str(args.cuc)], modules=[""], silent="deep").loadAll(silent="deep")
+    if api is None:
+        raise SystemExit("Text-Fabric could not load the exact reviewed CUC base")
+    if not write_entity_artifact(normalized, alignments, index, api, args.output):
+        raise SystemExit("Text-Fabric refused the native Burns entity extension")
+    print(
+        f"materialized {len(source.files)} Workbook {args.input_format.upper()} files / "
+        f"{len(normalized.records)} records as native Burns entities at {args.output}; "
+        f"load ordered Text-Fabric locations [{args.cuc}, {args.output}]"
+    )
+    return 0
+
+
 def _run_convert(args: argparse.Namespace) -> int:
     print(LEGACY_CONVERT_WARNING, file=sys.stderr)
     try:
@@ -116,6 +174,8 @@ def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "module":
         return _run_module(args)
+    if args.command == "entities":
+        return _run_entities(args)
     return _run_convert(args)
 
 
