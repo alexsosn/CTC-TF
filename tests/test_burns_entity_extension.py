@@ -43,10 +43,10 @@ class BurnsEntityExtensionTests(unittest.TestCase):
             self.assertEqual(set(combined.F.otype.s("word")), set(original.F.otype.s("word")))
             # TF iterates nodes in text/slot order; this is not numerical ID order.
             self.assertEqual(set(combined.F.otype.s("entity")), {17, 18, 19, 20, 21})
-            self.assertEqual(len(combined.S.search("entity burns_category=divine_name", silent="deep")), 5)
-            self.assertEqual(len(combined.S.search("entity burns_headword=bʿl", silent="deep")), 1)
-            self.assertEqual(len(combined.S.search("entity burns_headword=bʿl*", silent="deep")), 1)
-            self.assertEqual(len(combined.S.search("entity burns_headword=mlk", silent="deep")), 1)
+            self.assertEqual(len(tuple(combined.S.search("entity burns_category=divine_name", silent="deep"))), 5)
+            self.assertEqual(len(tuple(combined.S.search("entity burns_headword=bʿl", silent="deep"))), 1)
+            self.assertEqual(len(tuple(combined.S.search("entity burns_headword=bʿl*", silent="deep"))), 1)
+            self.assertEqual(len(tuple(combined.S.search("entity burns_headword=mlk", silent="deep"))), 1)
             by_headword = {
                 combined.F.burns_headword.v(node): tuple(combined.L.d(node, otype="word"))
                 for node in combined.F.otype.s("entity")
