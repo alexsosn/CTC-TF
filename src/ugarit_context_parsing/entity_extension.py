@@ -51,6 +51,41 @@ class BurnsEntityExtension:
     occurrence_nodes: Mapping[int, tuple[str, str]]
 
 
+def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
+    """Reject a different in-memory CUC graph before overriding warp features.
+
+    This is a structural cross-check, NOT a substitute for the public CLI's
+    reviewed on-disk SHA-256 fingerprint gate. It prevents an independently
+    constructed index from being accidentally paired with a different TF API.
+    """
+    if not index.word_g_cons or not index.tablet_nodes:
+        raise ValueError("CUC warp/index mismatch: missing indexed text or tablets")
+    expected_slot_max = min(index.word_g_cons) - 1
+    expected_node_max = max(
+        *index.word_g_cons,
+        *index.line_nodes.values(),
+        *index.column_nodes.values(),
+        *index.tablet_nodes.values(),
+    )
+    if (api.F.otype.maxSlot, api.F.otype.maxNode) != (
+        expected_slot_max, expected_node_max
+    ):
+        raise ValueError("CUC warp/index mismatch: slot or node count differs")
+    for nodes, node_type in (
+        (index.word_g_cons, "word"),
+        (index.line_nodes.values(), "line"),
+        (index.column_nodes.values(), "column"),
+        (index.tablet_nodes.values(), "tablet"),
+    ):
+        if any(api.F.otype.v(node) != node_type for node in nodes):
+            raise ValueError(f"CUC warp/index mismatch: {node_type} node type differs")
+    if any(
+        api.F.g_cons.v(node) != transcription
+        for node, transcription in index.word_g_cons.items()
+    ):
+        raise ValueError("CUC warp/index mismatch: word transcription differs")
+
+
 def build_entity_extension(
     source: NormalizedBurnsSource,
     alignments: tuple[BurnsAnnotationAlignment, ...],
@@ -64,6 +99,7 @@ def build_entity_extension(
     not by serializing lists of annotations onto shared word nodes.
     """
     build_alignment_report(source, alignments, index)
+    _verify_loaded_warp(index, api)
     old_max = api.F.otype.maxNode
     max_slot = api.F.otype.maxSlot
     otype = {node: api.F.otype.v(node) for node in range(1, old_max + 1)}
@@ -109,7 +145,7 @@ def build_entity_extension(
             if api.F.otype.v(word) != "word":
                 raise ValueError("Burns lexical anchor is not a CUC word")
             word_slots = set(api.E.oslots.s(word))
-            if not word_slots or not word_slots.issubset(set(range(1, max_slot + 1))):
+            if not word_slots or any(slot < 1 or slot > max_slot for slot in word_slots):
                 raise ValueError("Burns lexical anchor contains invalid CUC sign slots")
             slots.update(word_slots)
         if not slots:
