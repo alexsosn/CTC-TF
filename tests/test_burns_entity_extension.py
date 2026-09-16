@@ -85,7 +85,11 @@ class BurnsEntityExtensionTests(unittest.TestCase):
             extension = build_entity_extension(source, align_burns_source(source, index), index, original)
             self.assertEqual(set(extension.edge_features), {"oslots"})
             self.assertFalse({"locus", "room", "point", "depth", "disputed"} & set(extension.node_features))
-            self.assertFalse({"burns_locus", "burns_room", "burns_point", "burns_depth", "burns_disputed"} & set(extension.node_features))
+            # Findspots may be features, but only on actual tablet nodes, never
+            # on individual Burns entity nodes or inherited CUC words.
+            for name in ("burns_locus", "burns_room", "burns_point", "burns_depth", "burns_disputed"):
+                for node in extension.node_features.get(name, {}):
+                    self.assertEqual(extension.node_features["otype"][node], "tablet")
             self.assertEqual(extension.node_features["otype"][16], "tablet")
             self.assertEqual(extension.node_features["otype"][8], "word")
             self.assertEqual(extension.node_features["otype"][17], "entity")
