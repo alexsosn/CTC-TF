@@ -21,6 +21,7 @@ from .alignment import (
 )
 from .annotations import NormalizedBurnsSource
 from .cuc_index import ReviewedCucIndex
+from .tablet_findspots import BurnsTabletFindspots, derive_tablet_findspots
 
 CATEGORY_NAMES: Mapping[int, str] = MappingProxyType(
     {
@@ -49,6 +50,7 @@ class BurnsEntityExtension:
     metadata: Mapping[str, Mapping[str, str]]
     # Local sidecar linkage, never a serialized lexical/archaeological field.
     occurrence_nodes: Mapping[int, tuple[str, str]]
+    findspot_audit: BurnsTabletFindspots
 
 
 def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
@@ -161,7 +163,12 @@ def build_entity_extension(
         node_values["burns_worksheet_role"][node] = annotation.worksheet_role.value
         node_values["burns_section"][node] = annotation.section
 
-    features = {"otype": otype, **node_values}
+    findspots = derive_tablet_findspots(source, index)
+    features = {
+        "otype": otype,
+        **node_values,
+        **{name: dict(values) for name, values in findspots.node_features.items() if values},
+    }
     metadata = {
         name: {
             "valueType": "str",
@@ -169,6 +176,9 @@ def build_entity_extension(
         }
         for name in features
     }
+    for name in findspots.node_features:
+        if name in features:
+            metadata[name]["description"] = "Consistent Burns observation on CUC tablet only"
     metadata["otype"] = {"valueType": "str", "description": "CUC node types plus Burns entities"}
     metadata["oslots"] = {"valueType": "int", "description": "CUC sign extents plus Burns entities"}
     return BurnsEntityExtension(
@@ -180,4 +190,5 @@ def build_entity_extension(
             {name: MappingProxyType(values) for name, values in sorted(metadata.items())}
         ),
         occurrence_nodes=MappingProxyType(dict(sorted(occurrence_nodes.items()))),
+        findspot_audit=findspots,
     )
