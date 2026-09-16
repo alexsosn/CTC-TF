@@ -27,35 +27,41 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--output", type=Path, required=True)
 
 
+def _add_cuc_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--cuc",
+        type=Path,
+        required=True,
+        help="exact reviewed CUC 0.2.8 Text-Fabric directory (load before Burns at query time)",
+    )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Materialize Burns Workbooks as a CUC-aligned Text-Fabric feature module"
+        description="Materialize Burns Workbooks as a CUC-aligned Text-Fabric module"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     module = sub.add_parser(
         "module",
-        help="existing v1 feature-module materialization (JSON annotations; not native entities)",
+        help="native v2 entity-node module (new output directory; no JSON annotation features)",
     )
     _add_source_arguments(module)
-    module.add_argument(
-        "--cuc",
-        type=Path,
-        required=True,
-        help="exact reviewed CUC 0.2.8 Text-Fabric directory",
+    _add_cuc_argument(module)
+
+    module_v1 = sub.add_parser(
+        "module-v1",
+        help="explicit legacy v1 feature-module format (JSON annotations; compatibility only)",
     )
+    _add_source_arguments(module_v1)
+    _add_cuc_argument(module_v1)
 
     entities = sub.add_parser(
         "entities",
-        help="experimental native entity-node extension over the exact reviewed CUC base",
+        help="alias of native v2 'module' for existing experimental callers",
     )
     _add_source_arguments(entities)
-    entities.add_argument(
-        "--cuc",
-        type=Path,
-        required=True,
-        help="exact reviewed CUC 0.2.8 Text-Fabric directory, loaded first at query time",
-    )
+    _add_cuc_argument(entities)
 
     convert = sub.add_parser(
         "convert",
@@ -74,6 +80,7 @@ def _load_source(args: argparse.Namespace):
 
 
 def _run_module(args: argparse.Namespace) -> int:
+    """Compatibility writer: only reachable through explicit ``module-v1``."""
     try:
         source = _load_source(args)
     except SourceValidationError as exc:
@@ -98,13 +105,13 @@ def _run_module(args: argparse.Namespace) -> int:
     print(
         f"materialized {len(source.files)} Workbook {args.input_format.upper()} files / "
         f"{len(normalized.records)} records / {len(normalized.annotations)} annotations "
-        f"as a CUC-aligned Burns feature module at {args.output}"
+        f"as a legacy v1 CUC-aligned Burns feature module at {args.output}"
     )
     return 0
 
 
 def _reject_entities_overlap(source: Path, cuc: Path, output: Path) -> None:
-    """Protect all three trees, including `..` and symlinked ancestors."""
+    """Protect all three trees, including ``..`` and symlinked ancestors."""
     source_root = source.resolve()
     cuc_root = cuc.resolve()
     output_root = output.resolve()
@@ -114,7 +121,7 @@ def _reject_entities_overlap(source: Path, cuc: Path, output: Path) -> None:
 
 
 def _run_entities(args: argparse.Namespace) -> int:
-    """Experimental native entity nodes; no implicit v1 publication migration."""
+    """Native v2; a new path is mandatory, never overwrite unknown v1 output."""
     from tf.fabric import Fabric
 
     from .entity_writer import write_entity_artifact
@@ -136,8 +143,8 @@ def _run_entities(args: argparse.Namespace) -> int:
     except CucCompatibilityError as exc:
         raise SystemExit(f"CUC validation failed: {exc}") from exc
     alignments = align_burns_source(normalized, index)
-    # The fingerprint gate above accepts relative paths; Fabric requires an
-    # absolute location to load the SAME reviewed CUC, not resolve a module.
+    # Fingerprint validation accepts relative paths; load exactly that CUC
+    # directory by absolute location, never as a Text-Fabric module identifier.
     cuc_dir = args.cuc.resolve()
     api = Fabric(locations=[str(cuc_dir)], modules=[""], silent="deep").loadAll(silent="deep")
     if api is None:
@@ -147,7 +154,7 @@ def _run_entities(args: argparse.Namespace) -> int:
     print(
         f"materialized {len(source.files)} Workbook {args.input_format.upper()} files / "
         f"{len(normalized.records)} records as native Burns entities at {args.output}; "
-        f"load ordered Text-Fabric locations [{args.cuc}, {args.output}]"
+        f"load ordered Text-Fabric locations [{cuc_dir}, {args.output.resolve()}]"
     )
     return 0
 
@@ -175,10 +182,10 @@ def _run_convert(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.command == "module":
-        return _run_module(args)
-    if args.command == "entities":
+    if args.command in ("module", "entities"):
         return _run_entities(args)
+    if args.command == "module-v1":
+        return _run_module(args)
     return _run_convert(args)
 
 
