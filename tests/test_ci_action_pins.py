@@ -51,10 +51,10 @@ class CiActionPinTests(unittest.TestCase):
             for path in paths
             for ref in _action_refs(path.read_text(encoding="utf-8"))
         )
-        # The dedicated Context-Fabric Burns module contract contributes three
-        # immutable checkout refs (producer, CUC, consumer) and one setup-python
-        # ref to the previously reviewed 7/4 repository totals.
-        expected = Counter({CHECKOUT: 10, SETUP_PYTHON: 5})
+        # Existing workflows contribute 10 checkout / 5 setup-python refs.
+        # The dedicated reviewed-CUC entity consumer smoke adds three pinned
+        # checkouts (producer, CUC, Context-Fabric) and one pinned setup-python.
+        expected = Counter({CHECKOUT: 13, SETUP_PYTHON: 6})
         self.assertEqual(actual, expected)
 
 
