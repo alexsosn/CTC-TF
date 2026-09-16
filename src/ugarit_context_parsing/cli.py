@@ -136,7 +136,10 @@ def _run_entities(args: argparse.Namespace) -> int:
     except CucCompatibilityError as exc:
         raise SystemExit(f"CUC validation failed: {exc}") from exc
     alignments = align_burns_source(normalized, index)
-    api = Fabric(locations=[str(args.cuc)], modules=[""], silent="deep").loadAll(silent="deep")
+    # The fingerprint gate above accepts relative paths; Fabric requires an
+    # absolute location to load the SAME reviewed CUC, not resolve a module.
+    cuc_dir = args.cuc.resolve()
+    api = Fabric(locations=[str(cuc_dir)], modules=[""], silent="deep").loadAll(silent="deep")
     if api is None:
         raise SystemExit("Text-Fabric could not load the exact reviewed CUC base")
     if not write_entity_artifact(normalized, alignments, index, api, args.output):
