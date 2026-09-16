@@ -1,4 +1,4 @@
-"""#68 RED: real Text-Fabric search must see distinct overlapping Burns entities.
+"""#68: real Text-Fabric search must see distinct overlapping Burns entities.
 
 This is a synthetic CUC proof of an *extended warp*, not a claim that the
 existing feature-only v1 module may introduce nodes without a warp change.
@@ -40,8 +40,9 @@ class BurnsEntityExtensionTests(unittest.TestCase):
             assert combined is not None
             self.assertEqual(combined.F.otype.maxSlot, original.F.otype.maxSlot)
             self.assertEqual(combined.F.otype.maxNode, original.F.otype.maxNode + 5)
-            self.assertEqual(tuple(combined.F.otype.s("word")), tuple(original.F.otype.s("word")))
-            self.assertEqual(tuple(combined.F.otype.s("entity")), (17, 18, 19, 20, 21))
+            self.assertEqual(set(combined.F.otype.s("word")), set(original.F.otype.s("word")))
+            # TF iterates nodes in text/slot order; this is not numerical ID order.
+            self.assertEqual(set(combined.F.otype.s("entity")), {17, 18, 19, 20, 21})
             self.assertEqual(len(combined.S.search("entity burns_category=divine_name", silent="deep")), 5)
             self.assertEqual(len(combined.S.search("entity burns_headword=bʿl", silent="deep")), 1)
             self.assertEqual(len(combined.S.search("entity burns_headword=bʿl*", silent="deep")), 1)
