@@ -82,6 +82,18 @@ def run(cuc_dir: Path) -> None:
     if base is None:
         raise AssertionError("reviewed CUC could not be loaded")
     old_max, old_slots = base.F.otype.maxNode, base.F.otype.maxSlot
+    word_nodes = tuple(base.F.otype.s("word"))
+    print(
+        "CUC warp diagnostics: "
+        f"actual_slots={old_slots} actual_max_node={old_max} "
+        f"first_word={min(word_nodes)} indexed_first_gcons={min(index.word_g_cons)} "
+        f"indexed_max_word={max(index.word_g_cons)} "
+        f"indexed_max_line={max(index.line_nodes.values())} "
+        f"indexed_max_column={max(index.column_nodes.values())} "
+        f"indexed_max_tablet={max(index.tablet_nodes.values())} "
+        f"word_count={len(word_nodes)} indexed_word_count={len(index.word_g_cons)}",
+        flush=True,
+    )
     old_word_slots = tuple(base.E.oslots.s(word))
     tablet_node = index.tablet_nodes[tablet]
     extension = build_entity_extension(source, alignments, index, base)
