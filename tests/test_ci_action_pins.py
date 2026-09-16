@@ -51,10 +51,9 @@ class CiActionPinTests(unittest.TestCase):
             for path in paths
             for ref in _action_refs(path.read_text(encoding="utf-8"))
         )
-        # Existing workflows contribute 10 checkout / 5 setup-python refs.
-        # The dedicated reviewed-CUC entity consumer smoke adds three pinned
-        # checkouts (producer, CUC, Context-Fabric) and one pinned setup-python.
-        expected = Counter({CHECKOUT: 13, SETUP_PYTHON: 6})
+        # Baseline + synthetic reviewed-CUC native test: 13 checkout / 6 setup.
+        # Ephemeral real Burns acceptance adds producer/CUC and one setup.
+        expected = Counter({CHECKOUT: 15, SETUP_PYTHON: 7})
         self.assertEqual(actual, expected)
 
 
