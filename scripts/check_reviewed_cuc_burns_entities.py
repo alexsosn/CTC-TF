@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Real reviewed CUC + native entity CLI smoke, with synthetic Burns rows.
+"""Real reviewed CUC + default native module CLI smoke, synthetic Burns rows.
 
-This is an end-to-end architecture/consumer test, NOT a real Burns source
-coverage audit. Temporary source and derivatives are removed after testing.
+This validates real CUC/consumer composition but is NOT a Burns source
+coverage audit. Temporary synthetic sources and derivatives are removed.
 """
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ import csv
 import json
 import tempfile
 from collections import Counter
-from dataclasses import asdict
 from pathlib import Path
 
 from tf.fabric import Fabric
@@ -68,7 +67,7 @@ def run(cuc_dir: Path) -> None:
     from cfabric_mcp.corpus_manager import corpus_manager
 
     cuc = cuc_dir.resolve()
-    index = build_reviewed_cuc_index(cuc)  # exact reviewed on-disk fingerprint
+    index = build_reviewed_cuc_index(cuc)
     tablet, column, line, word, label = _unique_word(index)
     rows = (
         _record(1, tablet, column, line, label),
@@ -110,10 +109,10 @@ def run(cuc_dir: Path) -> None:
                 writer.writerow({name: getattr(row, name) for name in WORKBOOK_FIELDS})
         directory = temp / "entity-overlay"
         if materialize_cli([
-            "entities", str(source_root), "--input-format", "csv",
+            "module", str(source_root), "--input-format", "csv",
             "--cuc", str(cuc), "--output", str(directory),
         ]) != 0:
-            raise AssertionError("native Burns entities CLI refused reviewed CUC")
+            raise AssertionError("primary native Burns module CLI refused reviewed CUC")
         report = json.loads((directory / "burns-entity-report.json").read_text(encoding="utf-8"))
         if report["schema"] != "burns-entity-module-v2":
             raise AssertionError("wrong native Burns output schema")
@@ -165,7 +164,7 @@ def run(cuc_dir: Path) -> None:
         returned = {int(item["node"]) for row in response.get("results", []) for item in row}
         if returned != divine:
             raise AssertionError(f"cfabric-mcp returned wrong entity nodes: {returned!r} != {divine!r}")
-    print("Reviewed CUC + entities CLI + overlapping native Burns nodes + tablet findspot + MCP search: PASS")
+    print("Reviewed CUC + primary module CLI + overlapping native Burns nodes + tablet findspot + MCP search: PASS")
 
 
 def main() -> None:
