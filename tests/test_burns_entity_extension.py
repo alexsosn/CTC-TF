@@ -16,6 +16,19 @@ from ugarit_context_parsing.alignment import align_burns_source
 from ugarit_context_parsing.entity_extension import build_entity_extension
 
 
+def _write_indexed_base(path: Path) -> None:
+    """Give the small CUC fixture the `g_cons` feature present in real CUC."""
+    _write_synthetic_base(path)
+    ok = Fabric(locations=[], modules=[], silent="deep").save(
+        nodeFeatures={"g_cons": dict(_index().word_g_cons)},
+        edgeFeatures={},
+        metaData={"g_cons": {"valueType": "str", "description": "synthetic word transliteration"}},
+        location=str(path), module="", silent="deep",
+    )
+    if not ok:
+        raise AssertionError("failed to add indexed g_cons to synthetic base")
+
+
 class BurnsEntityExtensionTests(unittest.TestCase):
     def test_distinct_overlapping_entities_and_multiword_extent_survive_real_tf(self):
         source = _source()
@@ -24,7 +37,7 @@ class BurnsEntityExtensionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp) / "cuc"
             extension = Path(tmp) / "burns"
-            _write_synthetic_base(base)
+            _write_indexed_base(base)
             original = Fabric(locations=[str(base)], modules=[""], silent="deep").loadAll(silent="deep")
             self.assertIsNotNone(original)
             proposed = build_entity_extension(source, alignments, index, original)
@@ -58,7 +71,7 @@ class BurnsEntityExtensionTests(unittest.TestCase):
             self.assertEqual(by_headword["mlk"], (11,))
             for node in combined.F.otype.s("entity"):
                 self.assertEqual(combined.F.burns_category.v(node), "divine_name")
-                self.assertIsNone(combined.F.burns_source_file.v(node) if "burns_source_file" in combined.Fall() else None)
+            self.assertNotIn("burns_source_file", combined.Fall())
             self.assertNotIn("burns_annotations", proposed.node_features)
             self.assertNotIn("burns_source_records", proposed.node_features)
 
@@ -67,7 +80,7 @@ class BurnsEntityExtensionTests(unittest.TestCase):
         index = _index()
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp) / "cuc"
-            _write_synthetic_base(base)
+            _write_indexed_base(base)
             original = Fabric(locations=[str(base)], modules=[""], silent="deep").loadAll(silent="deep")
             extension = build_entity_extension(source, align_burns_source(source, index), index, original)
             self.assertEqual(set(extension.edge_features), {"oslots"})
