@@ -62,23 +62,26 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
     """
     if not index.word_g_cons or not index.tablet_nodes:
         raise ValueError("CUC warp/index mismatch: missing indexed text or tablets")
-    # g_cons is a sparse lexical feature: its first populated word need not be
-    # the corpus's first word. Determine the sign/word boundary from the warp,
-    # then verify the observed CUC slot count against that independent boundary.
-    word_nodes = api.F.otype.s("word")
-    if not word_nodes:
-        raise ValueError("CUC warp/index mismatch: no word nodes")
-    expected_slot_max = min(word_nodes) - 1
-    expected_node_max = max(
+    # Actual reviewed CUC numbers sign slots, then column/line/tablet, THEN
+    # words. Synthetic fixtures may use a different non-slot type order.
+    # Infer the slot boundary from *all* indexed non-slot node types, never
+    # from the first word or from a potentially sparse lexical feature alone.
+    non_slots = (
         *index.word_g_cons,
         *index.line_nodes.values(),
         *index.column_nodes.values(),
         *index.tablet_nodes.values(),
     )
+    expected_slot_max = min(non_slots) - 1
+    expected_node_max = max(non_slots)
     if (api.F.otype.maxSlot, api.F.otype.maxNode) != (
         expected_slot_max, expected_node_max
     ):
-        raise ValueError("CUC warp/index mismatch: slot or node count differs")
+        raise ValueError(
+            "CUC warp/index mismatch: slot or node count differs: "
+            f"actual={(api.F.otype.maxSlot, api.F.otype.maxNode)!r}, "
+            f"expected={(expected_slot_max, expected_node_max)!r}"
+        )
     for nodes, node_type in (
         (index.word_g_cons, "word"),
         (index.line_nodes.values(), "line"),
