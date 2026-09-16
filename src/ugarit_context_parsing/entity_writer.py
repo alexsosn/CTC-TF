@@ -1,13 +1,17 @@
-"""One-shot, non-overwriting publisher for the experimental native entity warp.
+"""Lossless, one-shot publisher for native Burns entity nodes.
 
-This does not replace the v1 `module` CLI or silently migrate old output.
-It publishes to a NEW directory only; schema migration and source audits are
-separate gates for issue #68. The output is Burns-derived local data.
+The public ``module`` command produces v2 into a NEW output directory.
+Legacy v1 remains the explicitly named ``module-v1`` compatibility command.
+Generated Burns data is local and must not be redistributed without permission.
 """
 from __future__ import annotations
 
+import ctypes
+import errno
 import json
+import os
 import shutil
+import sys
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
@@ -25,6 +29,45 @@ SCHEMA = "burns-entity-module-v2"
 
 class _FabricLike(Protocol):
     def save(self, **kwargs) -> bool: ...
+
+
+def _publish_stage_noreplace(stage: Path, output: Path) -> None:
+    """Atomically publish a directory without *ever* replacing a destination.
+
+    POSIX ``Path.replace`` can replace an empty directory created between a
+    preceding existence check and the rename. Use the platform's exclusive
+    rename primitive. Unsupported kernels/filesystems fail closed; never fall
+    back to a race-prone check-then-rename. Stage and output are siblings.
+    """
+    if sys.platform.startswith("linux"):
+        libc = ctypes.CDLL(None, use_errno=True)
+        rename = getattr(libc, "renameat2", None)
+        if rename is None:
+            raise OSError(errno.ENOTSUP, "atomic no-replace renameat2 unavailable")
+        # AT_FDCWD=-100; RENAME_NOREPLACE=1.
+        rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
+        rename.restype = ctypes.c_int
+        outcome = rename(-100, os.fsencode(stage), -100, os.fsencode(output), 1)
+    elif sys.platform == "darwin":
+        libc = ctypes.CDLL(None, use_errno=True)
+        rename = getattr(libc, "renamex_np", None)
+        if rename is None:
+            raise OSError(errno.ENOTSUP, "atomic exclusive renamex_np unavailable")
+        # Darwin RENAME_EXCL=0x00000004, not Linux's RENAME_NOREPLACE=1.
+        rename.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
+        rename.restype = ctypes.c_int
+        outcome = rename(os.fsencode(stage), os.fsencode(output), 0x00000004)
+    elif os.name == "nt":
+        # Unlike POSIX rename, Windows os.rename refuses an existing target.
+        os.rename(stage, output)
+        return
+    else:
+        raise OSError(errno.ENOTSUP, "atomic no-replace directory rename unsupported")
+    if outcome != 0:
+        error = ctypes.get_errno()
+        if error in (errno.EEXIST, errno.ENOTEMPTY):
+            raise FileExistsError(error, "refusing to overwrite existing Burns entity output", str(output))
+        raise OSError(error, os.strerror(error), str(output))
 
 
 def _source_payload(source: NormalizedBurnsSource) -> list[dict[str, object]]:
@@ -75,16 +118,15 @@ def write_entity_artifact(
     *,
     fabric_factory: Callable[..., _FabricLike] | None = None,
 ) -> bool:
-    """Publish a complete entity overlay only to an absent output directory.
+    """Publish complete TF warp + report to an absent directory only.
 
-    Reject even an empty pre-existing output, rather than adopting or deleting
-    potentially foreign datasets. Staging is a sibling, so publication is one
-    directory rename after TF inventory and report have been validated.
+    Neither an existing v1 module nor an empty foreign directory is adopted.
+    The stage lives beside output for one exclusive, atomic publication after
+    validating the generated TF inventory and complete local audit report.
     """
     output = Path(output_dir)
     if output.exists() or output.is_symlink():
         raise ValueError(f"refusing to overwrite an existing Burns entity output: {output}")
-    # Enforce the exact CUC fingerprint before allocating an extended warp.
     _compatibility_payload(index)
     extension = build_entity_extension(source, alignments, index, api)
     expected = frozenset(
@@ -94,8 +136,6 @@ def write_entity_artifact(
     if not {"otype.tf", "oslots.tf"}.issubset(expected):
         raise ValueError("Burns entity extension has no complete Text-Fabric warp")
     report = _make_report(source, alignments, index, extension, expected)
-    # No path or timestamps are serialized. Source-derived details remain in
-    # this local sidecar, not as per-word or per-entity TF features.
     report_text = json.dumps(report, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
 
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -122,9 +162,11 @@ def write_entity_artifact(
                 f"extra={sorted(staged - expected)}, invalid={invalid}"
             )
         (stage / REPORT_FILE).write_text(report_text, encoding="utf-8")
+        # This check improves diagnostics; the exclusive syscall itself is the
+        # authority if another process creates output immediately afterwards.
         if output.exists() or output.is_symlink():
             raise ValueError(f"Burns entity output appeared during staging: {output}")
-        stage.replace(output)
+        _publish_stage_noreplace(stage, output)
         return True
     finally:
         if stage.exists():
