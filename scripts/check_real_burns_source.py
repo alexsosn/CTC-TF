@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
-"""Run a *real source* acceptance audit. Emit aggregate counts only, no Burns rows.
+"""Audit the actual pinned Burns Workbooks against reviewed CUC; log counts only.
 
-Input CSVs must be generated from the pinned Workbooks deposit by the existing
-parser, not copied into git or uploaded as GitHub Actions artifacts. The native
-module and local sidecar must live in the runner's temporary directory.
+Never commit, upload, or print copyrighted source rows, lexical labels or
+locators. The runner downloads the original Workbooks and discards derivatives.
 """
 from __future__ import annotations
 
@@ -39,6 +38,15 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
     index = build_reviewed_cuc_index(cuc_root)
     alignments = align_burns_source(normalized, index)
     disposition_counts = Counter(item.disposition.value for item in alignments)
+    annotation_reasons = Counter((item.disposition.value, item.reason.value) for item in alignments)
+    occurrence_reasons = Counter(
+        (item.disposition.value, item.reason.value)
+        for alignment in alignments for item in alignment.occurrences
+    )
+    category_dispositions = Counter(
+        (CATEGORY_NAMES[annotation.workbook_number], alignment.disposition.value)
+        for annotation, alignment in zip(normalized.annotations, alignments, strict=True)
+    )
     occurrence_counts = Counter(
         (item.disposition.value, item.confidence.value, item.anchor_kind.value if item.anchor_kind else "none")
         for alignment in alignments for item in alignment.occurrences
@@ -93,23 +101,25 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
     for node in entity_nodes:
         if not combined.F.burns_headword.v(node) or not combined.E.oslots.s(node):
             raise AssertionError("real Burns entity missing source headword or sign extent")
-    for name in ("burns_locus", "burns_room", "burns_point", "burns_depth"):
+    for name in ("burns_locus", "burns_room", "burns_point", "burns_depth", "burns_disputed"):
         if name in combined.Fall():
             for node in combined.Fs(name).data:
                 if combined.F.otype.v(node) != "tablet":
                     raise AssertionError(f"real Burns findspot {name} leaked beyond tablet")
     if report["counts"]["annotations"] != sum(disposition_counts.values()):
         raise AssertionError("real Burns alignments did not account for all annotations")
-    # No source-derived lexical values, tablet names, or records in CI logs.
+    # Aggregate diagnosis distinguishes a CUC coverage boundary from a lexical
+    # alignment failure; no source-derived strings or identifying locators.
     summary = {
         "workbook_files": len(source.files),
         "source_records": len(source.records),
         "source_annotations": len(normalized.annotations),
         "annotation_categories": {CATEGORY_NAMES[i]: category_counts[i] for i in sorted(category_counts)},
         "alignment_dispositions": dict(sorted(disposition_counts.items())),
-        "occurrence_states": {
-            "/".join(key): count for key, count in sorted(occurrence_counts.items())
-        },
+        "annotation_reasons": {"/".join(key): value for key, value in sorted(annotation_reasons.items())},
+        "occurrence_reasons": {"/".join(key): value for key, value in sorted(occurrence_reasons.items())},
+        "category_dispositions": {"/".join(key): value for key, value in sorted(category_dispositions.items())},
+        "occurrence_states": {"/".join(key): count for key, count in sorted(occurrence_counts.items())},
         "native_entities": selected,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
         "tablet_findspot_incomplete": len(report["findspot_audit"]["incomplete"]),
