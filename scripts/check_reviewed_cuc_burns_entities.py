@@ -1,23 +1,27 @@
 #!/usr/bin/env python3
-"""Real reviewed CUC + Burns entity-extended warp smoke, using synthetic Burns rows.
+"""Real reviewed CUC + native entity CLI smoke, with synthetic Burns rows.
 
-This is an architecture/consumer test, not a real Burns-source coverage audit
-and not the existing public CLI's still-v1 module. No derived data are kept.
+This is an end-to-end architecture/consumer test, NOT a real Burns source
+coverage audit. Temporary source and derivatives are removed after testing.
 """
 from __future__ import annotations
 
 import argparse
+import csv
+import json
 import tempfile
 from collections import Counter
+from dataclasses import asdict
 from pathlib import Path
 
 from tf.fabric import Fabric
 
 from ugarit_context_parsing.alignment import BurnsAnchorKind, align_burns_source
 from ugarit_context_parsing.annotations import normalize_workbook_records
+from ugarit_context_parsing.cli import main as materialize_cli
 from ugarit_context_parsing.cuc_index import build_reviewed_cuc_index
 from ugarit_context_parsing.entity_extension import build_entity_extension
-from ugarit_context_parsing.source import WorkbookRecord
+from ugarit_context_parsing.source import WORKBOOK_FIELDS, WorkbookRecord
 
 
 def _unique_word(index):
@@ -66,10 +70,11 @@ def run(cuc_dir: Path) -> None:
     cuc = cuc_dir.resolve()
     index = build_reviewed_cuc_index(cuc)  # exact reviewed on-disk fingerprint
     tablet, column, line, word, label = _unique_word(index)
-    source = normalize_workbook_records(
-        (_record(1, tablet, column, line, label),
-         _record(9, tablet, column, line, label))
+    rows = (
+        _record(1, tablet, column, line, label),
+        _record(9, tablet, column, line, label),
     )
+    source = normalize_workbook_records(rows)
     alignments = align_burns_source(source, index)
     assert len(alignments) == 2
     for alignment in alignments:
@@ -82,18 +87,6 @@ def run(cuc_dir: Path) -> None:
     if base is None:
         raise AssertionError("reviewed CUC could not be loaded")
     old_max, old_slots = base.F.otype.maxNode, base.F.otype.maxSlot
-    word_nodes = tuple(base.F.otype.s("word"))
-    print(
-        "CUC warp diagnostics: "
-        f"actual_slots={old_slots} actual_max_node={old_max} "
-        f"first_word={min(word_nodes)} indexed_first_gcons={min(index.word_g_cons)} "
-        f"indexed_max_word={max(index.word_g_cons)} "
-        f"indexed_max_line={max(index.line_nodes.values())} "
-        f"indexed_max_column={max(index.column_nodes.values())} "
-        f"indexed_max_tablet={max(index.tablet_nodes.values())} "
-        f"word_count={len(word_nodes)} indexed_word_count={len(index.word_g_cons)}",
-        flush=True,
-    )
     old_word_slots = tuple(base.E.oslots.s(word))
     tablet_node = index.tablet_nodes[tablet]
     extension = build_entity_extension(source, alignments, index, base)
@@ -106,15 +99,30 @@ def run(cuc_dir: Path) -> None:
         raise AssertionError("findspot was not scoped to exactly the tablet")
 
     with tempfile.TemporaryDirectory() as temporary:
-        directory = Path(temporary) / "entity-overlay"
-        saved = Fabric(locations=[], modules=[], silent="deep").save(
-            nodeFeatures={key: dict(values) for key, values in extension.node_features.items()},
-            edgeFeatures={key: dict(values) for key, values in extension.edge_features.items()},
-            metaData={key: dict(values) for key, values in extension.metadata.items()},
-            location=str(directory), module="", silent="deep",
-        )
-        if not saved:
-            raise AssertionError("Text-Fabric rejected the entity extension")
+        temp = Path(temporary)
+        source_root = temp / "Workbooks"
+        for row in rows:
+            target = source_root / row.source_file
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with target.open("w", encoding="utf-8", newline="") as handle:
+                writer = csv.DictWriter(handle, fieldnames=WORKBOOK_FIELDS)
+                writer.writeheader()
+                writer.writerow({name: getattr(row, name) for name in WORKBOOK_FIELDS})
+        directory = temp / "entity-overlay"
+        if materialize_cli([
+            "entities", str(source_root), "--input-format", "csv",
+            "--cuc", str(cuc), "--output", str(directory),
+        ]) != 0:
+            raise AssertionError("native Burns entities CLI refused reviewed CUC")
+        report = json.loads((directory / "burns-entity-report.json").read_text(encoding="utf-8"))
+        if report["schema"] != "burns-entity-module-v2":
+            raise AssertionError("wrong native Burns output schema")
+        if report["counts"]["native_entities"] != 2 or len(report["source_records"]) != 2:
+            raise AssertionError("native Burns writer lost source or entity coverage")
+        if {item["node"] for item in report["entity_occurrences"]} != entities:
+            raise AssertionError("entity-to-source sidecar mapping differs from emitted warp")
+        if (directory / "burns_annotations.tf").exists():
+            raise AssertionError("v1 JSON annotation feature leaked into native module")
         base_info = corpus_manager.load(str(cuc), name="reviewed-cuc-entity-base")
         combined_info = corpus_manager.load(
             [str(cuc), str(directory)], name="reviewed-cuc-with-native-burns-entities"
@@ -157,7 +165,7 @@ def run(cuc_dir: Path) -> None:
         returned = {int(item["node"]) for row in response.get("results", []) for item in row}
         if returned != divine:
             raise AssertionError(f"cfabric-mcp returned wrong entity nodes: {returned!r} != {divine!r}")
-    print("Reviewed CUC + two overlapping native Burns entity nodes + tablet findspot + MCP search: PASS")
+    print("Reviewed CUC + entities CLI + overlapping native Burns nodes + tablet findspot + MCP search: PASS")
 
 
 def main() -> None:
