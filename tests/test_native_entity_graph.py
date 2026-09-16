@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-from dataclasses import replace
 from pathlib import Path
 
 from tf.dataset import modify
@@ -58,8 +57,8 @@ class NativeEntityGraphTests(unittest.TestCase):
 
         unsafe = normalize_workbook_records((
             _record(1, headword="bʿl", references="I.2", section="Section β"),
-            _record(2, headword="bʿl", references="I.3"),  # ambiguous/absent exact span
-            _record(3, headword="bʿl", references=""),   # structural tablet, not word
+            _record(2, headword="unknown", references="I.3"),  # no exact word span
+            _record(3, headword="bʿl", references=""),       # structural tablet, not word
         ))
         excluded = build_native_entities(unsafe, align_burns_source(unsafe, index), index,
                                          word_slots=SYNTHETIC_WORD_SLOTS, first_node=17)
