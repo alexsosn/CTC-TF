@@ -62,7 +62,13 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
     """
     if not index.word_g_cons or not index.tablet_nodes:
         raise ValueError("CUC warp/index mismatch: missing indexed text or tablets")
-    expected_slot_max = min(index.word_g_cons) - 1
+    # g_cons is a sparse lexical feature: its first populated word need not be
+    # the corpus's first word. Determine the sign/word boundary from the warp,
+    # then verify the observed CUC slot count against that independent boundary.
+    word_nodes = api.F.otype.s("word")
+    if not word_nodes:
+        raise ValueError("CUC warp/index mismatch: no word nodes")
+    expected_slot_max = min(word_nodes) - 1
     expected_node_max = max(
         *index.word_g_cons,
         *index.line_nodes.values(),
