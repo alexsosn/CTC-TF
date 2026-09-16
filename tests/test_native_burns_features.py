@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import unittest
 from dataclasses import replace
+from types import MappingProxyType
 
 from test_burns_tf_module import _index, _record, _source
 from ugarit_context_parsing.alignment import align_burns_source
@@ -94,12 +95,18 @@ class NativeBurnsFeaturesTests(unittest.TestCase):
     def test_ambiguous_and_unselected_anchors_make_no_word_level_claims(self):
         source = normalize_workbook_records(
             (
-                _record(1, headword="bʿl", references="I.3"),
+                _record(1, headword="bʿl", references="I.2"),
                 _record(2, headword="unknown", references="I.2"),
-                _record(3, headword="mlk", references="",),
+                _record(3, headword="mlk", references=""),
             )
         )
-        index = _index()
+        original = _index()
+        # Genuine repeated homograph: two distinct CUC word nodes on line I.2
+        # now read bʿl, so alignment must stay at line level rather than guess.
+        index = replace(
+            original,
+            word_g_cons=MappingProxyType({**original.word_g_cons, 7: "bʿl"}),
+        )
         features = derive_native_features(source, align_burns_source(source, index), index)
         for name in CATEGORY_FEATURES.values():
             self.assertFalse(features.node_features[name])
