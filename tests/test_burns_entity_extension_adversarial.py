@@ -8,7 +8,8 @@ from types import SimpleNamespace
 
 from tf.fabric import Fabric
 
-from test_burns_tf_module import _index, _source, _write_synthetic_base
+from test_burns_tf_module import _index, _source
+from test_burns_entity_extension import _write_indexed_base
 from ugarit_context_parsing.alignment import align_burns_source
 from ugarit_context_parsing.entity_extension import build_entity_extension
 
@@ -18,7 +19,7 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
         source, index = _source(), _index()
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp) / "cuc"
-            _write_synthetic_base(base)
+            _write_indexed_base(base)
             api = Fabric(locations=[str(base)], modules=[""], silent="deep").loadAll(silent="deep")
             forged_g_cons = SimpleNamespace(
                 v=lambda node: "WRONG" if node == 8 else api.F.g_cons.v(node)
@@ -33,7 +34,7 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
         source, index = _source(), _index()
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp) / "cuc"
-            _write_synthetic_base(base)
+            _write_indexed_base(base)
             api = Fabric(locations=[str(base)], modules=[""], silent="deep").loadAll(silent="deep")
             forged_otype = SimpleNamespace(
                 maxNode=api.F.otype.maxNode + 1,
