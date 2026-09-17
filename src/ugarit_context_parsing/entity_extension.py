@@ -54,7 +54,12 @@ class BurnsEntityExtension:
 
 
 def _canonical_slots(api: _Api, node: int) -> tuple[int, ...]:
-    return tuple(sorted(int(slot) for slot in api.E.oslots.s(node)))
+    raw_slots = tuple(api.E.oslots.s(node))
+    if any(type(slot) is not int for slot in raw_slots):
+        raise ValueError(
+            f"CUC warp/index mismatch: non-integer oslots value at node {node}"
+        )
+    return tuple(sorted(raw_slots))
 
 
 def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
