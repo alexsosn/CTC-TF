@@ -53,6 +53,10 @@ class BurnsEntityExtension:
     findspot_audit: BurnsTabletFindspots
 
 
+def _canonical_slots(api: _Api, node: int) -> tuple[int, ...]:
+    return tuple(sorted(int(slot) for slot in api.E.oslots.s(node)))
+
+
 def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
     """Reject a different in-memory CUC graph before overriding warp features.
 
@@ -86,6 +90,8 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
             f"actual={(api.F.otype.maxSlot, api.F.otype.maxNode)!r}, "
             f"expected={(expected_slot_max, expected_node_max)!r}"
         )
+    if any(api.F.otype.v(slot) != "sign" for slot in range(1, expected_slot_max + 1)):
+        raise ValueError("CUC warp/index mismatch: sign slot node type differs")
     for nodes, node_type in (
         (index.word_g_cons, "word"),
         (index.line_nodes.values(), "line"),
@@ -99,11 +105,72 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
         for node, transcription in index.word_g_cons.items()
     ):
         raise ValueError("CUC warp/index mismatch: word transcription differs")
+
+    # Word extents are independently captured by the reviewed index. Rebuild
+    # higher structural extents from that immutable lexical warp plus the
+    # independently indexed CUC line/column/tablet hierarchy. This verifies
+    # every existing non-slot oslots edge that the v2 publisher later copies,
+    # without holding a second full structural warp in memory.
     for node, expected_slots in index.word_slots.items():
-        actual_slots = tuple(sorted(int(slot) for slot in api.E.oslots.s(node)))
-        if actual_slots != expected_slots:
+        if _canonical_slots(api, node) != expected_slots:
             raise ValueError(
                 f"CUC warp/index mismatch: word sign extent differs at node {node}"
+            )
+
+    expected_line_slots: dict[int, tuple[int, ...]] = {}
+    for key, line_node in index.line_nodes.items():
+        words = index.line_words.get(line_node)
+        if words is None:
+            raise ValueError(f"CUC warp/index mismatch: line word inventory missing at node {line_node}")
+        slots = tuple(
+            sorted(
+                {
+                    slot
+                    for word in words
+                    for slot in index.word_slots.get(word, ())
+                }
+            )
+        )
+        if words and not slots:
+            raise ValueError(f"CUC warp/index mismatch: line word extents missing at node {line_node}")
+        if _canonical_slots(api, line_node) != slots:
+            raise ValueError(
+                f"CUC warp/index mismatch: line sign extent differs at node {line_node}"
+            )
+        expected_line_slots[line_node] = slots
+
+    expected_column_slots: dict[int, tuple[int, ...]] = {}
+    for (tablet, column), column_node in index.column_nodes.items():
+        slots = tuple(
+            sorted(
+                {
+                    slot
+                    for (line_tablet, line_column, _), line_node in index.line_nodes.items()
+                    if line_tablet == tablet and line_column == column
+                    for slot in expected_line_slots[line_node]
+                }
+            )
+        )
+        if _canonical_slots(api, column_node) != slots:
+            raise ValueError(
+                f"CUC warp/index mismatch: column sign extent differs at node {column_node}"
+            )
+        expected_column_slots[column_node] = slots
+
+    for tablet, tablet_node in index.tablet_nodes.items():
+        slots = tuple(
+            sorted(
+                {
+                    slot
+                    for (column_tablet, _), column_node in index.column_nodes.items()
+                    if column_tablet == tablet
+                    for slot in expected_column_slots[column_node]
+                }
+            )
+        )
+        if _canonical_slots(api, tablet_node) != slots:
+            raise ValueError(
+                f"CUC warp/index mismatch: tablet sign extent differs at node {tablet_node}"
             )
 
 
