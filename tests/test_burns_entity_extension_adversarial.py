@@ -93,6 +93,29 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
                     forged,
                 )
 
+    def test_numeric_string_structural_slots_fail_closed_before_projection(self):
+        """Numeric coercion must not let non-TF edge values enter the publisher."""
+        source, index = _source(), _index()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "cuc"
+            _write_indexed_base(base)
+            api = Fabric(locations=[str(base)], modules=[""], silent="deep").loadAll(silent="deep")
+            real_oslots = api.E.oslots
+            forged_oslots = SimpleNamespace(
+                s=lambda node: ("1", "2", "3") if node == 13 else real_oslots.s(node)
+            )
+            forged = SimpleNamespace(
+                F=SimpleNamespace(otype=api.F.otype, g_cons=api.F.g_cons),
+                E=SimpleNamespace(oslots=forged_oslots),
+            )
+            with self.assertRaisesRegex(ValueError, "CUC.*index|warp.*mismatch"):
+                build_entity_extension(
+                    source,
+                    align_burns_source(source, index),
+                    index,
+                    forged,
+                )
+
 
 if __name__ == "__main__":
     unittest.main()
