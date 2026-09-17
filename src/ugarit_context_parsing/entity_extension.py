@@ -1,10 +1,10 @@
-"""Experimental extended CUC warp for first-class Burns occurrence entities.
+"""Extended CUC warp builder for first-class Burns occurrence entities.
 
-This is an architecture proof, NOT the current CLI/publisher's v2 output.
-An ordinary feature-only TF module cannot add node types. This builder
-produces a complete replacement `otype`/`oslots` warp for local composition;
-consumer validation, full source scope, local reporting and safe publication
-must be completed separately before exposing it as a supported product.
+The native v2 publisher uses this builder to append searchable Burns entity
+nodes while preserving reviewed CUC node identities and sign slots. The v2
+release remains gated by the real-source completeness and review work tracked
+in #68; this module therefore fails closed when its independently built CUC
+index and supplied Text-Fabric API do not describe the same warp.
 """
 from __future__ import annotations
 
@@ -62,6 +62,10 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
     """
     if not index.word_g_cons or not index.tablet_nodes:
         raise ValueError("CUC warp/index mismatch: missing indexed text or tablets")
+    if not index.word_slots or set(index.word_slots) != set(index.word_g_cons):
+        raise ValueError(
+            "CUC warp/index mismatch: missing or incomplete indexed word sign extents"
+        )
     # Actual reviewed CUC numbers sign slots, then column/line/tablet, THEN
     # words. Synthetic fixtures may use a different non-slot type order.
     # Infer the slot boundary from *all* indexed non-slot node types, never
@@ -95,6 +99,12 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
         for node, transcription in index.word_g_cons.items()
     ):
         raise ValueError("CUC warp/index mismatch: word transcription differs")
+    for node, expected_slots in index.word_slots.items():
+        actual_slots = tuple(sorted(int(slot) for slot in api.E.oslots.s(node)))
+        if actual_slots != expected_slots:
+            raise ValueError(
+                f"CUC warp/index mismatch: word sign extent differs at node {node}"
+            )
 
 
 def build_entity_extension(
