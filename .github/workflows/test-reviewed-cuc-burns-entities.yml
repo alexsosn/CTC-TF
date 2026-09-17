@@ -1,0 +1,50 @@
+name: Reviewed CUC Burns entity prototype
+
+on:
+  pull_request:
+    paths:
+      - 'src/ugarit_context_parsing/entity_extension.py'
+      - 'src/ugarit_context_parsing/tablet_findspots.py'
+      - 'src/ugarit_context_parsing/alignment.py'
+      - 'scripts/check_reviewed_cuc_burns_entities.py'
+      - '.github/workflows/test-reviewed-cuc-burns-entities.yml'
+      - 'scripts/check_ci_provenance.py'
+      - 'pyproject.toml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reviewed-cuc-burns-entities-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  real-cuc-entity-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out Burns materializer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Verify CI provenance
+        run: python scripts/check_ci_provenance.py
+      - name: Check out exact reviewed CUC
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: DT-UCPH/cuc
+          ref: ad69400f5446e1c8217af01659c7c10ab00c015b
+          path: .cuc
+          persist-credentials: false
+      - name: Check out exact Context-Fabric consumer
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: alexsosn/context-fabric
+          ref: 6cd0f73f2e806c23e8406c440760139302c5671b
+          path: .context-fabric
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+          cache: pip
+      - name: Install producer and exact consumer
+        run: python -m pip install . .context-fabric/libs/core '.context-fabric/libs/mcp[dev]'
+      - name: Prove real CUC entity extension is searchable through cfabric-mcp
+        run: python scripts/check_reviewed_cuc_burns_entities.py .cuc/tf/0.2.8

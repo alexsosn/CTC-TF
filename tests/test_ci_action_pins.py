@@ -51,10 +51,9 @@ class CiActionPinTests(unittest.TestCase):
             for path in paths
             for ref in _action_refs(path.read_text(encoding="utf-8"))
         )
-        # The dedicated Context-Fabric Burns module contract contributes three
-        # immutable checkout refs (producer, CUC, consumer) and one setup-python
-        # ref to the previously reviewed 7/4 repository totals.
-        expected = Counter({CHECKOUT: 10, SETUP_PYTHON: 5})
+        # Baseline + synthetic reviewed-CUC native test: 13 checkout / 6 setup.
+        # Ephemeral real Burns acceptance adds producer/CUC and one setup.
+        expected = Counter({CHECKOUT: 15, SETUP_PYTHON: 7})
         self.assertEqual(actual, expected)
 
 
