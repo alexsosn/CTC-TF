@@ -4,7 +4,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 
 from tf.fabric import Fabric
 
@@ -46,6 +46,45 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
             )
             with self.assertRaisesRegex(ValueError, "CUC.*index|warp.*mismatch"):
                 build_entity_extension(source, align_burns_source(source, index), index, forged)
+
+    def test_word_sign_extent_mismatch_is_rejected_before_projection(self):
+        """Equal counts/types/transcriptions must not hide a different word warp."""
+        source, index = _source(), _index()
+        # Model the independently indexed word extents the production index must
+        # retain. SimpleNamespace keeps this test RED before the dataclass grows
+        # the field: current verification silently ignores these expectations.
+        indexed = SimpleNamespace(
+            **index.__dict__,
+            word_slots=MappingProxyType(
+                {
+                    7: (1,),
+                    8: (2,),
+                    9: (3,),
+                    10: (4,),
+                    11: (5,),
+                    12: (6,),
+                }
+            ),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "cuc"
+            _write_indexed_base(base)
+            api = Fabric(locations=[str(base)], modules=[""], silent="deep").loadAll(silent="deep")
+            real_oslots = api.E.oslots
+            forged_oslots = SimpleNamespace(
+                s=lambda node: (1,) if node == 8 else real_oslots.s(node)
+            )
+            forged = SimpleNamespace(
+                F=SimpleNamespace(otype=api.F.otype, g_cons=api.F.g_cons),
+                E=SimpleNamespace(oslots=forged_oslots),
+            )
+            with self.assertRaisesRegex(ValueError, "CUC.*index|warp.*mismatch"):
+                build_entity_extension(
+                    source,
+                    align_burns_source(source, indexed),
+                    indexed,
+                    forged,
+                )
 
 
 if __name__ == "__main__":
