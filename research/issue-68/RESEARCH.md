@@ -53,6 +53,14 @@ Aggregate-only inventory from that run:
 
 This evidence validates parser/accounting, reviewed-CUC composition, native publication and aggregate coverage on the actual Workbooks. It does **not** establish semantic completeness. In particular, the 4,964 `headword_not_found` occurrences require evidence-based lexical matching analysis, and the 180 reference parser failures must not be turned into exact anchors merely to improve coverage. The Appendix and any fragment-level concordance remain unaudited.
 
+## Appendix / fragment concordance research (2026-09-23)
+
+The repository already has a separate pinned Appendix source and parser. `scripts/parse_appendix_to_csv.py` extracts an 11-column table with KTU, RS Number, genre, locus, room, point, depth, disputed flag, bibliography columns and comments. A KTU cell can span multiple RS-number rows; the parser forward-fills KTU into those subrows and preserves `is_subrow`. That gives evidence about multiple physical/excavation records associated with one KTU identifier, but it does not itself define a Text-Fabric fragment node or a mapping from an RS subrow to signs/words.
+
+The exact reviewed CUC 0.2.8 warp at `DT-UCPH/cuc@ad69400f5446e1c8217af01659c7c10ab00c015b` has these node types only: sign 1–146017, column 146018–146351, line 146352–153967, tablet 153968–154246, word 154247–182016. Its `tf/0.2.8` feature inventory has no `fragment` node type and no RS/excavation-number feature. Therefore an Appendix row cannot currently be mapped to a CUC fragment by repository evidence.
+
+Decision for the next gate: use Appendix only for an **aggregate concordance audit**. Count Appendix rows, syntactically normalizable KTU identifiers, unique tablets represented in reviewed CUC, multi-row/multi-RS KTU groups, and tablet-level findspot completeness/conflict classes. CI output must contain counts only, not KTU, RS, locus, room, point, depth, comments or page values. Do not change v2 public TF features from this audit. A later production use of Appendix findspots requires a separate source-authority/conflict policy; a fragment feature requires an actual fragment identity mapping that CUC does not currently provide.
+
 ## Decision gate
 
 Do not release v1 as a user-queryable lexical module. Develop a v2 design that prioritizes 9 category predicates and safe lexical/root queries, keeps full source/alignment in the local report, scopes consistent excavation metadata to tablets, and explicitly exposes any overlay limitation on overlapping span identity. Before calling #68 fixed, independently verify a genuine entity/span architecture or get explicit approval for a bounded overlay contract, run native `Fabric` searches, audit local source collisions and review cfabric-mcp/Agora consumers. Retain existing publication safety and source non-redistribution.
