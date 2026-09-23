@@ -52,8 +52,9 @@ class CiActionPinTests(unittest.TestCase):
             for ref in _action_refs(path.read_text(encoding="utf-8"))
         )
         # Baseline + synthetic reviewed-CUC native test: 13 checkout / 6 setup.
-        # Ephemeral real Burns acceptance adds producer/CUC and one setup.
-        expected = Counter({CHECKOUT: 15, SETUP_PYTHON: 7})
+        # Ephemeral real Burns and Appendix concordance gates each add
+        # producer/CUC checkouts plus one setup-python action.
+        expected = Counter({CHECKOUT: 17, SETUP_PYTHON: 8})
         self.assertEqual(actual, expected)
 
 
