@@ -18,6 +18,21 @@ from pathlib import Path
 from ugarit_context_parsing.cuc_index import build_reviewed_cuc_index
 from ugarit_context_parsing.identifiers import normalize_cuc_tablet
 
+_APPENDIX_COLUMNS = (
+    "page",
+    "ktu",
+    "is_subrow",
+    "rs_number",
+    "genre",
+    "locus",
+    "room",
+    "point",
+    "depth",
+    "disputed",
+    "teo_i_p",
+    "sau_p",
+    "comments",
+)
 _FINDSPOT_FIELDS = ("locus", "room", "point", "depth", "disputed")
 
 
@@ -98,6 +113,8 @@ def aggregate_appendix_concordance(
 def _read_rows(path: Path) -> tuple[dict[str, str], ...]:
     with path.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
+        if tuple(reader.fieldnames or ()) != _APPENDIX_COLUMNS:
+            raise ValueError("Appendix CSV header does not match the reviewed parser schema")
         return tuple(dict(row) for row in reader)
 
 
