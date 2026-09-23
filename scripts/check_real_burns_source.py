@@ -14,6 +14,7 @@ from pathlib import Path
 
 from tf.fabric import Fabric
 
+from scripts.audit_burns_alignment import aggregate_alignment_stats
 from ugarit_context_parsing.alignment import (
     BurnsAlignmentConfidence, BurnsAlignmentDisposition, BurnsAnchorKind,
     align_burns_source,
@@ -37,6 +38,11 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         )
     index = build_reviewed_cuc_index(cuc_root)
     alignments = align_burns_source(normalized, index)
+    alignment_stats = aggregate_alignment_stats(
+        file_count=len(source.files),
+        source=normalized,
+        alignments=alignments,
+    )
     disposition_counts = Counter(item.disposition.value for item in alignments)
     annotation_reasons = Counter((item.disposition.value, item.reason.value) for item in alignments)
     occurrence_reasons = Counter(
@@ -116,6 +122,8 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "source_annotations": len(normalized.annotations),
         "annotation_categories": {CATEGORY_NAMES[i]: category_counts[i] for i in sorted(category_counts)},
         "alignment_dispositions": dict(sorted(disposition_counts.items())),
+        "reference_statuses": alignment_stats["reference_statuses"],
+        "reference_failure_reasons": alignment_stats["reference_failure_reasons"],
         "annotation_reasons": {"/".join(key): value for key, value in sorted(annotation_reasons.items())},
         "occurrence_reasons": {"/".join(key): value for key, value in sorted(occurrence_reasons.items())},
         "category_dispositions": {"/".join(key): value for key, value in sorted(category_dispositions.items())},
