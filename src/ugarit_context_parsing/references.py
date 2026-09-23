@@ -192,32 +192,6 @@ def parse_burns_reference(
         group = raw_group.strip()
         column: str | None = None
 
-        prefix = _COLUMN_PREFIX_RE.fullmatch(group)
-        if prefix is not None:
-            column = prefix.group(1)
-            if _CANONICAL_ROMAN_RE.fullmatch(column) is None:
-                return _reject(
-                    original_ktu,
-                    original_reference,
-                    BurnsReferenceStatus.MALFORMED,
-                    BurnsReferenceReason.MALFORMED_STRUCTURE,
-                )
-            group = prefix.group(2).strip()
-            if not group:
-                return _reject(
-                    original_ktu,
-                    original_reference,
-                    BurnsReferenceStatus.MALFORMED,
-                    BurnsReferenceReason.MALFORMED_STRUCTURE,
-                )
-        elif _ALPHA_RE.search(group):
-            return _reject(
-                original_ktu,
-                original_reference,
-                BurnsReferenceStatus.MALFORMED,
-                BurnsReferenceReason.MALFORMED_STRUCTURE,
-            )
-
         items = group.split(",")
         if any(not item.strip() for item in items):
             return _reject(
@@ -229,6 +203,32 @@ def parse_burns_reference(
 
         for raw_item in items:
             item = raw_item.strip()
+            prefix = _COLUMN_PREFIX_RE.fullmatch(item)
+            if prefix is not None:
+                column = prefix.group(1)
+                if _CANONICAL_ROMAN_RE.fullmatch(column) is None:
+                    return _reject(
+                        original_ktu,
+                        original_reference,
+                        BurnsReferenceStatus.MALFORMED,
+                        BurnsReferenceReason.MALFORMED_STRUCTURE,
+                    )
+                item = prefix.group(2).strip()
+                if not item:
+                    return _reject(
+                        original_ktu,
+                        original_reference,
+                        BurnsReferenceStatus.MALFORMED,
+                        BurnsReferenceReason.MALFORMED_STRUCTURE,
+                    )
+            elif _ALPHA_RE.search(item):
+                return _reject(
+                    original_ktu,
+                    original_reference,
+                    BurnsReferenceStatus.MALFORMED,
+                    BurnsReferenceReason.MALFORMED_STRUCTURE,
+                )
+
             lines, error = _parse_item(item)
             if error is not None or lines is None:
                 return _reject(
