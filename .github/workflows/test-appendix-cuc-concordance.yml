@@ -37,8 +37,15 @@ jobs:
           python-version: '3.12'
       - name: Install parser and audit dependencies
         run: python -m pip install .
-      - name: Parse pinned Appendix runner-locally
-        run: python scripts/parse_appendix_to_csv.py --output "$RUNNER_TEMP/appendix.csv"
+      - name: Parse pinned Appendix runner-locally without logging source cells
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! python scripts/parse_appendix_to_csv.py --output "$RUNNER_TEMP/appendix.csv" \
+              >"$RUNNER_TEMP/appendix-parse.log" 2>&1; then
+            echo "Appendix parse failed; reproduce locally for source-level diagnostics" >&2
+            exit 1
+          fi
       - name: Audit Appendix against reviewed CUC using counts only
         run: python scripts/check_appendix_cuc_concordance.py "$RUNNER_TEMP/appendix.csv" .cuc/tf/0.2.8
       # Deliberately do not upload or cache Appendix, CSV output, or source-derived values.
