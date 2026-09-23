@@ -161,6 +161,10 @@ class AlignmentAuditAggregateTests(unittest.TestCase):
             stats["reference_failure_reasons"],
             {"unsupported_punctuation": 1},
         )
+        self.assertEqual(
+            stats["reference_failure_shapes"],
+            {"unsupported_punctuation|ktu=N.N|ref=R/N A-A": 1},
+        )
         payload = json.dumps(stats, ensure_ascii=False, sort_keys=True)
         self.assertNotIn(private_locator, payload)
         self.assertNotIn("1.14", payload)
