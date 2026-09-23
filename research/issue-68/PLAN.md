@@ -13,6 +13,14 @@
 
 A true occurrence requires one TF `entity` node per unambiguously aligned Burns occurrence, with source headword, root, source-defined thematic category, worksheet role, semantic status and section as **scalar TF features**. Its `oslots` covers the exact CUC word-span sign slots. Original CUC nodes retain IDs and sign-slot coordinates, but `otype`/`oslots` must be replaced by a coherent extended warp, not presented as an ordinary feature-only CUC overlay. Status `homograph_excluded` is queryable on its own entity: **a category-only query means Burns workbook membership, not a positive assertion; filter `burns_semantic_status` for positive-only research**. No `burns_lemma` is fabricated. Structural-only/ambiguous/out-of-CUC/nontextual occurrences stay accounted for in the sidecar without invented word hits.
 
+## Appendix concordance audit plan
+
+1. Add a pure aggregate helper over Appendix CSV rows plus a reviewed-CUC tablet-name set. Preserve a RED test that requires: total/source row counts; valid/invalid KTU counts; unique valid KTU counts; represented-vs-outside-CUC tablets; multi-row and multi-RS KTU counts; per-field findspot conflict/incomplete counts; and no source strings in the serialized result.
+2. Keep normalization exact: only the existing `normalize_cuc_tablet` grammar establishes a KTU key. Invalid/blank Appendix identifiers remain counted but unmapped. Do not guess RS→KTU or fragment identities.
+3. Add an ephemeral GitHub Actions gate that downloads the pinned Appendix, parses it runner-locally, checks out exact reviewed CUC 0.2.8, runs the aggregate concordance, and uploads/caches nothing. Pin all Actions by immutable SHA and update the action-pin inventory test.
+4. Treat the observed counts as research evidence only. Do not copy Appendix findspots into v2 TF output until Workbooks-vs-Appendix authority/conflict semantics are explicitly designed and tested. Do not add fragment nodes unless an upstream/source-backed fragment mapping exists.
+5. Run Python matrix + reviewed-CUC/cfabric + real Workbooks + new Appendix audit on one head, then perform a logically independent adversarial review of the Appendix audit/privacy boundary.
+
 ## Remaining integration and release blockers, in order
 
 1. **Reference and lexical coverage:** keep the aggregate reference-failure breakdown in CI; investigate the 85 invalid KTU values, 49 uncertainty-marked locators, 27 malformed structures, 10 duplicate targets and the remaining unsupported classes without logging source strings. Add parser rules only where Burns notation gives a defensible interpretation; uncertainty must not become an exact assertion by punctuation stripping. In parallel, classify the 4,964 `headword_not_found` line anchors and add only normalization/matching rules that preserve exact lexical identity. Every new rule starts with a focused RED fixture derived from a documented syntax class and reruns the real-source aggregate audit.
