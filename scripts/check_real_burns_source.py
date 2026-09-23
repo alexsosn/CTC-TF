@@ -124,6 +124,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "alignment_dispositions": dict(sorted(disposition_counts.items())),
         "reference_statuses": alignment_stats["reference_statuses"],
         "reference_failure_reasons": alignment_stats["reference_failure_reasons"],
+        "reference_failure_shapes": alignment_stats["reference_failure_shapes"],
         "annotation_reasons": {"/".join(key): value for key, value in sorted(annotation_reasons.items())},
         "occurrence_reasons": {"/".join(key): value for key, value in sorted(occurrence_reasons.items())},
         "category_dispositions": {"/".join(key): value for key, value in sorted(category_dispositions.items())},
