@@ -21,6 +21,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.sources import WORKBOOKS, ensure  # noqa: E402
 from ugarit_context_parsing.alignment import (  # noqa: E402
+    BurnsAlignmentReason,
     BurnsAnchorKind,
     BurnsAnnotationAlignment,
     align_burns_source,
@@ -50,6 +51,8 @@ def aggregate_alignment_stats(
     """Return source-safe aggregate statistics from completed alignments."""
 
     annotation_dispositions: Counter[str] = Counter()
+    reference_statuses: Counter[str] = Counter()
+    reference_failure_reasons: Counter[str] = Counter()
     occurrence_dispositions: Counter[str] = Counter()
     occurrence_reasons: Counter[str] = Counter()
     anchor_kinds: Counter[str] = Counter()
@@ -58,6 +61,9 @@ def aggregate_alignment_stats(
 
     for alignment in alignments:
         annotation_dispositions[alignment.disposition.value] += 1
+        reference_statuses[alignment.parsed_reference.status.value] += 1
+        if alignment.reason is BurnsAlignmentReason.REFERENCE_PARSE_FAILED:
+            reference_failure_reasons[alignment.parsed_reference.reason.value] += 1
         for occurrence in alignment.occurrences:
             occurrence_dispositions[occurrence.disposition.value] += 1
             occurrence_reasons[occurrence.reason.value] += 1
@@ -76,6 +82,8 @@ def aggregate_alignment_stats(
             "annotations": len(source.annotations),
         },
         "annotation_dispositions": _counter_payload(annotation_dispositions),
+        "reference_statuses": _counter_payload(reference_statuses),
+        "reference_failure_reasons": _counter_payload(reference_failure_reasons),
         "occurrence_dispositions": _counter_payload(occurrence_dispositions),
         "occurrence_reasons": _counter_payload(occurrence_reasons),
         "anchor_kinds": _counter_payload(anchor_kinds),
