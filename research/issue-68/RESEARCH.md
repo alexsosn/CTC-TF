@@ -36,9 +36,22 @@ Alignment already distinguishes word spans, line-only matches (ambiguous or head
 
 Findspots (`locus`, `room`, `point`, `depth`, `disputed`) are source-row observations, sometimes repeated or potentially contradictory for one tablet. For a consistent KTU-to-CUC tablet, attach one value to that tablet; for conflicts do not choose arbitrarily or concatenate. No CUC fragment node currently exists, so fragment-scoped properties remain in sidecar until a verifiable fragment mapping exists. The Appendix is not part of the Workbooks materializer and must be reviewed separately before being treated as a source of truth.
 
-## Evidence not yet available in this execution
+## Real-source acceptance evidence
 
-The copyright-restricted 45 locally generated CSVs, source PDFs, real reviewed-CUC TF base and installed Text-Fabric package are not present in the execution container; network Git clone fails DNS resolution. Accordingly, no real-data collision frequencies, nine actual directory spellings, fragment mapping, source-to-CUC coverage, full TF runtime behavior, or corpus-scale memory measurements have been verified here. Fixtures are *synthetic* and must not be sold as corpus validation.
+The ephemeral CI acceptance gate now downloads the pinned public Burns Workbooks, parses them runner-locally, composes the result with reviewed CUC 0.2.8, and discards all source/derived files after the job. Exact run 35852364383 on head `22d9705337373221930bd85eed5a805740aabf38` passed without uploading or logging source rows, lexical labels or locators.
+
+Aggregate-only inventory from that run:
+
+- 45 Workbook PDFs → 13,857 source records → 10,419 normalized annotations.
+- Alignment dispositions: 5,007 aligned, 40 ambiguous, 748 non-textual, 4,343 out of reviewed CUC, 80 partial, 201 unresolved references.
+- Native lexical coverage: 4,316 exact lexical word-span occurrences; 4,964 aligned occurrences remain exact-structural line anchors because the source headword was not found; 16 aligned tablet-only occurrences.
+- Unresolved reference split: 180 parser failures plus 21 parsed targets whose line is absent from reviewed CUC.
+- Parser-failure reasons are now classified without emitting source strings: `invalid_ktu=85`, `uncertain_marker=49`, `malformed_structure=27`, `duplicate_target=10`, `unsupported_wording=8`, `unsupported_punctuation=1`.
+- Reference statuses across all annotations: `parsed=9491`, `non_textual=748`, `invalid_ktu=85`, `malformed=37`, `unsupported=58`.
+- Native output was 23,903,769 bytes; peak Linux RSS was 452,332 KiB.
+- Tablet findspot audit still reports 59 conflicts, 28 incomplete mapped tablets and 5,430 unmapped source records; these remain sidecar/audit information rather than guessed TF values.
+
+This evidence validates parser/accounting, reviewed-CUC composition, native publication and aggregate coverage on the actual Workbooks. It does **not** establish semantic completeness. In particular, the 4,964 `headword_not_found` occurrences require evidence-based lexical matching analysis, and the 180 reference parser failures must not be turned into exact anchors merely to improve coverage. The Appendix and any fragment-level concordance remain unaudited.
 
 ## Decision gate
 
