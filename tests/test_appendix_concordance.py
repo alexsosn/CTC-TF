@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
-from scripts.check_appendix_cuc_concordance import aggregate_appendix_concordance
+from scripts.check_appendix_cuc_concordance import _read_rows, aggregate_appendix_concordance
 
 
 def _row(
@@ -99,6 +101,17 @@ class AppendixCucConcordanceTests(unittest.TestCase):
             "see secret comments",
         ):
             self.assertNotIn(restricted, payload)
+
+    def test_reader_rejects_appendix_schema_drift(self):
+        with tempfile.TemporaryDirectory() as temp:
+            path = Path(temp) / "appendix.csv"
+            path.write_text(
+                "ktu,rs_number,locus,room,point,depth,disputed\n"
+                "1.1,RS synthetic,GP,,,,n\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ValueError, "Appendix CSV header"):
+                _read_rows(path)
 
 
 if __name__ == "__main__":
