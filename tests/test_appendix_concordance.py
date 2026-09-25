@@ -83,6 +83,7 @@ class AppendixCucConcordanceTests(unittest.TestCase):
                 "tablets_out_of_cuc": 1,
                 "multi_row_tablets": 2,
                 "multi_rs_tablets": 1,
+                "mapped_multi_rs_tablets": 1,
                 "mapped_tablets_with_findspot_conflict": 1,
                 "mapped_tablets_with_findspot_incomplete": 1,
                 "findspot_conflicts_by_field": {"room": 1},
