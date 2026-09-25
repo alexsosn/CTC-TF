@@ -68,7 +68,8 @@ def aggregate_appendix_concordance(
 
     multi_row_tablets = sum(1 for group in by_tablet.values() if len(group) > 1)
     multi_rs_tablets = 0
-    for group in by_tablet.values():
+    mapped_multi_rs_tablets = 0
+    for tablet, group in by_tablet.items():
         rs_numbers = {
             row.get("rs_number", "").strip()
             for row in group
@@ -76,6 +77,8 @@ def aggregate_appendix_concordance(
         }
         if len(rs_numbers) > 1:
             multi_rs_tablets += 1
+            if tablet in mapped_tablets:
+                mapped_multi_rs_tablets += 1
 
     conflicts_by_field: Counter[str] = Counter()
     incomplete_by_field: Counter[str] = Counter()
@@ -103,6 +106,7 @@ def aggregate_appendix_concordance(
         "tablets_out_of_cuc": len(valid_tablets - reviewed),
         "multi_row_tablets": multi_row_tablets,
         "multi_rs_tablets": multi_rs_tablets,
+        "mapped_multi_rs_tablets": mapped_multi_rs_tablets,
         "mapped_tablets_with_findspot_conflict": len(conflict_tablets),
         "mapped_tablets_with_findspot_incomplete": len(incomplete_tablets),
         "findspot_conflicts_by_field": dict(sorted(conflicts_by_field.items())),
