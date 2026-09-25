@@ -21,6 +21,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.sources import WORKBOOKS, ensure  # noqa: E402
 from ugarit_context_parsing.alignment import (  # noqa: E402
+    BurnsAlignmentReason,
     BurnsAnchorKind,
     BurnsAnnotationAlignment,
     align_burns_source,
@@ -41,6 +42,47 @@ def _counter_payload(counter: Counter[str | int]) -> dict[str, int]:
     }
 
 
+_SAFE_PUNCTUATION = frozenset(".,;:-/?+()[]")
+
+
+def _source_safe_shape(value: str) -> str:
+    """Mask source text while retaining coarse reference syntax for aggregate audit."""
+
+    text = " ".join((value or "").split())
+    parts: list[str] = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char.isdigit():
+            end = index + 1
+            while end < len(text) and text[end].isdigit():
+                end += 1
+            parts.append("N")
+            index = end
+            continue
+        if char.isalpha():
+            end = index + 1
+            while end < len(text) and text[end].isalpha():
+                end += 1
+            run = text[index:end]
+            if run and all(item in "IVXLCDM" for item in run):
+                parts.append("R")
+            elif run and all(item in "ivxlcdm" for item in run):
+                parts.append("r")
+            else:
+                parts.append("A")
+            index = end
+            continue
+        if char.isspace():
+            parts.append(" ")
+        elif char in _SAFE_PUNCTUATION:
+            parts.append(char)
+        else:
+            parts.append("P")
+        index += 1
+    return "".join(parts).strip()
+
+
 def aggregate_alignment_stats(
     *,
     file_count: int,
@@ -50,6 +92,9 @@ def aggregate_alignment_stats(
     """Return source-safe aggregate statistics from completed alignments."""
 
     annotation_dispositions: Counter[str] = Counter()
+    reference_statuses: Counter[str] = Counter()
+    reference_failure_reasons: Counter[str] = Counter()
+    reference_failure_shapes: Counter[str] = Counter()
     occurrence_dispositions: Counter[str] = Counter()
     occurrence_reasons: Counter[str] = Counter()
     anchor_kinds: Counter[str] = Counter()
@@ -58,6 +103,14 @@ def aggregate_alignment_stats(
 
     for alignment in alignments:
         annotation_dispositions[alignment.disposition.value] += 1
+        reference_statuses[alignment.parsed_reference.status.value] += 1
+        if alignment.reason is BurnsAlignmentReason.REFERENCE_PARSE_FAILED:
+            reason = alignment.parsed_reference.reason.value
+            reference_failure_reasons[reason] += 1
+            reference_failure_shapes[
+                f"{reason}|ktu={_source_safe_shape(alignment.parsed_reference.original_ktu)}"
+                f"|ref={_source_safe_shape(alignment.parsed_reference.original_reference)}"
+            ] += 1
         for occurrence in alignment.occurrences:
             occurrence_dispositions[occurrence.disposition.value] += 1
             occurrence_reasons[occurrence.reason.value] += 1
@@ -76,6 +129,9 @@ def aggregate_alignment_stats(
             "annotations": len(source.annotations),
         },
         "annotation_dispositions": _counter_payload(annotation_dispositions),
+        "reference_statuses": _counter_payload(reference_statuses),
+        "reference_failure_reasons": _counter_payload(reference_failure_reasons),
+        "reference_failure_shapes": _counter_payload(reference_failure_shapes),
         "occurrence_dispositions": _counter_payload(occurrence_dispositions),
         "occurrence_reasons": _counter_payload(occurrence_reasons),
         "anchor_kinds": _counter_payload(anchor_kinds),

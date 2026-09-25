@@ -133,6 +133,43 @@ class AlignmentAuditAggregateTests(unittest.TestCase):
         ):
             self.assertNotIn(restricted, payload)
 
+    def test_reference_failure_classification_is_aggregate_only(self):
+        source = _source()
+        private_locator = "III/4 secret-locator"
+        parsed = ParsedBurnsReference(
+            original_ktu="1.14",
+            original_reference=private_locator,
+            status=BurnsReferenceStatus.UNSUPPORTED,
+            reason=BurnsReferenceReason.UNSUPPORTED_PUNCTUATION,
+            targets=(),
+        )
+        failed = BurnsAnnotationAlignment(
+            annotation_id="burns-annotation-sha256:a1",
+            record_ids=("burns-record-sha256:r1",),
+            parsed_reference=parsed,
+            disposition=BurnsAlignmentDisposition.UNRESOLVED_REFERENCE,
+            reason=BurnsAlignmentReason.REFERENCE_PARSE_FAILED,
+            occurrences=(),
+        )
+        stats = aggregate_alignment_stats(
+            file_count=45,
+            source=source,
+            alignments=(failed,),
+        )
+        self.assertEqual(stats["reference_statuses"], {"unsupported": 1})
+        self.assertEqual(
+            stats["reference_failure_reasons"],
+            {"unsupported_punctuation": 1},
+        )
+        self.assertEqual(
+            stats["reference_failure_shapes"],
+            {"unsupported_punctuation|ktu=N.N|ref=R/N A-A": 1},
+        )
+        payload = json.dumps(stats, ensure_ascii=False, sort_keys=True)
+        self.assertNotIn(private_locator, payload)
+        self.assertNotIn("1.14", payload)
+        self.assertNotIn(failed.annotation_id, payload)
+
     def test_span_node_multiplicity_counts_selected_annotations_not_occurrence_repetition(self):
         source = _source()
         first = _alignment()

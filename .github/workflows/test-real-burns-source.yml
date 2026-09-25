@@ -1,0 +1,42 @@
+name: Real Burns Workbooks native acceptance
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/test-real-burns-source.yml'
+      - 'scripts/check_real_burns_source.py'
+      - 'scripts/parse_workbooks_to_csv.py'
+      - 'scripts/sources.py'
+      - 'src/ugarit_context_parsing/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit-real-workbooks:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out Burns software
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Prove exact tested revision
+        run: python scripts/check_ci_provenance.py
+      - name: Check out pinned external CUC without redistributing it
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: DT-UCPH/cuc
+          ref: ad69400f5446e1c8217af01659c7c10ab00c015b
+          path: .cuc
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: '3.12'
+      - name: Install parser and materializer
+        run: python -m pip install .
+      - name: Download pinned Workbooks and parse into runner-local CSVs
+        run: python scripts/parse_workbooks_to_csv.py --output "$RUNNER_TEMP/burns-csv"
+      - name: Validate real source coverage, native output, and disk-memory cost
+        run: python scripts/check_real_burns_source.py "$RUNNER_TEMP/burns-csv" .cuc/tf/0.2.8 "$RUNNER_TEMP/burns-native"
+      # Deliberately do not upload or cache Workbooks, CSVs, or TF derivatives.

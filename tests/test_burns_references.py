@@ -99,6 +99,18 @@ class BurnsReferenceParserTests(unittest.TestCase):
             ),
         )
 
+    def test_comma_can_start_a_new_explicit_column_group(self):
+        result = parse("1.14", "II.3, 4, III.1, 2")
+        self.assert_parsed(
+            result,
+            (
+                BurnsTarget("KTU 1.14", "II", 3),
+                BurnsTarget("KTU 1.14", "II", 4),
+                BurnsTarget("KTU 1.14", "III", 1),
+                BurnsTarget("KTU 1.14", "III", 2),
+            ),
+        )
+
     def test_whitespace_is_ignored_only_for_parsing(self):
         original = " \n II . 3 , 4 ; III . 1 - 2 \t"
         result = parse("  KTU   1.14  ", original)
