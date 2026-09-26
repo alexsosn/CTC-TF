@@ -97,6 +97,12 @@ def aggregate_appendix_concordance(
                 incomplete_by_field[field] += 1
                 incomplete_tablets.add(tablet)
 
+    mapped_multi_rs = {
+        tablet
+        for tablet in mapped_tablets
+        if len({row.get("rs_number", "").strip() for row in by_tablet[tablet] if row.get("rs_number", "").strip()}) > 1
+    }
+
     return {
         "source_rows": source_rows,
         "valid_ktu_rows": valid_ktu_rows,
@@ -107,6 +113,8 @@ def aggregate_appendix_concordance(
         "multi_row_tablets": multi_row_tablets,
         "multi_rs_tablets": multi_rs_tablets,
         "mapped_multi_rs_tablets": mapped_multi_rs_tablets,
+        "mapped_multi_rs_tablets_with_findspot_conflict": len(mapped_multi_rs & conflict_tablets),
+        "mapped_multi_rs_tablets_with_findspot_incomplete": len(mapped_multi_rs & incomplete_tablets),
         "mapped_tablets_with_findspot_conflict": len(conflict_tablets),
         "mapped_tablets_with_findspot_incomplete": len(incomplete_tablets),
         "findspot_conflicts_by_field": dict(sorted(conflicts_by_field.items())),
