@@ -20,9 +20,19 @@ def _write_indexed_base(path: Path) -> None:
     """Give the small CUC fixture the `g_cons` feature present in real CUC."""
     _write_synthetic_base(path)
     ok = Fabric(locations=[], modules=[], silent="deep").save(
-        nodeFeatures={"g_cons": dict(_index().word_g_cons)},
+        nodeFeatures={
+            "g_cons": dict(_index().word_g_cons),
+            "tablet": {16: "KTU 1.14"},
+            "column": {15: "I"},
+            "line": {13: 2, 14: 3},
+        },
         edgeFeatures={},
-        metaData={"g_cons": {"valueType": "str", "description": "synthetic word transliteration"}},
+        metaData={
+            "g_cons": {"valueType": "str", "description": "synthetic word transliteration"},
+            "tablet": {"valueType": "str", "description": "synthetic tablet label"},
+            "column": {"valueType": "str", "description": "synthetic column label"},
+            "line": {"valueType": "int", "description": "synthetic line label"},
+        },
         location=str(path), module="", silent="deep",
     )
     if not ok:
