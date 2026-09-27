@@ -80,7 +80,6 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "source_records": len(source.records),
         "annotations": len(normalized.annotations),
         "native_entities": selected,
-        "lexical_gap": lexical_gap_stats,
     }:
         raise AssertionError("real Burns local report lost records, annotations, or lexical occurrences")
     inventory = {item.name for item in output.iterdir()}
@@ -136,6 +135,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "category_dispositions": {"/".join(key): value for key, value in sorted(category_dispositions.items())},
         "occurrence_states": {"/".join(key): count for key, count in sorted(occurrence_counts.items())},
         "native_entities": selected,
+        "lexical_gap": lexical_gap_stats,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
         "tablet_findspot_incomplete": len(report["findspot_audit"]["incomplete"]),
         "unmapped_findspot_records": len(report["findspot_audit"]["unmapped_record_ids"]),
