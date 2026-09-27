@@ -6,6 +6,7 @@ explicit compatibility command and a non-overwriting v2 publication policy.
 """
 from __future__ import annotations
 
+import importlib.util
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -14,6 +15,12 @@ from ugarit_context_parsing import cli
 
 
 class ModuleV2DefaultTests(unittest.TestCase):
+
+    def test_obsolete_word_projection_prototype_is_not_shipped(self):
+        self.assertIsNone(
+            importlib.util.find_spec("ugarit_context_parsing.native_features")
+        )
+
     def test_module_is_native_default_and_v1_has_explicit_legacy_command(self):
         parser = cli._parser()
         native = parser.parse_args([
