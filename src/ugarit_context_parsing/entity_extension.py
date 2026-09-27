@@ -41,6 +41,7 @@ CATEGORY_NAMES: Mapping[int, str] = MappingProxyType(
 class _Api(Protocol):
     F: object
     E: object
+    L: object
 
 
 @dataclass(frozen=True)
@@ -127,6 +128,15 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
         words = index.line_words.get(line_node)
         if words is None:
             raise ValueError(f"CUC warp/index mismatch: line word inventory missing at node {line_node}")
+        loaded_words = tuple(api.L.d(line_node, otype="word"))
+        if any(type(word) is not int for word in loaded_words):
+            raise ValueError(
+                f"CUC warp/index mismatch: non-integer line word at node {line_node}"
+            )
+        if loaded_words != words:
+            raise ValueError(
+                f"CUC warp/index mismatch: line word order differs at node {line_node}"
+            )
         slots = tuple(
             sorted(
                 {
