@@ -94,6 +94,33 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
                     api,
                 )
 
+
+    def test_line_section_label_mismatch_is_rejected_before_projection(self):
+        """Matching warp/order must not hide a line-number identity swap."""
+        source, index = _source(), _index()
+        forged_line_nodes = dict(index.line_nodes)
+        first = ("KTU 1.14", "I", 2)
+        second = ("KTU 1.14", "I", 3)
+        forged_line_nodes[first], forged_line_nodes[second] = (
+            forged_line_nodes[second],
+            forged_line_nodes[first],
+        )
+        forged_index = replace(
+            index,
+            line_nodes=MappingProxyType(forged_line_nodes),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "cuc"
+            _write_indexed_base(base)
+            api = Fabric(locations=[str(base)], modules=[""], silent="deep").loadAll(silent="deep")
+            with self.assertRaisesRegex(ValueError, "CUC.*index|warp.*mismatch"):
+                build_entity_extension(
+                    source,
+                    align_burns_source(source, forged_index),
+                    forged_index,
+                    api,
+                )
+
     def test_line_sign_extent_mismatch_is_rejected_before_projection(self):
         """Matching words must not hide an altered structural-node warp."""
         source, index = _source(), _index()
