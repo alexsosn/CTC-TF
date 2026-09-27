@@ -152,7 +152,7 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
             raise ValueError(
                 f"CUC warp/index mismatch: non-integer line section at node {line_node}"
             ) from exc
-        if (str(section[0]), str(section[1]), loaded_line) != (tablet, column, line):
+        if (str(section[0]), str(section[1]).strip(), loaded_line) != (tablet, column, line):
             raise ValueError(
                 f"CUC warp/index mismatch: line section differs at node {line_node}"
             )
