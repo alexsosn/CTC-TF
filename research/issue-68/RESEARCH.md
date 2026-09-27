@@ -51,7 +51,7 @@ Aggregate-only inventory from that run:
 - Native output was 23,903,769 bytes; peak Linux RSS was 452,332 KiB.
 - Tablet findspot audit still reports 59 conflicts, 28 incomplete mapped tablets and 5,430 unmapped source records; these remain sidecar/audit information rather than guessed TF values.
 
-This evidence validates parser/accounting, reviewed-CUC composition, native publication and aggregate coverage on the actual Workbooks. It does **not** establish semantic completeness. In particular, the 4,964 `headword_not_found` occurrences require evidence-based lexical matching analysis, and the 180 reference parser failures must not be turned into exact anchors merely to improve coverage. The Appendix and any fragment-level concordance remain unaudited.
+This evidence validates parser/accounting, reviewed-CUC composition, native publication and aggregate coverage on the actual Workbooks. It does **not** establish semantic completeness. In particular, the 4,964 `headword_not_found` occurrences require evidence-based lexical matching analysis, and the 180 reference parser failures must not be turned into exact anchors merely to improve coverage. The Appendix and fragment ambiguity were subsequently audited; see the final evidence below.
 
 ## Appendix / fragment concordance research (2026-09-23)
 
@@ -60,6 +60,19 @@ The repository already has a separate pinned Appendix source and parser. `script
 The exact reviewed CUC 0.2.8 warp at `DT-UCPH/cuc@ad69400f5446e1c8217af01659c7c10ab00c015b` has these node types only: sign 1–146017, column 146018–146351, line 146352–153967, tablet 153968–154246, word 154247–182016. Its `tf/0.2.8` feature inventory has no `fragment` node type and no RS/excavation-number feature. Therefore an Appendix row cannot currently be mapped to a CUC fragment by repository evidence.
 
 Decision for the next gate: use Appendix only for an **aggregate concordance audit**. Count Appendix rows, syntactically normalizable KTU identifiers, unique tablets represented in reviewed CUC, multi-row/multi-RS KTU groups, and tablet-level findspot completeness/conflict classes. CI output must contain counts only, not KTU, RS, locus, room, point, depth, comments or page values. Do not change v2 public TF features from this audit. A later production use of Appendix findspots requires a separate source-authority/conflict policy; a fragment feature requires an actual fragment identity mapping that CUC does not currently provide.
+
+## Final coverage and cross-source evidence (2026-09-27)
+
+The later exact-head audits close the two coverage questions without broadening alignment semantics:
+
+- After the source-supported comma-separated explicit-column parser rule, the real Workbooks audit is stable at 13,857 records / 10,419 annotations, 5,015 aligned annotations and 4,357 exact lexical native entities.
+- 4,993 resolved-line occurrences remain `headword_not_found`. A source-safe lexical-gap audit shows headword lengths 1=597, 2=2,265, 3=1,302, 4=495, 5=162, 6=140, 7=26, 8=6 tokens; exact token overlap with the resolved CUC line is partial=3,658, none=1,322, and all-present-but-noncontiguous/reordered=13.
+- Among the 597 single-token gaps, only 126 lines contain exactly one non-identical word containing the headword token; 77 have exactly one prefix candidate and 46 exactly one suffix candidate. These categories overlap and do not establish morphology. Reviewed CUC 0.2.8 has no lemma/root/morphology feature, so prefix/suffix/fuzzy projection would manufacture lexical identity. The safe representation is the existing exact structural line anchor.
+- The remaining 172 reference-parser failures are fully classified: invalid KTU=85, uncertainty marker=49, malformed structure=19, duplicate target=10, unsupported wording=8, unsupported punctuation=1. Another 21 parsed targets name lines absent from reviewed CUC. These classes remain unresolved rather than deleting uncertainty, guessing prose, silently deduplicating authored references, or inventing CUC lines.
+- Appendix audit: 2,127 rows / 1,948 unique valid KTU tablets; 222 occur in reviewed CUC. Forty mapped tablets have multiple nonblank RS numbers. All 22 mapped tablets with conflicting Appendix findspot fields and all 6 with incomplete fields are in that multi-RS set, confirming that fragment ambiguity cannot be collapsed to tablet identity.
+- Cross-source findspot audit compares only values the Workbooks policy would actually publish: 823 tablet-field values, of which 810 have complete Appendix agreement, 0 complete disagreement, 0 collide with an Appendix conflict, 10 have only incomplete Appendix evidence, and 3 have no Appendix value. No Appendix value or RS number is published into TF.
+
+These are coverage boundaries, not silent loss: exact lexical entities remain queryable, structural-only/unresolved cases remain accounted for in the local report and aggregate CI, and no source strings are emitted by the public audits.
 
 ## Decision gate
 
