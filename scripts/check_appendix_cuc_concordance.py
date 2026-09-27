@@ -90,12 +90,13 @@ def aggregate_appendix_concordance(
     for tablet in mapped_tablets:
         group = by_tablet[tablet]
         for field in _FINDSPOT_FIELDS:
-            observed = tuple(row.get(field, "").strip() for row in group)
-            nonempty = {value for value in observed if value}
-            if len(nonempty) > 1:
+            state, _, _ = classify_findspot_values(
+                [row.get(field, "") for row in group]
+            )
+            if state == "conflict":
                 conflicts_by_field[field] += 1
                 conflict_tablets.add(tablet)
-            elif len(nonempty) == 1 and not all(observed):
+            elif state == "incomplete":
                 incomplete_by_field[field] += 1
                 incomplete_tablets.add(tablet)
 
