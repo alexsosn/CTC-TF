@@ -6,10 +6,26 @@ from dataclasses import replace
 
 from test_burns_tf_module import _index, _record
 from ugarit_context_parsing.annotations import normalize_workbook_records
-from ugarit_context_parsing.tablet_findspots import derive_tablet_findspots
+from ugarit_context_parsing.tablet_findspots import classify_findspot_values, derive_tablet_findspots
 
 
 class BurnsTabletFindspotsTests(unittest.TestCase):
+
+    def test_shared_value_classifier_covers_production_findspot_states(self):
+        self.assertEqual(classify_findspot_values(()), ("absent", None, ()))
+        self.assertEqual(
+            classify_findspot_values((" R ", "R")),
+            ("complete", "R", ("R",)),
+        )
+        self.assertEqual(
+            classify_findspot_values(("R", "")),
+            ("incomplete", None, ("R",)),
+        )
+        self.assertEqual(
+            classify_findspot_values(("R2", "R1")),
+            ("conflict", None, ("R1", "R2")),
+        )
+
     def test_consistent_repeated_observations_are_one_tablet_value(self):
         source = normalize_workbook_records((
             replace(_record(1, headword="bʿl", references="I.2"), room="R", point=""),
