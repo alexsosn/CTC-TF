@@ -11,6 +11,7 @@ on:
       - 'src/ugarit_context_parsing/cuc_index.py'
       - 'src/ugarit_context_parsing/identifiers.py'
       - 'src/ugarit_context_parsing/source.py'
+      - 'src/ugarit_context_parsing/tablet_findspots.py'
       - 'tests/test_appendix_concordance.py'
   workflow_dispatch:
 
