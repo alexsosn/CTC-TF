@@ -96,6 +96,36 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
                 )
 
 
+
+    def test_column_section_may_include_unused_deeper_level(self):
+        """TF may return the configured deeper section level for a column node."""
+        source, index = _source(), _index()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "cuc"
+            _write_indexed_base(base)
+            api = Fabric(locations=[str(base)], modules=[""], silent="deep").loadAll(silent="deep")
+            real_section_from_node = api.T.sectionFromNode
+            wrapped_t = SimpleNamespace(
+                sectionFromNode=lambda node: (
+                    ("KTU 1.14", "I", None)
+                    if node == 15
+                    else real_section_from_node(node)
+                )
+            )
+            wrapped = SimpleNamespace(
+                F=api.F,
+                E=api.E,
+                L=api.L,
+                T=wrapped_t,
+            )
+            extension = build_entity_extension(
+                source,
+                align_burns_source(source, index),
+                index,
+                wrapped,
+            )
+            self.assertTrue(extension.occurrence_nodes)
+
     def test_line_section_label_mismatch_is_rejected_before_projection(self):
         """Matching warp/order must not hide a line-number identity swap."""
         source, index = _source(), _index()
