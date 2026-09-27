@@ -6,9 +6,11 @@ on:
       - '.github/workflows/test-appendix-cuc-concordance.yml'
       - 'scripts/check_appendix_cuc_concordance.py'
       - 'scripts/parse_appendix_to_csv.py'
+      - 'scripts/parse_workbooks_to_csv.py'
       - 'scripts/sources.py'
       - 'src/ugarit_context_parsing/cuc_index.py'
       - 'src/ugarit_context_parsing/identifiers.py'
+      - 'src/ugarit_context_parsing/source.py'
       - 'tests/test_appendix_concordance.py'
   workflow_dispatch:
 
@@ -51,6 +53,18 @@ jobs:
             echo "Appendix parse failed; reproduce locally for source-level diagnostics" >&2
             exit 1
           fi
-      - name: Audit Appendix against reviewed CUC using counts only
-        run: python scripts/check_appendix_cuc_concordance.py "$RUNNER_TEMP/appendix.csv" .cuc/tf/0.2.8
+      - name: Parse pinned Workbooks runner-locally without logging source cells
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! python scripts/parse_workbooks_to_csv.py --output "$RUNNER_TEMP/burns-csv" \
+              >"$RUNNER_TEMP/workbooks-parse.log" 2>&1; then
+            echo "Workbooks parse failed; reproduce locally for source-level diagnostics" >&2
+            exit 1
+          fi
+      - name: Audit Appendix and Workbooks against reviewed CUC using counts only
+        run: >-
+          python scripts/check_appendix_cuc_concordance.py
+          "$RUNNER_TEMP/appendix.csv" .cuc/tf/0.2.8
+          --workbooks "$RUNNER_TEMP/burns-csv"
       # Deliberately do not upload or cache Appendix, CSV output, or source-derived values.
