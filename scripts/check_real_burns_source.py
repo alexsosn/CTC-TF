@@ -76,12 +76,16 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
     report = json.loads((output / REPORT_FILE).read_text(encoding="utf-8"))
     if report["schema"] != SCHEMA:
         raise AssertionError("real Burns output has wrong schema")
-    if report["counts"] != {
+    expected_counts = {
         "source_records": len(source.records),
         "annotations": len(normalized.annotations),
         "native_entities": selected,
-    }:
-        raise AssertionError("real Burns local report lost records, annotations, or lexical occurrences")
+    }
+    if report["counts"] != expected_counts:
+        raise AssertionError(
+            "real Burns local report lost records, annotations, or lexical occurrences: "
+            f"actual={report['counts']!r} expected={expected_counts!r}"
+        )
     inventory = {item.name for item in output.iterdir()}
     if inventory != set(report["feature_inventory"]) | {REPORT_FILE}:
         raise AssertionError("real Burns output/report feature inventories disagree")
