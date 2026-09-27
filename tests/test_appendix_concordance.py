@@ -5,7 +5,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from scripts.check_appendix_cuc_concordance import _read_rows, aggregate_appendix_concordance
+from scripts.check_appendix_cuc_concordance import (
+    _read_rows,
+    aggregate_appendix_concordance,
+    aggregate_cross_source_findspots,
+)
 
 
 def _row(
@@ -32,6 +36,27 @@ def _row(
         "teo_i_p": "secret-teo",
         "sau_p": "secret-sau",
         "comments": "secret-comment",
+    }
+
+
+def _workbook_row(
+    *,
+    ktu: str,
+    locus: str = "",
+    room: str = "",
+    point: str = "",
+    depth: str = "",
+    disputed: str = "",
+) -> dict[str, str]:
+    return {
+        "ktu": ktu,
+        "locus": locus,
+        "room": room,
+        "point": point,
+        "depth": depth,
+        "disputed": disputed,
+        "headword": "secret-headword",
+        "comments": "secret-workbook-comment",
     }
 
 
@@ -102,6 +127,61 @@ class AppendixCucConcordanceTests(unittest.TestCase):
             "secret-page",
             "secret-comment",
             "see secret comments",
+        ):
+            self.assertNotIn(restricted, payload)
+
+
+    def test_cross_source_findspot_audit_classifies_only_aggregate_risk(self):
+        appendix_rows = (
+            _row(ktu="1.1", rs_number="RS a", locus="GP-secret", room="room-a"),
+            _row(ktu="1.1", rs_number="RS b", locus="GP-secret", room="room-b"),
+            _row(ktu="1.2", rs_number="RS c", locus="PH-secret"),
+            _row(ktu="1.2", rs_number="RS c", locus=""),
+            _row(ktu="1.3", rs_number="RS d", point="point-appendix"),
+            _row(ktu="1.4", rs_number="RS e", depth="depth-same"),
+        )
+        workbook_rows = (
+            _workbook_row(ktu="1.1", locus="GP-secret", room="room-workbook"),
+            _workbook_row(ktu="1.2", locus="PH-secret"),
+            _workbook_row(ktu="1.3", point="point-workbook"),
+            _workbook_row(ktu="1.4", depth="depth-same"),
+            _workbook_row(ktu="1.5", disputed="n-secret"),
+            _workbook_row(ktu="1.6", room="room-x"),
+            _workbook_row(ktu="1.6", room="room-y"),
+        )
+        stats = aggregate_cross_source_findspots(
+            appendix_rows=appendix_rows,
+            workbook_rows=workbook_rows,
+            cuc_tablets=frozenset(
+                {"KTU 1.1", "KTU 1.2", "KTU 1.3", "KTU 1.4", "KTU 1.5", "KTU 1.6"}
+            ),
+        )
+
+        self.assertEqual(
+            stats,
+            {
+                "workbook_published_field_values": 6,
+                "agreement": 2,
+                "complete_disagreement": 1,
+                "appendix_conflict": 1,
+                "appendix_incomplete": 1,
+                "appendix_absent": 1,
+                "agreement_by_field": {"depth": 1, "locus": 1},
+                "complete_disagreement_by_field": {"point": 1},
+                "appendix_conflict_by_field": {"room": 1},
+                "appendix_incomplete_by_field": {"locus": 1},
+                "appendix_absent_by_field": {"disputed": 1},
+            },
+        )
+        payload = json.dumps(stats, sort_keys=True)
+        for restricted in (
+            "KTU 1.1",
+            "RS a",
+            "GP-secret",
+            "room-workbook",
+            "point-appendix",
+            "secret-headword",
+            "secret-workbook-comment",
         ):
             self.assertNotIn(restricted, payload)
 
