@@ -17,6 +17,7 @@ from pathlib import Path
 
 from ugarit_context_parsing.cuc_index import build_reviewed_cuc_index
 from ugarit_context_parsing.identifiers import normalize_cuc_tablet
+from ugarit_context_parsing.source import load_csv_directory
 
 _APPENDIX_COLUMNS = (
     "page",
@@ -122,6 +123,81 @@ def aggregate_appendix_concordance(
     }
 
 
+def _field_state(
+    rows: Iterable[Mapping[str, str]],
+    field: str,
+) -> tuple[str, str | None]:
+    observed = tuple(row.get(field, "").strip() for row in rows)
+    nonempty = tuple(sorted({value for value in observed if value}))
+    if not nonempty:
+        return "absent", None
+    if len(nonempty) > 1:
+        return "conflict", None
+    if not all(observed):
+        return "incomplete", None
+    return "complete", nonempty[0]
+
+
+def aggregate_cross_source_findspots(
+    *,
+    appendix_rows: Iterable[Mapping[str, str]],
+    workbook_rows: Iterable[Mapping[str, str]],
+    cuc_tablets: Collection[str],
+) -> dict[str, object]:
+    """Classify aggregate safety of Workbooks-published tablet values only.
+
+    A Workbooks field is publishable only when all mapped rows for that tablet
+    carry one identical nonempty value, matching the production policy.
+    Appendix values are never returned.
+    """
+
+    reviewed = set(cuc_tablets)
+    appendix_by_tablet: dict[str, list[Mapping[str, str]]] = {}
+    workbook_by_tablet: dict[str, list[Mapping[str, str]]] = {}
+    for row in appendix_rows:
+        tablet = normalize_cuc_tablet(row.get("ktu", ""))
+        if tablet and tablet in reviewed:
+            appendix_by_tablet.setdefault(tablet, []).append(row)
+    for row in workbook_rows:
+        tablet = normalize_cuc_tablet(row.get("ktu", ""))
+        if tablet and tablet in reviewed:
+            workbook_by_tablet.setdefault(tablet, []).append(row)
+
+    totals: Counter[str] = Counter()
+    by_field: dict[str, Counter[str]] = {field: Counter() for field in _FINDSPOT_FIELDS}
+    for tablet, rows in workbook_by_tablet.items():
+        appendix_group = appendix_by_tablet.get(tablet, ())
+        for field in _FINDSPOT_FIELDS:
+            workbook_state, workbook_value = _field_state(rows, field)
+            if workbook_state != "complete" or workbook_value is None:
+                continue
+            totals["workbook_published_field_values"] += 1
+            appendix_state, appendix_value = _field_state(appendix_group, field)
+            if appendix_state == "complete":
+                outcome = "agreement" if appendix_value == workbook_value else "complete_disagreement"
+            else:
+                outcome = f"appendix_{appendix_state}"
+            totals[outcome] += 1
+            by_field[field][outcome] += 1
+
+    outcomes = (
+        "agreement",
+        "complete_disagreement",
+        "appendix_conflict",
+        "appendix_incomplete",
+        "appendix_absent",
+    )
+    result: dict[str, object] = {"workbook_published_field_values": totals["workbook_published_field_values"]}
+    for outcome in outcomes:
+        result[outcome] = totals[outcome]
+    for outcome in outcomes:
+        result[f"{outcome}_by_field"] = {
+            field: by_field[field][outcome]
+            for field in _FINDSPOT_FIELDS
+            if by_field[field][outcome]
+        }
+    return result
+
 def _read_rows(path: Path) -> tuple[dict[str, str], ...]:
     with path.open(encoding="utf-8", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -136,6 +212,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("appendix_csv", type=Path)
     parser.add_argument("cuc", type=Path)
+    parser.add_argument("--workbooks", type=Path)
     args = parser.parse_args(argv)
 
     rows = _read_rows(args.appendix_csv.expanduser())
@@ -148,6 +225,28 @@ def main(argv: list[str] | None = None) -> int:
         "appendix_cuc_audit="
         + json.dumps(stats, sort_keys=True, separators=(",", ":"))
     )
+    if args.workbooks is not None:
+        workbook_source = load_csv_directory(args.workbooks.expanduser())
+        workbook_rows = tuple(
+            {
+                "ktu": record.ktu,
+                "locus": record.locus,
+                "room": record.room,
+                "point": record.point,
+                "depth": record.depth,
+                "disputed": record.disputed,
+            }
+            for record in workbook_source.records
+        )
+        cross_source = aggregate_cross_source_findspots(
+            appendix_rows=rows,
+            workbook_rows=workbook_rows,
+            cuc_tablets=frozenset(index.tablet_nodes),
+        )
+        print(
+            "appendix_workbook_findspot_audit="
+            + json.dumps(cross_source, sort_keys=True, separators=(",", ":"))
+        )
     return 0
 
 
