@@ -14,7 +14,7 @@ from pathlib import Path
 
 from tf.fabric import Fabric
 
-from scripts.audit_burns_alignment import aggregate_alignment_stats
+from scripts.audit_burns_alignment import aggregate_alignment_stats, aggregate_lexical_gap_stats
 from ugarit_context_parsing.alignment import (
     BurnsAlignmentConfidence, BurnsAlignmentDisposition, BurnsAnchorKind,
     align_burns_source,
@@ -42,6 +42,11 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         file_count=len(source.files),
         source=normalized,
         alignments=alignments,
+    )
+    lexical_gap_stats = aggregate_lexical_gap_stats(
+        source=normalized,
+        alignments=alignments,
+        index=index,
     )
     disposition_counts = Counter(item.disposition.value for item in alignments)
     annotation_reasons = Counter((item.disposition.value, item.reason.value) for item in alignments)
@@ -75,6 +80,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "source_records": len(source.records),
         "annotations": len(normalized.annotations),
         "native_entities": selected,
+        "lexical_gap": lexical_gap_stats,
     }:
         raise AssertionError("real Burns local report lost records, annotations, or lexical occurrences")
     inventory = {item.name for item in output.iterdir()}
