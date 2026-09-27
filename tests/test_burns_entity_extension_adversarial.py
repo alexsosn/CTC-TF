@@ -3,8 +3,9 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
-from types import SimpleNamespace
+from types import MappingProxyType, SimpleNamespace
 
 from tf.fabric import Fabric
 
@@ -68,6 +69,28 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
                     align_burns_source(source, index),
                     index,
                     forged,
+                )
+
+
+    def test_line_word_order_mismatch_is_rejected_before_projection(self):
+        """Equal word extents and line sign union must not hide reordered words."""
+        source, index = _source(), _index()
+        forged_lines = dict(index.line_words)
+        forged_lines[14] = tuple(reversed(forged_lines[14]))
+        forged_index = replace(
+            index,
+            line_words=MappingProxyType(forged_lines),
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "cuc"
+            _write_indexed_base(base)
+            api = Fabric(locations=[str(base)], modules=[""], silent="deep").loadAll(silent="deep")
+            with self.assertRaisesRegex(ValueError, "CUC.*index|warp.*mismatch"):
+                build_entity_extension(
+                    source,
+                    align_burns_source(source, forged_index),
+                    forged_index,
+                    api,
                 )
 
     def test_line_sign_extent_mismatch_is_rejected_before_projection(self):
