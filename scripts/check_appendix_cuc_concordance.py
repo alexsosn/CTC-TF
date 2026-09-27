@@ -18,6 +18,7 @@ from pathlib import Path
 from ugarit_context_parsing.cuc_index import build_reviewed_cuc_index
 from ugarit_context_parsing.identifiers import normalize_cuc_tablet
 from ugarit_context_parsing.source import load_csv_directory
+from ugarit_context_parsing.tablet_findspots import classify_findspot_values
 
 _APPENDIX_COLUMNS = (
     "page",
@@ -123,20 +124,6 @@ def aggregate_appendix_concordance(
     }
 
 
-def _field_state(
-    rows: Iterable[Mapping[str, str]],
-    field: str,
-) -> tuple[str, str | None]:
-    observed = tuple(row.get(field, "").strip() for row in rows)
-    nonempty = tuple(sorted({value for value in observed if value}))
-    if not nonempty:
-        return "absent", None
-    if len(nonempty) > 1:
-        return "conflict", None
-    if not all(observed):
-        return "incomplete", None
-    return "complete", nonempty[0]
-
 
 def aggregate_cross_source_findspots(
     *,
@@ -168,11 +155,15 @@ def aggregate_cross_source_findspots(
     for tablet, rows in workbook_by_tablet.items():
         appendix_group = appendix_by_tablet.get(tablet, ())
         for field in _FINDSPOT_FIELDS:
-            workbook_state, workbook_value = _field_state(rows, field)
+            workbook_state, workbook_value, _ = classify_findspot_values(
+                [row.get(field, "") for row in rows]
+            )
             if workbook_state != "complete" or workbook_value is None:
                 continue
             totals["workbook_published_field_values"] += 1
-            appendix_state, appendix_value = _field_state(appendix_group, field)
+            appendix_state, appendix_value, _ = classify_findspot_values(
+                [row.get(field, "") for row in appendix_group]
+            )
             if appendix_state == "complete":
                 outcome = "agreement" if appendix_value == workbook_value else "complete_disagreement"
             else:
