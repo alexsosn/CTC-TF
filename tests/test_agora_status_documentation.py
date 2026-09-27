@@ -25,11 +25,12 @@ class AgoraStatusDocumentationContractTests(unittest.TestCase):
         self.assertIn("public", section)
         self.assertIn("context-fabric", section)
 
-    def test_parent_resource_support_is_explicitly_deferred_not_pending(self):
+    def test_parent_resource_support_is_open_but_explicitly_post_1_0(self):
         section = _agora_status_section().casefold()
         self.assertIn("alexsosn/agora#135", section)
-        self.assertTrue("deferred" in section or "not planned" in section)
-        self.assertTrue("closed" in section or "not planned" in section)
+        self.assertIn("open", section)
+        self.assertIn("deferred", section)
+        self.assertIn("after agora 1.0", section)
         self.assertNotIn("until that lands", section)
 
     def test_migration_tracker_and_no_fake_workaround_boundary_remain_explicit(self):
