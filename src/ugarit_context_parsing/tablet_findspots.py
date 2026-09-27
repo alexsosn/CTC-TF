@@ -27,6 +27,25 @@ _FIELDS: Mapping[str, str] = MappingProxyType(
 )
 
 
+def classify_findspot_values(
+    values: tuple[str, ...] | list[str],
+) -> tuple[str, str | None, tuple[str, ...]]:
+    """Classify one tablet/findspot field without exposing source identity.
+
+    Returns (state, value, distinct_nonempty), where state is absent, complete,
+    incomplete, or conflict. A scalar value is returned only for complete
+    unanimous evidence. Conflict values remain local audit evidence.
+    """
+    observed = tuple(value.strip() for value in values)
+    nonempty = tuple(sorted({value for value in observed if value}))
+    if not nonempty:
+        return ("absent", None, ())
+    if len(nonempty) > 1:
+        return ("conflict", None, nonempty)
+    if not all(observed):
+        return ("incomplete", None, nonempty)
+    return ("complete", nonempty[0], nonempty)
+
 @dataclass(frozen=True)
 class BurnsTabletFindspots:
     node_features: Mapping[str, Mapping[int, str]]
@@ -66,13 +85,15 @@ def derive_tablet_findspots(
     for tablet, records in sorted(by_tablet.items()):
         missing_fields: list[str] = []
         for attr, feature in _FIELDS.items():
-            observed = tuple(getattr(record, attr).strip() for record in records)
-            nonempty = tuple(sorted({value for value in observed if value}))
-            if len(nonempty) > 1:
+            state, value, nonempty = classify_findspot_values(
+                [getattr(record, attr) for record in records]
+            )
+            if state == "conflict":
                 conflicts.setdefault(tablet, {})[feature] = nonempty
-            elif len(nonempty) == 1 and all(observed):
-                features[feature][tablet] = nonempty[0]
-            elif len(nonempty) == 1 and not all(observed):
+            elif state == "complete":
+                assert value is not None
+                features[feature][tablet] = value
+            elif state == "incomplete":
                 missing_fields.append(feature)
         if missing_fields:
             incomplete[tablet] = tuple(sorted(missing_fields))
