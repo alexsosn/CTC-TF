@@ -108,6 +108,7 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
             forged = SimpleNamespace(
                 F=SimpleNamespace(otype=api.F.otype, g_cons=api.F.g_cons),
                 E=SimpleNamespace(oslots=forged_oslots),
+                L=api.L,
             )
             with self.assertRaisesRegex(ValueError, "CUC.*index|warp.*mismatch"):
                 build_entity_extension(
@@ -131,6 +132,7 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
             forged = SimpleNamespace(
                 F=SimpleNamespace(otype=api.F.otype, g_cons=api.F.g_cons),
                 E=SimpleNamespace(oslots=forged_oslots),
+                L=api.L,
             )
             with self.assertRaisesRegex(ValueError, "CUC.*index|warp.*mismatch"):
                 build_entity_extension(
