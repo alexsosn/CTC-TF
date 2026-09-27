@@ -1,6 +1,6 @@
 # CTC-TF / ugarit-context-parsing
 
-Local extraction and Text-Fabric materialization of Duncan Coe Burns's cultic-vocabulary **Workbooks**. The workbooks yield per-worksheet CSV files; the thesis Appendix has a separate KTU findspot table. The native v2 Text-Fabric output adds queryable Burns `entity` nodes to an exact Copenhagen Ugaritic Corpus (CUC) base **without embedding CSV-row JSON at word level**. This v2 path is experimental until #68's real-source audit and release gates pass; no generated Burns corpus is distributed here.
+Local extraction and Text-Fabric materialization of Duncan Coe Burns's cultic-vocabulary **Workbooks**. The workbooks yield per-worksheet CSV files; the thesis Appendix has a separate KTU findspot table. The native v2 Text-Fabric output adds queryable Burns `entity` nodes to an exact Copenhagen Ugaritic Corpus (CUC) base **without embedding CSV-row JSON at word level**. This v2 path is implemented on PR #69 and remains unreleased until its frozen final head is independently reviewed; no generated Burns corpus is distributed here.
 
 ## Source and extraction
 
@@ -64,7 +64,7 @@ An exactly aligned lexical occurrence gets its **own** entity, even when two Bur
 
 `burns_locus`, `burns_room`, `burns_point`, `burns_depth`, `burns_disputed` are emitted only on the corresponding CUC `tablet` node if **all** applicable Burns observations consistently support that value. Disagreements and missing evidence remain in the local sidecar; no fragment nodes or per-word location duplicates are fabricated. The local `burns-entity-report.json` holds provenance, full source records, entity-to-occurrence mapping, CUC compatibility and alignment/findspot audit. Generated Burns-derived data must stay local.
 
-See [`docs/native-entities.md`](docs/native-entities.md) for a focused invocation/query example. Native CUC + synthetic Burns + `cfabric-mcp` integration has passed, but actual Burns workbook/Appendix completeness, fragment concordance, full-scale disk/memory costs and a final adversarial review remain release blockers in [#68](https://github.com/alexsosn/CTC-TF/issues/68). Do not claim the v2 artifact production-ready based on synthetic tests alone.
+See [`docs/native-entities.md`](docs/native-entities.md) for a focused invocation/query example. The acceptance gates exercise the actual 45 Workbooks (13,857 rows / 10,419 annotations), reviewed CUC 0.2.8, native Text-Fabric composition and `cfabric-mcp`, plus the separately pinned Appendix. The current audit yields 4,357 exact lexical entity occurrences; 4,993 resolved-line occurrences remain structural-only because exact surface identity is not established. CUC 0.2.8 has no lemma/morphology feature, so the module does not manufacture fuzzy or prefix/suffix matches. The remaining 172 reference-parser failures and 21 parsed-but-missing CUC lines stay explicitly accounted for rather than coerced.
 
 ### Explicit v1 compatibility and rollback
 
@@ -83,11 +83,11 @@ The older standalone converter remains available under `convert` for compatibili
 
 ### Agora status
 
-`agora.materializer.json` currently declares **legacy single-input** CSV and PDF materializers invoking the standalone `convert` command. This is not a native v2 installation, even when Agora's legacy manifest validation passes. The public `module` CLI is the local queryable path; Context-Fabric/cfabric-mcp can load the verified CUC and native Burns directories as ordered locations. The two-input parent-resource requirement in `alexsosn/Agora#135` was **closed as not planned / deferred** from Agora 1.0; Burns migration tracker #29 therefore remains blocked on future scope. We do not advertise a fake one-input materializer, copy CUC into Burns, or enable a network fallback. The manifest is intentionally unchanged pending that work.
+`agora.materializer.json` currently declares **legacy single-input** CSV and PDF materializers invoking the standalone `convert` command. This is not a native v2 installation, even when Agora's legacy manifest validation passes. The public `module` CLI is the local queryable path; Context-Fabric/cfabric-mcp can load the verified CUC and native Burns directories as ordered locations. The two-input parent-resource requirement in `alexsosn/Agora#135` is **open and explicitly deferred to the first release after Agora 1.0**; Burns migration tracker #29 therefore remains a separate future integration task. We do not advertise a fake one-input materializer, copy CUC into Burns, or enable a network fallback. The manifest is intentionally unchanged pending that work.
 
 ### Appendix scope
 
-`output/appendix.csv` is a separate 11-column KTU catalogue, not a tenth lexical workbook. It is not silently mixed into the lexical module. Exact Appendix-to-fragment mapping requires source evidence and a separate reviewed design.
+`output/appendix.csv` is a separate 11-column KTU catalogue, not a tenth lexical workbook, and is not silently mixed into the lexical module. The aggregate concordance audit finds 40 reviewed-CUC-mapped tablets with multiple RS numbers; all mapped Appendix findspot conflicts/incompleteness occur inside that set. A cross-source check found no disagreement between Appendix and the 823 tablet-field values the Workbooks policy would publish. No fragment nodes are created because reviewed CUC 0.2.8 supplies no fragment/RS identity mapping.
 
 ## License and attribution
 
