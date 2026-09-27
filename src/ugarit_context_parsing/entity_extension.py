@@ -129,7 +129,7 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
             raise ValueError(
                 f"CUC warp/index mismatch: invalid column section at node {column_node}"
             )
-        loaded_section = (str(section[0]), str(section[1]))
+        loaded_section = (str(section[0]), str(section[1]).strip())
         if loaded_section != (tablet, column):
             raise ValueError(
                 f"CUC warp/index mismatch: column section differs at node {column_node}"
