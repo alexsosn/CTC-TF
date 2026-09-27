@@ -26,7 +26,7 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
                 v=lambda node: "WRONG" if node == 8 else api.F.g_cons.v(node)
             )
             forged = SimpleNamespace(
-                F=SimpleNamespace(otype=api.F.otype, g_cons=forged_g_cons), E=api.E, L=api.L,
+                F=SimpleNamespace(otype=api.F.otype, g_cons=forged_g_cons, tablet=api.F.tablet, column=api.F.column, line=api.F.line), E=api.E, L=api.L,
             )
             with self.assertRaisesRegex(ValueError, "CUC.*index|warp.*mismatch"):
                 build_entity_extension(source, align_burns_source(source, index), index, forged)
@@ -43,7 +43,7 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
                 v=api.F.otype.v,
             )
             forged = SimpleNamespace(
-                F=SimpleNamespace(otype=forged_otype, g_cons=api.F.g_cons), E=api.E, L=api.L,
+                F=SimpleNamespace(otype=forged_otype, g_cons=api.F.g_cons, tablet=api.F.tablet, column=api.F.column, line=api.F.line), E=api.E, L=api.L,
             )
             with self.assertRaisesRegex(ValueError, "CUC.*index|warp.*mismatch"):
                 build_entity_extension(source, align_burns_source(source, index), index, forged)
@@ -60,7 +60,7 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
                 s=lambda node: (1,) if node == 8 else real_oslots.s(node)
             )
             forged = SimpleNamespace(
-                F=SimpleNamespace(otype=api.F.otype, g_cons=api.F.g_cons),
+                F=SimpleNamespace(otype=api.F.otype, g_cons=api.F.g_cons, tablet=api.F.tablet, column=api.F.column, line=api.F.line),
                 E=SimpleNamespace(oslots=forged_oslots),
                 L=api.L,
             )
