@@ -159,7 +159,7 @@ class EntityExtensionWarpMismatchTests(unittest.TestCase):
                 s=lambda node: ("1", "2", "3") if node == 13 else real_oslots.s(node)
             )
             forged = SimpleNamespace(
-                F=SimpleNamespace(otype=api.F.otype, g_cons=api.F.g_cons),
+                F=SimpleNamespace(otype=api.F.otype, g_cons=api.F.g_cons, tablet=api.F.tablet),
                 E=SimpleNamespace(oslots=forged_oslots),
                 L=api.L,
                 T=api.T,
