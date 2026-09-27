@@ -32,6 +32,7 @@ def _write_indexed_base(path: Path) -> None:
             "tablet": {"valueType": "str", "description": "synthetic tablet label"},
             "column": {"valueType": "str", "description": "synthetic column label"},
             "line": {"valueType": "int", "description": "synthetic line label"},
+            "otext": {"sectionTypes": "tablet,column,line", "sectionFeatures": "tablet,column,line"},
         },
         location=str(path), module="", silent="deep",
     )
