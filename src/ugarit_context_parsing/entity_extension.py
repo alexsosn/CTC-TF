@@ -42,6 +42,7 @@ class _Api(Protocol):
     F: object
     E: object
     L: object
+    T: object
 
 
 @dataclass(frozen=True)
@@ -114,6 +115,8 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
 
     # Section labels and ancestry are semantic identity too. Equal warp
     # extents alone cannot detect a caller swapping line/column/tablet labels.
+    # Mirror the reviewed-index adapter: tablet is the direct feature, while
+    # column/line identity comes from Text-Fabric's configured section model.
     for tablet, tablet_node in index.tablet_nodes.items():
         loaded = api.F.tablet.v(tablet_node)
         if loaded is None or str(loaded) != tablet:
@@ -121,10 +124,11 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
                 f"CUC warp/index mismatch: tablet label differs at node {tablet_node}"
             )
     for (tablet, column), column_node in index.column_nodes.items():
-        loaded = api.F.column.v(column_node)
-        if loaded is None or str(loaded) != column:
+        section = api.T.sectionFromNode(column_node)
+        loaded_section = tuple(str(value) for value in section) if section else ()
+        if loaded_section != (tablet, column):
             raise ValueError(
-                f"CUC warp/index mismatch: column label differs at node {column_node}"
+                f"CUC warp/index mismatch: column section differs at node {column_node}"
             )
         expected_tablet = index.tablet_nodes[tablet]
         loaded_tablets = tuple(api.L.u(column_node, otype="tablet"))
@@ -133,10 +137,20 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
                 f"CUC warp/index mismatch: column parent differs at node {column_node}"
             )
     for (tablet, column, line), line_node in index.line_nodes.items():
-        loaded = api.F.line.v(line_node)
-        if loaded is None or str(loaded) != str(line):
+        section = api.T.sectionFromNode(line_node)
+        if not section or len(section) != 3:
             raise ValueError(
-                f"CUC warp/index mismatch: line label differs at node {line_node}"
+                f"CUC warp/index mismatch: invalid line section at node {line_node}"
+            )
+        try:
+            loaded_line = int(section[2])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"CUC warp/index mismatch: non-integer line section at node {line_node}"
+            ) from exc
+        if (str(section[0]), str(section[1]), loaded_line) != (tablet, column, line):
+            raise ValueError(
+                f"CUC warp/index mismatch: line section differs at node {line_node}"
             )
         expected_column = index.column_nodes[(tablet, column)]
         expected_tablet = index.tablet_nodes[tablet]
