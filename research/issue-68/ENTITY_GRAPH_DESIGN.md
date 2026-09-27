@@ -1,5 +1,17 @@
 # #68 Entity-node architecture decision: experimental derived corpus
 
+> **Outcome (2026-09-27):** this document records the exploratory decision that
+> led to the final v2 architecture. The intermediate feature-only
+> `native_features.py` word projection was superseded and removed. The accepted
+> implementation is `entity_extension.py`: the primary `module` command writes
+> a separate local overlay with a complete extended warp, preserves every
+> reviewed-CUC node/sign identity, appends one `otype=entity` node per exact
+> lexical Burns occurrence, and retains `module-v1` only as explicit
+> compatibility. Real Workbooks, Appendix, reviewed-CUC and cfabric-mcp gates
+> described in README/docs now supply the evidence that was unavailable at the
+> exploratory stage below.
+
+
 ## Verified TF contracts (2026-09-16)
 
 The TF data model defines `otype`/`oslots` as a corpus warp, and a *module* as features built around the same warp. A feature-only Burns overlay cannot add individually addressable annotation nodes: https://annotation.github.io/text-fabric/tf/about/datamodel.html . The official `tf.dataset.modify` API supports `addTypes={...}` containing `nodeFrom`, `nodeTo`, `nodeSlots`, `nodeFeatures`, and `edgeFeatures`, but writes **a new complete dataset** and warns that added node types can shift existing node numbers: https://annotation.github.io/text-fabric/tf/dataset/modify.html . TF search accepts a node type and scalar constraints, such as `burnsEntity burns_headword=bʿl`, without JSON parsing: https://annotation.github.io/text-fabric/tf/about/searchusage.html .
