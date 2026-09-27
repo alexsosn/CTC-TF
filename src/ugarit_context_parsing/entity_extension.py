@@ -112,6 +112,45 @@ def _verify_loaded_warp(index: ReviewedCucIndex, api: _Api) -> None:
     ):
         raise ValueError("CUC warp/index mismatch: word transcription differs")
 
+    # Section labels and ancestry are semantic identity too. Equal warp
+    # extents alone cannot detect a caller swapping line/column/tablet labels.
+    for tablet, tablet_node in index.tablet_nodes.items():
+        loaded = api.F.tablet.v(tablet_node)
+        if loaded is None or str(loaded) != tablet:
+            raise ValueError(
+                f"CUC warp/index mismatch: tablet label differs at node {tablet_node}"
+            )
+    for (tablet, column), column_node in index.column_nodes.items():
+        loaded = api.F.column.v(column_node)
+        if loaded is None or str(loaded) != column:
+            raise ValueError(
+                f"CUC warp/index mismatch: column label differs at node {column_node}"
+            )
+        expected_tablet = index.tablet_nodes[tablet]
+        loaded_tablets = tuple(api.L.u(column_node, otype="tablet"))
+        if any(type(node) is not int for node in loaded_tablets) or loaded_tablets != (expected_tablet,):
+            raise ValueError(
+                f"CUC warp/index mismatch: column parent differs at node {column_node}"
+            )
+    for (tablet, column, line), line_node in index.line_nodes.items():
+        loaded = api.F.line.v(line_node)
+        if loaded is None or str(loaded) != str(line):
+            raise ValueError(
+                f"CUC warp/index mismatch: line label differs at node {line_node}"
+            )
+        expected_column = index.column_nodes[(tablet, column)]
+        expected_tablet = index.tablet_nodes[tablet]
+        loaded_columns = tuple(api.L.u(line_node, otype="column"))
+        loaded_tablets = tuple(api.L.u(line_node, otype="tablet"))
+        if (
+            any(type(node) is not int for node in (*loaded_columns, *loaded_tablets))
+            or loaded_columns != (expected_column,)
+            or loaded_tablets != (expected_tablet,)
+        ):
+            raise ValueError(
+                f"CUC warp/index mismatch: line parent differs at node {line_node}"
+            )
+
     # Word extents are independently captured by the reviewed index. Rebuild
     # higher structural extents from that immutable lexical warp plus the
     # independently indexed CUC line/column/tablet hierarchy. This verifies
