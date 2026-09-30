@@ -21,8 +21,10 @@ if str(ROOT) not in sys.path:
 
 from scripts.sources import WORKBOOKS, ensure  # noqa: E402
 from ugarit_context_parsing.alignment import (  # noqa: E402
+    BurnsAlignmentReason,
     BurnsAnchorKind,
     BurnsAnnotationAlignment,
+    _headword_tokens,
     align_burns_source,
     alignment_report_json,
 )
@@ -30,7 +32,7 @@ from ugarit_context_parsing.annotations import (  # noqa: E402
     NormalizedBurnsSource,
     normalize_workbook_records,
 )
-from ugarit_context_parsing.cuc_index import build_reviewed_cuc_index  # noqa: E402
+from ugarit_context_parsing.cuc_index import ReviewedCucIndex, build_reviewed_cuc_index  # noqa: E402
 from ugarit_context_parsing.pdf_source import load_pdf_directory  # noqa: E402
 
 
@@ -38,6 +40,126 @@ def _counter_payload(counter: Counter[str | int]) -> dict[str, int]:
     return {
         str(key): value
         for key, value in sorted(counter.items(), key=lambda item: str(item[0]))
+    }
+
+
+_SAFE_PUNCTUATION = frozenset(".,;:-/?+()[]")
+
+
+def _source_safe_shape(value: str) -> str:
+    """Mask source text while retaining coarse reference syntax for aggregate audit."""
+
+    text = " ".join((value or "").split())
+    parts: list[str] = []
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if char.isdigit():
+            end = index + 1
+            while end < len(text) and text[end].isdigit():
+                end += 1
+            parts.append("N")
+            index = end
+            continue
+        if char.isalpha():
+            end = index + 1
+            while end < len(text) and text[end].isalpha():
+                end += 1
+            run = text[index:end]
+            if run and all(item in "IVXLCDM" for item in run):
+                parts.append("R")
+            elif run and all(item in "ivxlcdm" for item in run):
+                parts.append("r")
+            else:
+                parts.append("A")
+            index = end
+            continue
+        if char.isspace():
+            parts.append(" ")
+        elif char in _SAFE_PUNCTUATION:
+            parts.append(char)
+        else:
+            parts.append("P")
+        index += 1
+    return "".join(parts).strip()
+
+
+def _candidate_count_bucket(count: int) -> str:
+    if count <= 0:
+        return "0"
+    if count == 1:
+        return "1"
+    return "2+"
+
+
+def aggregate_lexical_gap_stats(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Characterize HEADWORD_NOT_FOUND structurally without source strings."""
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in lexical-gap audit source")
+
+    occurrence_count = 0
+    headword_token_counts: Counter[int] = Counter()
+    line_word_counts: Counter[int] = Counter()
+    overlap_counts: Counter[str] = Counter()
+    prefix_candidates: Counter[str] = Counter()
+    suffix_candidates: Counter[str] = Counter()
+    contains_candidates: Counter[str] = Counter()
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("alignment references unknown annotation in lexical-gap audit")
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            line_node = occurrence.context_line_node
+            if line_node is None or line_node not in index.line_words:
+                raise ValueError("HEADWORD_NOT_FOUND occurrence lacks indexed context line")
+            words = index.line_words[line_node]
+            try:
+                values = tuple(index.word_g_cons[word] for word in words)
+            except KeyError as exc:
+                raise ValueError("lexical-gap audit line references word without g_cons") from exc
+
+            tokens = _headword_tokens(annotation.headword)
+            occurrence_count += 1
+            headword_token_counts[len(tokens)] += 1
+            line_word_counts[len(values)] += 1
+
+            wanted = Counter(tokens)
+            available = Counter(values)
+            exact_hits = sum(min(count, available[token]) for token, count in wanted.items())
+            if exact_hits == 0:
+                overlap_counts["none"] += 1
+            elif exact_hits == sum(wanted.values()):
+                overlap_counts["all_present_noncontiguous_or_reordered"] += 1
+            else:
+                overlap_counts["partial"] += 1
+
+            if len(tokens) == 1:
+                token = tokens[0]
+                prefix = sum(value != token and value.startswith(token) for value in values)
+                suffix = sum(value != token and value.endswith(token) for value in values)
+                contains = sum(value != token and token in value for value in values)
+                prefix_candidates[_candidate_count_bucket(prefix)] += 1
+                suffix_candidates[_candidate_count_bucket(suffix)] += 1
+                contains_candidates[_candidate_count_bucket(contains)] += 1
+
+    return {
+        "occurrences": occurrence_count,
+        "headword_token_counts": _counter_payload(headword_token_counts),
+        "line_word_counts": _counter_payload(line_word_counts),
+        "exact_token_overlap": _counter_payload(overlap_counts),
+        "single_token_prefix_candidates": _counter_payload(prefix_candidates),
+        "single_token_suffix_candidates": _counter_payload(suffix_candidates),
+        "single_token_contains_candidates": _counter_payload(contains_candidates),
     }
 
 
@@ -50,6 +172,9 @@ def aggregate_alignment_stats(
     """Return source-safe aggregate statistics from completed alignments."""
 
     annotation_dispositions: Counter[str] = Counter()
+    reference_statuses: Counter[str] = Counter()
+    reference_failure_reasons: Counter[str] = Counter()
+    reference_failure_shapes: Counter[str] = Counter()
     occurrence_dispositions: Counter[str] = Counter()
     occurrence_reasons: Counter[str] = Counter()
     anchor_kinds: Counter[str] = Counter()
@@ -58,6 +183,14 @@ def aggregate_alignment_stats(
 
     for alignment in alignments:
         annotation_dispositions[alignment.disposition.value] += 1
+        reference_statuses[alignment.parsed_reference.status.value] += 1
+        if alignment.reason is BurnsAlignmentReason.REFERENCE_PARSE_FAILED:
+            reason = alignment.parsed_reference.reason.value
+            reference_failure_reasons[reason] += 1
+            reference_failure_shapes[
+                f"{reason}|ktu={_source_safe_shape(alignment.parsed_reference.original_ktu)}"
+                f"|ref={_source_safe_shape(alignment.parsed_reference.original_reference)}"
+            ] += 1
         for occurrence in alignment.occurrences:
             occurrence_dispositions[occurrence.disposition.value] += 1
             occurrence_reasons[occurrence.reason.value] += 1
@@ -76,6 +209,9 @@ def aggregate_alignment_stats(
             "annotations": len(source.annotations),
         },
         "annotation_dispositions": _counter_payload(annotation_dispositions),
+        "reference_statuses": _counter_payload(reference_statuses),
+        "reference_failure_reasons": _counter_payload(reference_failure_reasons),
+        "reference_failure_shapes": _counter_payload(reference_failure_shapes),
         "occurrence_dispositions": _counter_payload(occurrence_dispositions),
         "occurrence_reasons": _counter_payload(occurrence_reasons),
         "anchor_kinds": _counter_payload(anchor_kinds),

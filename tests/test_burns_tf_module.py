@@ -130,6 +130,16 @@ def _index(*, compatibility: CucCompatibility | None = None) -> ReviewedCucIndex
                 12: "x",
             }
         ),
+        word_slots=MappingProxyType(
+            {
+                7: (1,),
+                8: (2,),
+                9: (3,),
+                10: (4,),
+                11: (5,),
+                12: (6,),
+            }
+        ),
     )
 
 
