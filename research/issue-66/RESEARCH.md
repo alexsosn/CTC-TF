@@ -75,3 +75,28 @@ The test contract should also prove that writer exceptions never escape as their
 This is post-v0.3.0 ergonomics work. Keep the branch reviewed but unmerged until GitHub Release `v0.3.0` exists at exact frozen release commit `4994a45c53a73c09a4939731bc56af585b3ba30a`.
 
 Because this branch is stacked on #56, post-release landing order is #56 first, then #66. Writer-safety changes #60/#61/#65 are independent of this CLI boundary and can then surface their rejection through the same concise diagnostics.
+
+## Native-v2 reconciliation discovered after the original GREEN
+
+PR #69 subsequently changes the post-release public command topology: `module`
+becomes the native-v2 entity publisher, while the v1 feature writer moves behind
+explicit `module-v1`. The current #66 implementation remains a valid,
+reviewable patch on its frozen v1 stack, but it must not be mechanically merged
+after #69 while still wrapping only `write_burns_module()`.
+
+Before eventual landing after the frozen first release, refresh this branch
+against the chosen post-release integration order and preserve the same narrow
+boundary for all public writers:
+
+- native `module` / `entities`: translate only expected
+  `write_entity_artifact()` publication errors;
+- explicit `module-v1`: translate only expected `write_burns_module()`
+  publication errors;
+- `convert`: retain the existing `write_artifact()` legacy diagnostic;
+- normalization, CUC verification, alignment and artifact construction remain
+  outside publication exception handling.
+
+That rebase/reconciliation requires fresh RED/GREEN where routing differs and a
+new exact-head reviewed-CUC/cfabric smoke. The current branch must therefore be
+treated as pre-rebase reviewed evidence, not as a future conflict-resolution
+recipe.
