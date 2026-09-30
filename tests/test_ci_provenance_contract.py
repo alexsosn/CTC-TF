@@ -76,6 +76,12 @@ class CiProvenanceWorkflowContractTests(unittest.TestCase):
         self.assertGreater(checkout_jobs, 0)
         self.assertEqual(provenance_steps, checkout_jobs)
 
+    def test_reviewed_cuc_consumer_smoke_tracks_all_package_changes(self):
+        workflow = (
+            WORKFLOWS / "test-reviewed-cuc-burns-entities.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("      - 'src/ugarit_context_parsing/**'", workflow)
+
     def test_job_block_parser_keeps_steps_in_their_own_jobs(self):
         workflow = """jobs:
   alpha:
