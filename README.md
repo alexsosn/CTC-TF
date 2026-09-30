@@ -79,11 +79,11 @@ ugarit-context-parsing module-v1 output \
 
 `module-v1` retains the previous `burns_annotations.tf`, `burns_annotation_ids.tf`, `burns_semantic_statuses.tf`, `burns_worksheet_roles.tf`, `burns_sections.tf`, `burns_headwords.tf` and `burns-module-report.json` schema, including its existing output behavior for compatibility. **Do not load v1 and v2 together:** the two schemas have different meanings and v2 owns the extended warp. To roll back, restore the original base + v1 ordered locations and the retained v1 output. Pending PR #65 hardcodes the old feature inventory and must be reconciled before release.
 
-The older standalone converter remains available under `convert` for compatibility. It creates a **different corpus**, with row slots and `worksheet`/`section`/`entry` nodes rather than CUC word/sign structure, and emits `conversion-report.json`; it is deprecated and not a native CUC module.
-
 ### Agora status
 
-`agora.materializer.json` currently declares **legacy single-input** CSV and PDF materializers invoking the standalone `convert` command. This is not a native v2 installation, even when Agora's legacy manifest validation passes. The public `module` CLI is the local queryable path; Context-Fabric/cfabric-mcp can load the verified CUC and native Burns directories as ordered locations. The two-input parent-resource requirement in `alexsosn/Agora#135` is **open and explicitly deferred to the first release after Agora 1.0**; Burns migration tracker #29 therefore remains a separate future integration task. We do not advertise a fake one-input materializer, copy CUC into Burns, or enable a network fallback. The manifest is intentionally unchanged pending that work.
+Agora v1.0.0 and PR `alexsosn/Agora#175` register `cuc-burns` as a CUC-attached `local-module` feature module with an exact parent-base contract. Agora no longer registers or installs the old standalone Burns converter. Users materialize Burns locally and Agora composes it with the reviewed CUC parent.
+
+Fully managed execution — user-local Burns source plus an Agora-managed read-only CUC parent passed to the upstream materializer — remains tracked in open `alexsosn/Agora#135`. Until that orchestration exists, this repository does not advertise a fake one-input materializer, copy CUC into Burns output, or enable a network fallback during materialization.
 
 ### Appendix scope
 
