@@ -171,3 +171,27 @@ with no manually attached Burns-derived artifacts. Verify tag/release identity.
 Then refresh every post-release PR that still names `4994a45...` as its gate.
 Rebase/retest them against the actual released master and repeat exact-head
 independent review when conflict resolution or public routing changes behavior.
+
+
+### Phase 9a — enforce release-surface acceptance triggers
+
+Observed on release-note GREEN `2aa8e963...`: only the always-on Tests workflow
+scheduled. The five expensive acceptance workflows use path filters that do not
+currently include release-only files.
+
+Before freezing the release head:
+
+1. RED a workflow contract requiring each path-filtered acceptance workflow to
+   include both `docs/releases/**` and `tests/test_release_version.py`.
+2. GREEN only those `pull_request.paths` lists.
+3. Keep unrelated documentation from triggering the expensive gates.
+4. Use the resulting release-prep head itself to prove that all six workflows
+   schedule and pass.
+
+The five path-filtered acceptance workflows are:
+
+- `test-reviewed-cuc-index.yml`;
+- `test-reviewed-cuc-burns-entities.yml`;
+- `test-context-fabric-burns-module.yml`;
+- `test-real-burns-source.yml`;
+- `test-appendix-cuc-concordance.yml`.
