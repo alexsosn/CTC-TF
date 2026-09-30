@@ -1,24 +1,15 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 from .alignment import align_burns_source
 from .annotations import BurnsNormalizationError, normalize_workbook_records
 from .cuc_index import CucCompatibilityError, build_reviewed_cuc_index
-from .graph import build_tf_data
 from .module import build_burns_module, build_burns_module_report, write_burns_module
 from .pdf_source import load_pdf_directory
-from .report import build_conversion_report
 from .source import SourceValidationError, load_csv_directory
-from .writer import write_artifact
 
-
-LEGACY_CONVERT_WARNING = (
-    "deprecated: 'convert' creates the legacy standalone Burns row-slot corpus; "
-    "use 'module' for the CUC-aligned feature module"
-)
 
 
 def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
@@ -62,12 +53,6 @@ def _parser() -> argparse.ArgumentParser:
     )
     _add_source_arguments(entities)
     _add_cuc_argument(entities)
-
-    convert = sub.add_parser(
-        "convert",
-        help="deprecated legacy standalone Burns row-slot corpus materialization",
-    )
-    _add_source_arguments(convert)
     return parser
 
 
@@ -159,34 +144,13 @@ def _run_entities(args: argparse.Namespace) -> int:
     return 0
 
 
-def _run_convert(args: argparse.Namespace) -> int:
-    print(LEGACY_CONVERT_WARNING, file=sys.stderr)
-    try:
-        source = _load_source(args)
-    except SourceValidationError as exc:
-        raise SystemExit(f"source validation failed: {exc}") from exc
-    data = build_tf_data(source)
-    report = build_conversion_report(
-        source,
-        data,
-        source_format=args.input_format,
-    )
-    if not write_artifact(data, report, args.output):
-        raise SystemExit("Text-Fabric refused the generated dataset")
-    print(
-        f"converted {len(source.files)} Workbook {args.input_format.upper()} files / "
-        f"{len(source.records)} records to {args.output}"
-    )
-    return 0
-
-
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command in ("module", "entities"):
         return _run_entities(args)
     if args.command == "module-v1":
         return _run_module(args)
-    return _run_convert(args)
+    raise AssertionError(f"unhandled command: {args.command}")
 
 
 if __name__ == "__main__":
