@@ -62,3 +62,22 @@ Any material finding gets a review-derived RED before correction.
 Keep draft/unmerged until GitHub Release `v0.3.0` exists at exact commit `4994a45c53a73c09a4939731bc56af585b3ba30a`.
 
 This branch is stacked on reviewed #56. After release, land #56 first, refresh/retest this branch if necessary, then merge #66 with expected-head protection.
+
+## Phase 6 — mandatory native-v2 reconciliation before merge
+
+PR #69 changes the eventual public routing after this plan was first executed.
+Once the frozen `v0.3.0` release exists and post-release ordering is selected:
+
+1. Rebase/refresh against the native-v2 command topology.
+2. Add/adjust RED contracts so `module`/native-v2 writer exceptions become
+   concise publication diagnostics and `module-v1` remains explicitly covered.
+3. Keep `convert` behavior and all pre-publication escape tests unchanged.
+4. Apply the same narrow writer-call GREEN; do not catch construction/alignment
+   failures.
+5. Rerun Python 3.10/3.12/3.13, installed-package, Agora, generic
+   Context-Fabric, reviewed-CUC, and native Burns/cfabric-mcp gates.
+6. Conduct a new logically independent adversarial review on that rebased exact
+   head before merge.
+
+The already-preserved v1 RED/GREEN history remains evidence for the boundary
+design but does not substitute for this routing reconciliation.
