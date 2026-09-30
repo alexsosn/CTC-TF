@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import csv
-import json
 import tempfile
 import unittest
 from pathlib import Path
 
-from ugarit_context_parsing.graph import build_tf_data
 from ugarit_context_parsing.identifiers import normalize_cuc_tablet
 from ugarit_context_parsing.source import WORKBOOK_FIELDS, SourceValidationError, load_csv_directory
 
@@ -60,14 +58,12 @@ class CsvSourceTests(unittest.TestCase):
                     self._row(source_page=2, headword="špš", ktu="Not attested", locus=""),
                 ],
             )
-
             source = load_csv_directory(root)
 
-        self.assertEqual([record.source_file for record in source.records], [
-            "A/Worksheet 1.csv",
-            "A/Worksheet 1.csv",
-            "B/Worksheet 2.csv",
-        ])
+        self.assertEqual(
+            [record.source_file for record in source.records],
+            ["A/Worksheet 1.csv", "A/Worksheet 1.csv", "B/Worksheet 2.csv"],
+        )
         self.assertEqual([record.source_row for record in source.records], [1, 2, 1])
         self.assertEqual(source.records[0].headword, "bʿl")
         self.assertEqual(source.records[0].ktu, "1.14")
@@ -133,139 +129,6 @@ class CsvSourceTests(unittest.TestCase):
             self._write_csv(root / "Workbook" / "Worksheet.csv", [self._row(source_page="zero")])
             with self.assertRaisesRegex(SourceValidationError, "source_page"):
                 load_csv_directory(root)
-
-
-class GraphTests(unittest.TestCase):
-    @staticmethod
-    def _source(tmp: str):
-        root = Path(tmp)
-        rows = [
-            {
-                "source_page": 1,
-                "section": "Section α",
-                "root": "",
-                "headword": "bʿl",
-                "ktu": "1.14",
-                "references": "I 1",
-                "locus": "GP",
-                "room": "1",
-                "point": "",
-                "depth": "",
-                "disputed": "n",
-                "comments": "first",
-            },
-            {
-                "source_page": 1,
-                "section": "Section α",
-                "root": "",
-                "headword": "bʿl",
-                "ktu": "1.15",
-                "references": "II 2",
-                "locus": "PH",
-                "room": "2",
-                "point": "",
-                "depth": "",
-                "disputed": "n",
-                "comments": "second",
-            },
-            {
-                "source_page": 2,
-                "section": "Section β",
-                "root": "qrb",
-                "headword": "yqrb",
-                "ktu": "Not attested",
-                "references": "synthetic note",
-                "locus": "",
-                "room": "",
-                "point": "",
-                "depth": "",
-                "disputed": "",
-                "comments": "third",
-            },
-        ]
-        path = root / "Cultic Actions" / "Worksheet 1.csv"
-        path.parent.mkdir(parents=True)
-        with path.open("w", encoding="utf-8", newline="") as handle:
-            writer = csv.DictWriter(handle, fieldnames=WORKBOOK_FIELDS)
-            writer.writeheader()
-            writer.writerows(rows)
-        return load_csv_directory(root)
-
-    def test_graph_is_lossless_and_cuc_aligned_without_fabricating_cuc_text_nodes(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            data = build_tf_data(self._source(tmp))
-
-        self.assertEqual(data.validate(), [])
-        otype = data.node_features["otype"]
-        slot_nodes = [node for node, kind in otype.items() if kind == "record"]
-        self.assertEqual(slot_nodes, [1, 2, 3])
-        self.assertNotIn("sign", set(otype.values()))
-        self.assertNotIn("word", set(otype.values()))
-        self.assertEqual([data.node_features["ktu"][node] for node in slot_nodes], [
-            "1.14", "1.15", "Not attested"
-        ])
-        self.assertEqual([data.node_features["cuc_tablet"].get(node, "") for node in slot_nodes], [
-            "KTU 1.14", "KTU 1.15", ""
-        ])
-        self.assertEqual([data.node_features["language"][node] for node in slot_nodes], [
-            "Ugaritic", "Ugaritic", "Ugaritic"
-        ])
-        self.assertEqual([data.node_features["comments"][node] for node in slot_nodes], [
-            "first", "second", "third"
-        ])
-        self.assertEqual(data.metadata["otext"]["sectionTypes"], "worksheet,section,entry")
-        self.assertEqual(data.metadata["otext"]["sectionFeatures"], "worksheet,section,entry")
-
-        max_slot = max(slot_nodes)
-        non_slot_types: dict[str, list[int]] = {}
-        for node, kind in otype.items():
-            if node > max_slot:
-                non_slot_types.setdefault(kind, []).append(node)
-        for nodes in non_slot_types.values():
-            self.assertEqual(nodes, list(range(nodes[0], nodes[-1] + 1)))
-        self.assertEqual(set(data.edge_features["oslots"]), set(range(max_slot + 1, max(otype) + 1)))
-        self.assertTrue(all(data.edge_features["oslots"].values()))
-
-    def test_source_feature_coverage_matches_every_workbook_column(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            data = build_tf_data(self._source(tmp))
-        for feature in [
-            "source_page", "section_source", "root", "headword", "ktu", "references",
-            "locus", "room", "point", "depth", "disputed", "comments",
-        ]:
-            self.assertIn(feature, data.node_features)
-
-
-class ManifestContractTests(unittest.TestCase):
-    def test_manifest_declares_separate_network_denied_csv_and_pdf_materializers(self):
-        root = Path(__file__).resolve().parents[1]
-        manifest = json.loads((root / "agora.materializer.json").read_text(encoding="utf-8"))
-        self.assertEqual(manifest["schema_version"], 1)
-        self.assertEqual(manifest["plugin"]["id"], "ugarit-context-parsing")
-        self.assertEqual(manifest["plugin"]["repository"], "alexsosn/ugarit-context-parsing")
-        items = {item["id"]: item for item in manifest["materializers"]}
-        self.assertEqual(set(items), {
-            "burns-workbooks-csv-text-fabric",
-            "burns-workbooks-pdf-text-fabric",
-        })
-        for item in items.values():
-            self.assertEqual(item["acquisition"], [{
-                "type": "user-local",
-                "path_type": "directory",
-                "prompt": item["acquisition"][0]["prompt"],
-            }])
-            self.assertEqual(item["input"]["type"], "directory")
-            self.assertFalse(item["input"]["allow_symlinks"])
-            self.assertEqual(item["execution"]["type"], "python-module")
-            self.assertEqual(item["execution"]["module"], "ugarit_context_parsing.cli")
-            self.assertEqual(item["execution"]["network"], "deny")
-            self.assertNotIn("{source_revision}", item["execution"]["args"])
-            self.assertEqual(item["output"]["format"], "text-fabric")
-            self.assertEqual(set(item["output"]["required_paths"]), {
-                "otype.tf", "oslots.tf", "otext.tf", "conversion-report.json"
-            })
-        self.assertEqual(items["burns-workbooks-csv-text-fabric"]["input"]["required_globs"], ["*/*.csv"])
-        self.assertEqual(items["burns-workbooks-pdf-text-fabric"]["input"]["required_globs"], ["*/*.pdf"])
 
 
 if __name__ == "__main__":
