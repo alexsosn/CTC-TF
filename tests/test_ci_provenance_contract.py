@@ -82,6 +82,20 @@ class CiProvenanceWorkflowContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("      - 'src/ugarit_context_parsing/**'", workflow)
 
+    def test_release_surface_triggers_all_path_filtered_acceptance_workflows(self):
+        acceptance = (
+            "test-reviewed-cuc-index.yml",
+            "test-reviewed-cuc-burns-entities.yml",
+            "test-context-fabric-burns-module.yml",
+            "test-real-burns-source.yml",
+            "test-appendix-cuc-concordance.yml",
+        )
+        for name in acceptance:
+            workflow = (WORKFLOWS / name).read_text(encoding="utf-8")
+            with self.subTest(workflow=name):
+                self.assertIn("      - 'docs/releases/**'", workflow)
+                self.assertIn("      - 'tests/test_release_version.py'", workflow)
+
     def test_job_block_parser_keeps_steps_in_their_own_jobs(self):
         workflow = """jobs:
   alpha:

@@ -3,6 +3,8 @@ name: Appendix CUC concordance audit
 on:
   pull_request:
     paths:
+      - 'docs/releases/**'
+      - 'tests/test_release_version.py'
       - '.github/workflows/test-appendix-cuc-concordance.yml'
       - 'scripts/check_appendix_cuc_concordance.py'
       - 'scripts/parse_appendix_to_csv.py'

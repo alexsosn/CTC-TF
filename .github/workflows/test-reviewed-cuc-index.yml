@@ -6,6 +6,8 @@ name: Reviewed CUC index contract
 on:
   pull_request:
     paths:
+      - 'docs/releases/**'
+      - 'tests/test_release_version.py'
       - 'src/ugarit_context_parsing/cuc_index.py'
       - 'src/ugarit_context_parsing/alignment.py'
       - 'src/ugarit_context_parsing/annotations.py'

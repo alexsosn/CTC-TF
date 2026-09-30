@@ -28,5 +28,18 @@ class ReleaseVersionContractTests(unittest.TestCase):
         )
 
 
+    def test_release_notes_describe_native_v2_primary_product(self):
+        notes = (ROOT / "docs" / "releases" / "v0.3.0.md").read_text(encoding="utf-8")
+        self.assertIn("otype=entity", notes)
+        self.assertIn("module-v1", notes)
+        self.assertNotIn("feature-only Text-Fabric module", notes)
+
+    def test_release_notes_preserve_distribution_boundaries(self):
+        notes = (ROOT / "docs" / "releases" / "v0.3.0.md").read_text(encoding="utf-8")
+        self.assertIn("convert", notes)
+        self.assertIn("No Burns-derived data files are attached", notes)
+        self.assertIn("Agora", notes)
+
+
 if __name__ == "__main__":
     unittest.main()
