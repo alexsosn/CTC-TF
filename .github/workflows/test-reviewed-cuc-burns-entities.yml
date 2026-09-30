@@ -3,6 +3,7 @@ name: Reviewed CUC Burns entity prototype
 on:
   pull_request:
     paths:
+      - 'src/ugarit_context_parsing/**'
       - 'src/ugarit_context_parsing/entity_extension.py'
       - 'src/ugarit_context_parsing/tablet_findspots.py'
       - 'src/ugarit_context_parsing/alignment.py'
