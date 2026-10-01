@@ -131,3 +131,18 @@ production deletion:
 That RED will fail against #69 without modifying production. GREEN then removes
 the isolated implementation and legacy contracts while preserving source and
 CUC-module tests.
+
+## CI amendment: old generic Context-Fabric contract is standalone-only
+
+A later dependency sweep found that `scripts/check_context_fabric_contract.py`
+still invokes `convert`, asserts the row-slot `record/worksheet/section/entry`
+corpus, and is executed by the generic `context-fabric-contract` job in
+`.github/workflows/test.yml`. This is not a shared consumer check and must be
+removed with the standalone corpus.
+
+Consumer coverage is not lost: #69 already has separate permanent workflows
+for the CUC-attached feature module (`test-context-fabric-burns-module.yml`)
+and native entity extension (`test-reviewed-cuc-burns-entities.yml`), both
+against pinned Context-Fabric/cfabric-mcp and reviewed CUC. The generic
+standalone job should therefore be deleted rather than rewritten to duplicate
+those contracts.
