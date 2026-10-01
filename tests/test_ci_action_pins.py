@@ -51,10 +51,10 @@ class CiActionPinTests(unittest.TestCase):
             for path in paths
             for ref in _action_refs(path.read_text(encoding="utf-8"))
         )
-        # Baseline + synthetic reviewed-CUC native test: 13 checkout / 6 setup.
-        # Ephemeral real Burns and Appendix concordance gates each add
-        # producer/CUC checkouts plus one setup-python action.
-        expected = Counter({CHECKOUT: 17, SETUP_PYTHON: 8})
+        # #70 removes the two standalone materializer contract jobs. The
+        # remaining CUC/module/native/source gates use 13 checkout and 6 setup
+        # actions, all pinned to the reviewed immutable revisions above.
+        expected = Counter({CHECKOUT: 13, SETUP_PYTHON: 6})
         self.assertEqual(actual, expected)
 
 
