@@ -12,33 +12,31 @@ def _agora_status_section() -> str:
     marker = "### Agora status\n"
     if marker not in readme:
         raise AssertionError("README has no Agora status section")
-    section = readme.split(marker, 1)[1].split("\n### ", 1)[0]
-    return section
+    return readme.split(marker, 1)[1].split("\n### ", 1)[0]
 
 
 class AgoraStatusDocumentationContractTests(unittest.TestCase):
-    def test_current_registration_and_working_local_module_are_distinguished(self):
+    def test_current_cuc_burns_registration_is_documented(self):
         section = _agora_status_section().casefold()
-        self.assertIn("legacy", section)
-        self.assertTrue("single-input" in section or "one-source" in section)
-        self.assertIn("module", section)
-        self.assertIn("public", section)
-        self.assertIn("context-fabric", section)
+        self.assertIn("agora v1.0.0", section)
+        self.assertIn("#175", section)
+        self.assertIn("cuc-burns", section)
+        self.assertIn("feature-module", section)
+        self.assertIn("cuc", section)
 
-    def test_parent_resource_support_is_open_but_explicitly_post_1_0(self):
+    def test_managed_materialization_remains_explicitly_separate(self):
         section = _agora_status_section().casefold()
         self.assertIn("alexsosn/agora#135", section)
         self.assertIn("open", section)
-        self.assertIn("deferred", section)
-        self.assertIn("after agora 1.0", section)
-        self.assertNotIn("until that lands", section)
+        self.assertIn("managed", section)
+        self.assertIn("parent", section)
 
-    def test_migration_tracker_and_no_fake_workaround_boundary_remain_explicit(self):
+    def test_removed_standalone_registration_is_not_advertised(self):
         section = _agora_status_section().casefold()
-        self.assertIn("#29", section)
-        self.assertIn("fake one-input", section)
-        self.assertIn("copy cuc", section)
-        self.assertIn("network", section)
+        self.assertNotIn("burns-workbooks-csv-text-fabric", section)
+        self.assertNotIn("burns-workbooks-pdf-text-fabric", section)
+        self.assertNotIn("legacy single-input", section)
+        self.assertNotIn("agora.materializer.json", section)
 
 
 if __name__ == "__main__":
