@@ -4,7 +4,7 @@ import io
 from pathlib import Path
 from types import SimpleNamespace
 import unittest
-from contextlib import redirect_stderr
+from contextlib import ExitStack, redirect_stderr
 from unittest.mock import Mock, patch
 
 from ugarit_context_parsing import cli
@@ -77,28 +77,28 @@ def _legacy_context(*, writer_side_effect=None, writer_return=True):
 class CliPublicationErrorTests(unittest.TestCase):
     def _assert_module_writer_exception(self, error: Exception) -> None:
         writer, _, *patchers = _module_context(writer_side_effect=error)
-        with (
-            *patchers,
-            self.assertRaisesRegex(
+        with ExitStack() as stack:
+            for patcher in patchers:
+                stack.enter_context(patcher)
+            with self.assertRaisesRegex(
                 SystemExit,
                 rf"^module publication failed: {error}$",
-            ),
-        ):
-            cli.main(MODULE_ARGS)
+            ):
+                cli.main(MODULE_ARGS)
         writer.assert_called_once()
 
     def _assert_legacy_writer_exception(self, error: Exception) -> None:
         writer, *patchers = _legacy_context(writer_side_effect=error)
         stderr = io.StringIO()
-        with (
-            *patchers,
-            redirect_stderr(stderr),
-            self.assertRaisesRegex(
+        with ExitStack() as stack:
+            for patcher in patchers:
+                stack.enter_context(patcher)
+            stack.enter_context(redirect_stderr(stderr))
+            with self.assertRaisesRegex(
                 SystemExit,
                 rf"^legacy publication failed: {error}$",
-            ),
-        ):
-            cli.main(LEGACY_ARGS)
+            ):
+                cli.main(LEGACY_ARGS)
         writer.assert_called_once()
         self.assertEqual(stderr.getvalue(), cli.LEGACY_CONVERT_WARNING + "\n")
 
@@ -122,35 +122,38 @@ class CliPublicationErrorTests(unittest.TestCase):
 
     def test_module_false_return_message_is_unchanged(self):
         writer, _, *patchers = _module_context(writer_return=False)
-        with (
-            *patchers,
-            self.assertRaisesRegex(
+        with ExitStack() as stack:
+            for patcher in patchers:
+                stack.enter_context(patcher)
+            with self.assertRaisesRegex(
                 SystemExit,
                 r"^Text-Fabric refused the generated Burns module$",
-            ),
-        ):
-            cli.main(MODULE_ARGS)
+            ):
+                cli.main(MODULE_ARGS)
         writer.assert_called_once()
 
     def test_legacy_false_return_message_is_unchanged(self):
         writer, *patchers = _legacy_context(writer_return=False)
-        with (
-            *patchers,
-            redirect_stderr(io.StringIO()),
-            self.assertRaisesRegex(
+        with ExitStack() as stack:
+            for patcher in patchers:
+                stack.enter_context(patcher)
+            stack.enter_context(redirect_stderr(io.StringIO()))
+            with self.assertRaisesRegex(
                 SystemExit,
                 r"^Text-Fabric refused the generated dataset$",
-            ),
-        ):
-            cli.main(LEGACY_ARGS)
+            ):
+                cli.main(LEGACY_ARGS)
         writer.assert_called_once()
 
     def test_prepublication_alignment_value_error_is_not_swallowed(self):
         writer, aligner, *patchers = _module_context(
             aligner_side_effect=ValueError("alignment invariant failed")
         )
-        with (*patchers, self.assertRaisesRegex(ValueError, "alignment invariant failed")):
-            cli.main(MODULE_ARGS)
+        with ExitStack() as stack:
+            for patcher in patchers:
+                stack.enter_context(patcher)
+            with self.assertRaisesRegex(ValueError, "alignment invariant failed"):
+                cli.main(MODULE_ARGS)
         aligner.assert_called_once()
         writer.assert_not_called()
 
