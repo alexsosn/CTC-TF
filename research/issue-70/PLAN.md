@@ -34,7 +34,7 @@ The RED must not modify production modules, manifest, workflow, or README.
 ### Agora/release contracts
 
 - delete `agora.materializer.json`;
-- remove the obsolete `agora-contract` workflow job that validates it;
+- remove the obsolete `agora-contract` workflow job that validates it;\n- delete `scripts/check_context_fabric_contract.py` and the generic `context-fabric-contract` job in `test.yml`, because both exercise only the removed row-slot corpus;
 - change release-version tests to require the installed package version and
   absence of the stale manifest;
 - rewrite Agora documentation contract around the current `cuc-burns`
