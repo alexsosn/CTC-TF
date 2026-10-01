@@ -79,11 +79,11 @@ ugarit-context-parsing module-v1 output \
 
 `module-v1` retains the previous `burns_annotations.tf`, `burns_annotation_ids.tf`, `burns_semantic_statuses.tf`, `burns_worksheet_roles.tf`, `burns_sections.tf`, `burns_headwords.tf` and `burns-module-report.json` schema, including its existing output behavior for compatibility. **Do not load v1 and v2 together:** the two schemas have different meanings and v2 owns the extended warp. To roll back, restore the original base + v1 ordered locations and the retained v1 output. Pending PR #65 hardcodes the old feature inventory and must be reconciled before release.
 
-The older standalone converter remains available under `convert` for compatibility. It creates a **different corpus**, with row slots and `worksheet`/`section`/`entry` nodes rather than CUC word/sign structure, and emits `conversion-report.json`; it is deprecated and not a native CUC module.
-
 ### Agora status
 
-`agora.materializer.json` currently declares **legacy single-input** CSV and PDF materializers invoking the standalone `convert` command. This is not a native v2 installation, even when Agora's legacy manifest validation passes. The public `module` CLI is the local queryable path; Context-Fabric/cfabric-mcp can load the verified CUC and native Burns directories as ordered locations. The two-input parent-resource requirement in `alexsosn/Agora#135` is **open and explicitly deferred to the first release after Agora 1.0**; Burns migration tracker #29 therefore remains a separate future integration task. We do not advertise a fake one-input materializer, copy CUC into Burns, or enable a network fallback. The manifest is intentionally unchanged pending that work.
+Agora v1.0.0 is published, and Agora PR #175 completed the Burns registry migration. Agora now registers `cuc-burns` as a `feature-module` with parent `cuc`, pins the reviewed parent-base identity, and can compose/load an already local Burns module with the compatible CUC parent. The obsolete standalone Burns materializers are no longer registered or CI-smoked by Agora.
+
+Managed materialization from user-local Burns source plus an Agora-managed exact CUC parent remains **open** in `alexsosn/Agora#135`. That future orchestration belongs to Agora; CTC-TF continues to own parsing, alignment and module semantics and does not copy CUC into Burns or add an implicit network fallback.
 
 ### Appendix scope
 
