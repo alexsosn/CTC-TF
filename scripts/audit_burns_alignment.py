@@ -317,7 +317,11 @@ def aggregate_headword_candidate_research(
         raise ValueError("duplicate annotation id in headword candidate research")
 
     parenthesis_outcomes: Counter[str] = Counter()
+    parenthesis_core_cardinality: Counter[str] = Counter()
+    parenthesis_expanded_cardinality: Counter[str] = Counter()
     slash_outcomes: Counter[str] = Counter()
+    slash_left_cardinality: Counter[str] = Counter()
+    slash_right_cardinality: Counter[str] = Counter()
     parenthesis_eligible = 0
     slash_eligible = 0
     excluded = 0
@@ -348,6 +352,12 @@ def aggregate_headword_candidate_research(
                 core, expanded = parenthesis_candidates
                 core_spans = _candidate_spans(core, line_node, index)
                 expanded_spans = _candidate_spans(expanded, line_node, index)
+                parenthesis_core_cardinality[
+                    _candidate_count_bucket(len(core_spans))
+                ] += 1
+                parenthesis_expanded_cardinality[
+                    _candidate_count_bucket(len(expanded_spans))
+                ] += 1
                 if len(core_spans) > 1 or len(expanded_spans) > 1:
                     parenthesis_outcomes["ambiguous"] += 1
                 elif core_spans and expanded_spans:
@@ -365,6 +375,12 @@ def aggregate_headword_candidate_research(
                 left, right = slash_candidates
                 left_spans = _candidate_spans(left, line_node, index)
                 right_spans = _candidate_spans(right, line_node, index)
+                slash_left_cardinality[
+                    _candidate_count_bucket(len(left_spans))
+                ] += 1
+                slash_right_cardinality[
+                    _candidate_count_bucket(len(right_spans))
+                ] += 1
                 if len(left_spans) > 1 or len(right_spans) > 1:
                     slash_outcomes["ambiguous"] += 1
                 elif left_spans and right_spans:
@@ -381,16 +397,24 @@ def aggregate_headword_candidate_research(
                 excluded += 1
 
     return {
-        "parentheses": _candidate_research_payload(
-            parenthesis_eligible,
-            parenthesis_outcomes,
-            _CANDIDATE_RESEARCH_PARENTHESES,
-        ),
-        "token_internal_slash": _candidate_research_payload(
-            slash_eligible,
-            slash_outcomes,
-            _CANDIDATE_RESEARCH_SLASH,
-        ),
+        "parentheses": {
+            **_candidate_research_payload(
+                parenthesis_eligible,
+                parenthesis_outcomes,
+                _CANDIDATE_RESEARCH_PARENTHESES,
+            ),
+            "core_span_cardinality": _counter_payload(parenthesis_core_cardinality),
+            "expanded_span_cardinality": _counter_payload(parenthesis_expanded_cardinality),
+        },
+        "token_internal_slash": {
+            **_candidate_research_payload(
+                slash_eligible,
+                slash_outcomes,
+                _CANDIDATE_RESEARCH_SLASH,
+            ),
+            "left_span_cardinality": _counter_payload(slash_left_cardinality),
+            "right_span_cardinality": _counter_payload(slash_right_cardinality),
+        },
         "excluded_mixed_or_unsupported": excluded,
     }
 
