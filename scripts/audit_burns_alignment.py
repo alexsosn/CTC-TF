@@ -399,7 +399,12 @@ def aggregate_bracket_restoration_research(
     sign_cert: dict[int, str],
     sign_alt: dict[int, str],
 ) -> dict[str, object]:
-    """Audit bracketed lexical misses against exact CUC sign editorial evidence."""
+    """Audit bracketed resolved-line occurrences against exact CUC sign evidence.
+
+    This audit is deliberately counterfactual: it recomputes candidate/evidence
+    classes even after production starts resolving a class, so its denominator
+    and research conclusion stay stable across matcher improvements.
+    """
 
     annotations = {item.annotation_id: item for item in source.annotations}
     if len(annotations) != len(source.annotations):
@@ -424,12 +429,18 @@ def aggregate_bracket_restoration_research(
             continue
 
         for occurrence in alignment.occurrences:
-            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
-                continue
             line_node = occurrence.context_line_node
-            if line_node is None or line_node not in index.line_words:
+            if line_node is None:
+                continue
+            if occurrence.reason not in {
+                BurnsAlignmentReason.NONE,
+                BurnsAlignmentReason.HEADWORD_NOT_FOUND,
+                BurnsAlignmentReason.AMBIGUOUS_HEADWORD_SPAN,
+            }:
+                continue
+            if line_node not in index.line_words:
                 raise ValueError(
-                    "bracketed HEADWORD_NOT_FOUND occurrence lacks indexed context line"
+                    "bracket restoration research occurrence lacks indexed context line"
                 )
             occurrences += 1
 
