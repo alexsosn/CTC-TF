@@ -12,30 +12,30 @@ from ugarit_context_parsing.annotations import normalize_workbook_records
 class OneEditResearchTests(unittest.TestCase):
     def test_unique_one_edit_operations_are_directional_and_positioned(self):
         records = (
-            _record(1, "abc", 1),    # substitution c -> d
-            _record(2, "abc", 2),    # insertion start
-            _record(3, "abc", 3),    # insertion internal
-            _record(4, "abc", 4),    # insertion end
-            _record(5, "xabc", 5),   # deletion start
-            _record(6, "abxc", 6),   # deletion internal
-            _record(7, "abcx", 7),   # deletion end
-            _record(8, "abc", 8),    # two distance-1 candidates: ambiguous
-            _record(9, "ab", 9),     # unique containment has precedence
-            _record(10, "a (b)", 10),# expression syntax: excluded
+            _record(1, "abc", 10),     # substitution c -> d
+            _record(2, "abc", 20),     # insertion start -> containment precedence
+            _record(3, "abc", 30),     # insertion internal
+            _record(4, "abc", 40),     # insertion end -> containment precedence
+            _record(5, "xabc", 50),    # deletion start
+            _record(6, "abxc", 60),    # deletion internal
+            _record(7, "abcx", 70),    # deletion end
+            _record(8, "abc", 80),     # two distance-1 candidates: ambiguous
+            _record(9, "ab", 90),      # unique containment has precedence
+            _record(10, "a (b)", 100), # expression syntax: excluded
         )
         source = normalize_workbook_records(records)
         index = _index(
             {
-                1: ("abd",),
-                2: ("xabc",),
-                3: ("abxc",),
-                4: ("abcx",),
-                5: ("abc",),
-                6: ("abc",),
-                7: ("abc",),
-                8: ("abd", "abf"),
-                9: ("zabx",),
-                10: ("c",),
+                10: ("abd",),
+                20: ("xabc",),
+                30: ("abxc",),
+                40: ("abcx",),
+                50: ("abc",),
+                60: ("abc",),
+                70: ("abc",),
+                80: ("abd", "abf"),
+                90: ("zabx",),
+                100: ("c",),
             }
         )
         alignments = align_burns_source(source, index)
@@ -46,24 +46,21 @@ class OneEditResearchTests(unittest.TestCase):
             index=index,
         )
 
-        self.assertEqual(stats["occurrences"], 7)
+        self.assertEqual(stats["occurrences"], 5)
         self.assertEqual(
             stats["operations"],
-            {"deletion": 3, "insertion": 3, "substitution": 1},
+            {"deletion": 3, "insertion": 1, "substitution": 1},
         )
         self.assertEqual(stats["substitution_pairs"], {"U+0063>U+0064": 1})
-        self.assertEqual(stats["inserted_codepoints"], {"U+0078": 3})
-        self.assertEqual(
-            stats["insertion_positions"],
-            {"end": 1, "internal": 1, "start": 1},
-        )
+        self.assertEqual(stats["inserted_codepoints"], {"U+0078": 1})
+        self.assertEqual(stats["insertion_positions"], {"internal": 1})
         self.assertEqual(stats["deleted_codepoints"], {"U+0078": 3})
         self.assertEqual(
             stats["deletion_positions"],
             {"end": 1, "internal": 1, "start": 1},
         )
         self.assertEqual(stats["ambiguous_distance1_candidates"], 1)
-        self.assertEqual(stats["distinct_annotations"], 7)
+        self.assertEqual(stats["distinct_annotations"], 5)
 
     def test_payload_does_not_expose_lexical_strings_ids_locators_or_nodes(self):
         source = normalize_workbook_records((_record(1, "secreta", 10),))
