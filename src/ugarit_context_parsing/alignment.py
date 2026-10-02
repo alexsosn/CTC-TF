@@ -9,15 +9,13 @@ from enum import Enum
 
 from .annotations import BurnsAnnotation, NormalizedBurnsSource
 from .cuc_index import ReviewedCucIndex
+from .headword_expression import headword_tokens, parse_headword_expression
 from .references import (
     BurnsReferenceStatus,
     BurnsTarget,
     ParsedBurnsReference,
     parse_burns_reference,
 )
-
-_EDITORIAL_MARKERS = "*†!?"
-
 
 class BurnsAlignmentDisposition(str, Enum):
     ALIGNED = "aligned"
@@ -66,6 +64,7 @@ class BurnsAlignmentOccurrence:
     context_line_node: int | None
     candidate_line_nodes: tuple[int, ...] = ()
     candidate_spans: tuple[tuple[int, ...], ...] = ()
+    candidate_matches: tuple[tuple[str, tuple[int, ...]], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -103,12 +102,9 @@ def _occurrence_id(annotation_id: str, ordinal: int, target: BurnsTarget) -> str
 
 
 def _headword_tokens(headword: str) -> tuple[str, ...]:
-    tokens: list[str] = []
-    for raw in _nfc(headword).split():
-        token = raw.rstrip(_EDITORIAL_MARKERS)
-        if token:
-            tokens.append(token)
-    return tuple(tokens)
+    """Compatibility wrapper for the historical exact-token helper."""
+
+    return headword_tokens(headword)
 
 
 def _candidate_spans(
@@ -137,8 +133,10 @@ def _line_occurrence(
     index: ReviewedCucIndex,
 ) -> BurnsAlignmentOccurrence:
     occurrence_id = _occurrence_id(annotation.annotation_id, ordinal, target)
-    tokens = _headword_tokens(annotation.headword)
-    if not tokens:
+    expression = parse_headword_expression(annotation.headword)
+    if not expression.candidates or all(
+        not candidate.tokens for candidate in expression.candidates
+    ):
         return BurnsAlignmentOccurrence(
             occurrence_id=occurrence_id,
             target_ordinal=ordinal,
@@ -151,7 +149,17 @@ def _line_occurrence(
             context_line_node=line_node,
         )
 
-    spans = _candidate_spans(tokens, line_node, index)
+    matches: list[tuple[str, tuple[int, ...]]] = []
+    distinct_spans: set[tuple[int, ...]] = set()
+    for candidate in expression.candidates:
+        if not candidate.tokens:
+            continue
+        for span in _candidate_spans(candidate.tokens, line_node, index):
+            matches.append((candidate.label, span))
+            distinct_spans.add(span)
+
+    candidate_matches = tuple(matches)
+    spans = tuple(sorted(distinct_spans))
     if len(spans) == 1:
         return BurnsAlignmentOccurrence(
             occurrence_id=occurrence_id,
@@ -163,6 +171,7 @@ def _line_occurrence(
             anchor_kind=BurnsAnchorKind.WORD_SPAN,
             anchor_nodes=spans[0],
             context_line_node=line_node,
+            candidate_matches=candidate_matches,
         )
     if len(spans) > 1:
         return BurnsAlignmentOccurrence(
@@ -176,6 +185,7 @@ def _line_occurrence(
             anchor_nodes=(line_node,),
             context_line_node=line_node,
             candidate_spans=spans,
+            candidate_matches=candidate_matches,
         )
     return BurnsAlignmentOccurrence(
         occurrence_id=occurrence_id,
@@ -188,7 +198,6 @@ def _line_occurrence(
         anchor_nodes=(line_node,),
         context_line_node=line_node,
     )
-
 
 def _resolve_target(
     annotation: BurnsAnnotation,
@@ -367,6 +376,10 @@ def _occurrence_payload(occurrence: BurnsAlignmentOccurrence) -> dict[str, objec
         "context_line_node": occurrence.context_line_node,
         "candidate_line_nodes": list(occurrence.candidate_line_nodes),
         "candidate_spans": [list(span) for span in occurrence.candidate_spans],
+        "candidate_matches": [
+            {"label": label, "span": list(span)}
+            for label, span in occurrence.candidate_matches
+        ],
     }
 
 
