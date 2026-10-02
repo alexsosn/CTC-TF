@@ -213,3 +213,27 @@ to **1,933** and increase ambiguous headword spans from 169 to **278**.
 
 Those are acceptance expectations for the production TDD gate, not hard-coded
 corpus constants in the matcher.
+
+
+## Production verification
+
+The bounded production implementation matches the Phase A prediction exactly on
+the pinned Workbooks + reviewed CUC 0.2.8:
+
+- exact lexical occurrences: **7,308** (previously 4,357);
+- `HEADWORD_NOT_FOUND`: **1,933** (previously 4,993);
+- ambiguous headword spans: **278** (previously 169).
+
+The source-safe hypothesis audit is outcome-independent and reproduces the same
+pre-production evidence after the matcher change.
+
+Feature-only multiplicity expands accordingly:
+
+- carrier/start words: **5,924**;
+- exact occurrences: **7,308**;
+- current maximum lane depth: **6**;
+- span lengths: 1=6,653; 2=441; 3=206; 4=5; 5=3.
+
+This confirms the #82 decision not to hard-code the earlier lane-2 maximum.
+No new CUC nodes or warp files are introduced; newly exact occurrences flow
+through the existing feature-only lane schema.
