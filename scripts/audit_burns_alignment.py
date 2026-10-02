@@ -37,6 +37,10 @@ from ugarit_context_parsing.annotations import (  # noqa: E402
     normalize_workbook_records,
 )
 from ugarit_context_parsing.cuc_index import ReviewedCucIndex, build_reviewed_cuc_index  # noqa: E402
+from ugarit_context_parsing.headword_expression import (  # noqa: E402
+    simple_parenthesis_candidate_tokens,
+    simple_token_slash_candidate_tokens,
+)
 from ugarit_context_parsing.pdf_source import load_pdf_directory  # noqa: E402
 
 
@@ -193,83 +197,6 @@ def classify_headword_expression(headword: str) -> dict[str, object]:
         "exclusive_class": exclusive_class,
     }
 
-
-
-def simple_parenthesis_candidate_tokens(
-    headword: str,
-) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
-    """Return (core, expanded) for one conservative parenthesized group.
-
-    This is a research helper, not production alignment semantics. It accepts
-    exactly one balanced, non-nested group whose parentheses are token/group
-    boundaries and rejects mixed slash/square-bracket syntax.
-    """
-
-    text = unicodedata.normalize("NFC", headword or "")
-    if "/" in text or "[" in text or "]" in text:
-        return None
-    unbalanced, openers, max_depth = _delimiter_balance(text, "(", ")")
-    if unbalanced or openers != 1 or max_depth != 1 or text.count(")") != 1:
-        return None
-
-    start = text.index("(")
-    end = text.index(")", start + 1)
-    if start > 0 and not text[start - 1].isspace():
-        return None
-    if end + 1 < len(text) and not text[end + 1].isspace():
-        return None
-
-    before = text[:start].strip()
-    inside = text[start + 1 : end].strip()
-    after = text[end + 1 :].strip()
-    if not inside:
-        return None
-
-    core_text = " ".join(part for part in (before, after) if part)
-    expanded_text = " ".join(part for part in (before, inside, after) if part)
-    core = _headword_tokens(core_text)
-    expanded = _headword_tokens(expanded_text)
-    if not core or not expanded or core == expanded:
-        return None
-    return core, expanded
-
-
-def simple_token_slash_candidate_tokens(
-    headword: str,
-) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
-    """Return (left, right) for one token-internal slash alternative.
-
-    Standalone slash tokens, multiple slashes, empty branches and expressions
-    mixed with parentheses/square brackets deliberately fail closed.
-    """
-
-    text = unicodedata.normalize("NFC", headword or "")
-    if any(char in text for char in "()[]"):
-        return None
-    raw_tokens = text.split()
-    slash_positions = [
-        index for index, token in enumerate(raw_tokens) if "/" in token
-    ]
-    if len(slash_positions) != 1:
-        return None
-
-    index = slash_positions[0]
-    token = raw_tokens[index]
-    if token.count("/") != 1 or token == "/":
-        return None
-    left_raw, right_raw = token.split("/", 1)
-    if not left_raw or not right_raw:
-        return None
-
-    left_tokens = list(raw_tokens)
-    right_tokens = list(raw_tokens)
-    left_tokens[index] = left_raw
-    right_tokens[index] = right_raw
-    left = _headword_tokens(" ".join(left_tokens))
-    right = _headword_tokens(" ".join(right_tokens))
-    if not left or not right or left == right:
-        return None
-    return left, right
 
 
 _CANDIDATE_RESEARCH_PARENTHESES = (
