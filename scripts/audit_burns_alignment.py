@@ -964,7 +964,7 @@ def aggregate_line_address_drift_stats(
         if annotation is None:
             raise ValueError("alignment references unknown annotation in line-drift audit")
         syntax_class = str(classify_headword_expression(annotation.headword)["exclusive_class"])
-        tokens = _headword_tokens(annotation.headword)
+        candidates = headword_candidates(annotation.headword)
 
         for occurrence in alignment.occurrences:
             if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
@@ -987,7 +987,11 @@ def aggregate_line_address_drift_stats(
                     continue
                 label = _offset_label(offset)
                 available_offsets[label] += 1
-                spans = _candidate_spans(tokens, neighbor, index)
+                spans = {
+                    span
+                    for _rule, tokens in candidates
+                    for span in _candidate_spans(tokens, neighbor, index)
+                }
                 if spans:
                     matched_offsets[label] += 1
                     matched[offset] = len(spans)
