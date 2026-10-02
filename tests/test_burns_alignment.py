@@ -229,6 +229,116 @@ class BurnsAlignmentTests(unittest.TestCase):
         self.assertEqual(occurrence.anchor_nodes, (205,))
         self.assertEqual(occurrence.candidate_spans, ())
 
+    def test_simple_parenthesized_qualifier_is_omitted_for_exact_matching(self):
+        result = align_burns_annotation(
+            annotation(references="I.2", headword="bʿl (mlk)"),
+            self.index,
+        )
+        occurrence = result.occurrences[0]
+        self.assertEqual(occurrence.anchor_kind, BurnsAnchorKind.WORD_SPAN)
+        self.assertEqual(occurrence.anchor_nodes, (311,))
+        self.assertEqual(
+            occurrence.candidate_matches,
+            (("parenthesis_omit", (311,)),),
+        )
+
+    def test_parenthesized_group_is_not_an_optional_include_candidate(self):
+        result = align_burns_annotation(
+            annotation(references="I.3", headword="bʿl (mlk)"),
+            self.index,
+        )
+        occurrence = result.occurrences[0]
+        # Both bʿl and bʿl mlk occur on this line. Real-source research shows
+        # include-group never independently rescues an occurrence, so the
+        # supported surface candidate is the omit-group form only.
+        self.assertEqual(occurrence.anchor_kind, BurnsAnchorKind.WORD_SPAN)
+        self.assertEqual(occurrence.anchor_nodes, (320,))
+        self.assertEqual(
+            occurrence.candidate_matches,
+            (("parenthesis_omit", (320,)),),
+        )
+
+    def test_include_only_parenthesized_surface_does_not_manufacture_match(self):
+        result = align_burns_annotation(
+            annotation(references="I.3", headword="bʿl (mlk) x"),
+            self.index,
+        )
+        occurrence = result.occurrences[0]
+        # The literal de-parenthesized string bʿl mlk x exists, but the
+        # evidenced omit-group candidate bʿl x does not occur contiguously.
+        self.assertEqual(occurrence.reason, BurnsAlignmentReason.HEADWORD_NOT_FOUND)
+        self.assertEqual(occurrence.anchor_kind, BurnsAnchorKind.LINE)
+        self.assertEqual(occurrence.anchor_nodes, (203,))
+        self.assertEqual(occurrence.candidate_matches, ())
+
+    def test_simple_slash_left_and_right_branches_can_match_exactly(self):
+        left = align_burns_annotation(
+            annotation(references="I.2", headword="bʿl/qrb"),
+            self.index,
+        ).occurrences[0]
+        right = align_burns_annotation(
+            annotation(references="I.2", headword="qrb/bʿl"),
+            self.index,
+        ).occurrences[0]
+        self.assertEqual(left.anchor_nodes, (311,))
+        self.assertEqual(right.anchor_nodes, (311,))
+        self.assertEqual(left.candidate_matches, (("slash_left", (311,)),))
+        self.assertEqual(right.candidate_matches, (("slash_right", (311,)),))
+
+    def test_simple_slash_distinct_branches_remain_explicit_ambiguity(self):
+        result = align_burns_annotation(
+            annotation(references="I.3", headword="bʿl/mlk"),
+            self.index,
+        )
+        occurrence = result.occurrences[0]
+        self.assertEqual(result.disposition, BurnsAlignmentDisposition.AMBIGUOUS)
+        self.assertEqual(occurrence.reason, BurnsAlignmentReason.AMBIGUOUS_HEADWORD_SPAN)
+        self.assertEqual(occurrence.anchor_kind, BurnsAnchorKind.LINE)
+        self.assertEqual(occurrence.anchor_nodes, (203,))
+        self.assertEqual(occurrence.candidate_spans, ((320,), (321,)))
+        self.assertEqual(
+            occurrence.candidate_matches,
+            (
+                ("slash_left", (320,)),
+                ("slash_right", (321,)),
+            ),
+        )
+
+    def test_simple_slash_candidates_converging_on_same_span_are_deduplicated(self):
+        result = align_burns_annotation(
+            annotation(references="I.2", headword="bʿl/bʿl"),
+            self.index,
+        )
+        occurrence = result.occurrences[0]
+        self.assertEqual(occurrence.anchor_kind, BurnsAnchorKind.WORD_SPAN)
+        self.assertEqual(occurrence.anchor_nodes, (311,))
+        self.assertEqual(
+            occurrence.candidate_matches,
+            (
+                ("slash_left", (311,)),
+                ("slash_right", (311,)),
+            ),
+        )
+
+    def test_complex_or_cross_ticket_expression_syntax_still_fails_closed(self):
+        for headword in (
+            "bʿl/mlk/x",
+            "bʿl / mlk",
+            "bʿl (mlk) (x)",
+            "[bʿl]",
+        ):
+            with self.subTest(headword=headword):
+                occurrence = align_burns_annotation(
+                    annotation(references="I.3", headword=headword),
+                    self.index,
+                ).occurrences[0]
+                self.assertEqual(
+                    occurrence.reason,
+                    BurnsAlignmentReason.HEADWORD_NOT_FOUND,
+                )
+                self.assertEqual(occurrence.anchor_kind, BurnsAnchorKind.LINE)
+                self.assertEqual(occurrence.candidate_matches, ())
+
     def test_documented_trailing_editorial_markers_are_ignored_for_matching_only(self):
         source = annotation(references="I.3", headword="bʿl* mlk†")
         result = align_burns_annotation(source, self.index)
