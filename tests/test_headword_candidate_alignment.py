@@ -27,6 +27,7 @@ class HeadwordCandidateAlignmentTests(unittest.TestCase):
         self.assertEqual(occurrence.confidence, BurnsAlignmentConfidence.EXACT_LEXICAL)
         self.assertEqual(occurrence.anchor_kind, BurnsAnchorKind.WORD_SPAN)
         self.assertEqual(len(occurrence.anchor_nodes), 1)
+        self.assertEqual(occurrence.match_rule, "parenthesis_core")
 
     def test_parenthesis_expanded_surface_without_contiguous_core_remains_unresolved(self):
         _, occurrence = _one("a (b) c", ("a", "b", "c"))
@@ -39,6 +40,7 @@ class HeadwordCandidateAlignmentTests(unittest.TestCase):
         self.assertEqual(occurrence.reason, BurnsAlignmentReason.AMBIGUOUS_HEADWORD_SPAN)
         self.assertEqual(occurrence.anchor_kind, BurnsAnchorKind.LINE)
         self.assertEqual(len(occurrence.candidate_spans), 2)
+        self.assertEqual(occurrence.candidate_rules, ("parenthesis_core", "parenthesis_core"))
         self.assertTrue(all(len(span) == 1 for span in occurrence.candidate_spans))
 
     def test_token_internal_slash_accepts_left_or_right_exact_branch(self):
@@ -52,11 +54,16 @@ class HeadwordCandidateAlignmentTests(unittest.TestCase):
                 self.assertEqual(occurrence.confidence, BurnsAlignmentConfidence.EXACT_LEXICAL)
                 self.assertEqual(occurrence.anchor_kind, BurnsAnchorKind.WORD_SPAN)
                 self.assertEqual(len(occurrence.anchor_nodes), 2)
+                self.assertEqual(
+                    occurrence.match_rule,
+                    "slash_left" if words[0] == "k" else "slash_right",
+                )
 
     def test_two_slash_branches_on_same_line_are_not_first_hit_selected(self):
         _, occurrence = _one("q/r", ("q", "r"))
         self.assertEqual(occurrence.reason, BurnsAlignmentReason.AMBIGUOUS_HEADWORD_SPAN)
         self.assertEqual(len(occurrence.candidate_spans), 2)
+        self.assertEqual(occurrence.candidate_rules, ("slash_left", "slash_right"))
         self.assertNotEqual(occurrence.candidate_spans[0], occurrence.candidate_spans[1])
 
     def test_unsupported_mixed_nested_and_bracketed_syntax_still_fails_closed(self):
@@ -77,6 +84,7 @@ class HeadwordCandidateAlignmentTests(unittest.TestCase):
                 _, occurrence = _one(headword, ("a",))
                 self.assertEqual(occurrence.reason, BurnsAlignmentReason.NONE)
                 self.assertEqual(occurrence.anchor_kind, BurnsAnchorKind.WORD_SPAN)
+                self.assertEqual(occurrence.match_rule, "literal")
 
 
 if __name__ == "__main__":
