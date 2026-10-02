@@ -286,6 +286,42 @@ def parenthesis_core_with_bracket_mask(
     )
 
 
+def opaque_parenthesis_core_with_inner_brackets(
+    headword: str,
+) -> tuple[str, ...] | None:
+    """Research a simple parenthesis core when all bracket/slash markup is omitted.
+
+    The inner group's syntax is deliberately opaque: if every square bracket and
+    every slash lies inside the one parenthesized group, none of it contributes
+    characters to the lexical core selected by the reviewed #78 rule.
+    """
+
+    text = nfc(headword or "")
+    if "[" not in text and "]" not in text:
+        return None
+    unbalanced, openers, max_depth = _delimiter_balance(text, "(", ")")
+    if unbalanced or openers != 1 or max_depth != 1 or text.count(")") != 1:
+        return None
+    start = text.index("(")
+    end = text.index(")", start + 1)
+    if start > 0 and not text[start - 1].isspace():
+        return None
+    if end + 1 < len(text) and not text[end + 1].isspace():
+        return None
+
+    before = text[:start].strip()
+    inside = text[start + 1 : end]
+    after = text[end + 1 :].strip()
+    outside = f"{before} {after}"
+    if any(char in outside for char in "[]/"):
+        return None
+    if "[" not in inside and "]" not in inside:
+        return None
+
+    tokens = literal_headword_tokens(" ".join(part for part in (before, after) if part))
+    return tokens or None
+
+
 def compare_cuc_restoration_mask(
     *,
     candidate_tokens: tuple[str, ...],
@@ -454,8 +490,18 @@ def aggregate_bracket_restoration_research(
 
             syntax_classes[syntax_class] += 1
             if candidate_tokens is None or restored_positions is None:
-                lexical_outcomes["unsupported"] += 1
-                continue
+                opaque_core = opaque_parenthesis_core_with_inner_brackets(headword)
+                if opaque_core is None:
+                    lexical_outcomes["unsupported"] += 1
+                    continue
+                syntax_classes[syntax_class] -= 1
+                if syntax_classes[syntax_class] == 0:
+                    del syntax_classes[syntax_class]
+                syntax_class = "parenthesis_core_opaque_bracketed_group"
+                syntax_classes[syntax_class] += 1
+                candidate_tokens = opaque_core
+                restored_positions = tuple(() for _ in candidate_tokens)
+                omitted = True
 
             spans = _candidate_spans(candidate_tokens, line_node, index)
             if not spans:
