@@ -78,7 +78,7 @@ class CiProvenanceWorkflowContractTests(unittest.TestCase):
 
     def test_reviewed_cuc_consumer_smoke_tracks_all_package_changes(self):
         workflow = (
-            WORKFLOWS / "test-reviewed-cuc-burns-entities.yml"
+            WORKFLOWS / "test-reviewed-cuc-burns-feature-module.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("      - 'src/ugarit_context_parsing/**'", workflow)
 
@@ -91,7 +91,7 @@ class CiProvenanceWorkflowContractTests(unittest.TestCase):
     def test_release_surface_triggers_all_path_filtered_acceptance_workflows(self):
         acceptance = (
             "test-reviewed-cuc-index.yml",
-            "test-reviewed-cuc-burns-entities.yml",
+            "test-reviewed-cuc-burns-feature-module.yml",
             "test-context-fabric-burns-module.yml",
             "test-real-burns-source.yml",
             "test-appendix-cuc-concordance.yml",
