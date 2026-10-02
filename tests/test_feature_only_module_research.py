@@ -80,7 +80,7 @@ class FeatureOnlyLaneResearchTests(unittest.TestCase):
 
 
 class TextFabricFeatureOnlyEdgeResearchTests(unittest.TestCase):
-    def test_edge_only_module_preserves_base_warp_and_self_edge_is_searchable(self):
+    def test_edge_only_module_preserves_base_warp_and_nonself_span_is_searchable(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             base = root / "base"
@@ -171,13 +171,19 @@ class TextFabricFeatureOnlyEdgeResearchTests(unittest.TestCase):
 
             hits = tuple(
                 combined.S.search(
-                    "s:word burns_occurrence_id_1=burns-occurrence-sha256:synthetic\n"
+                    "s:word burns_occurrence_id_1=burns-occurrence-sha256:multi\n"
                     "m:word\n"
                     "s -burns_span_1> m",
                     silent="deep",
                 )
             )
-            self.assertEqual(set(hits), {(3, 3), (3, 4)})
+            self.assertEqual(set(hits), {(3, 4)})
+            self.assertEqual(
+                (3, *tuple(combined.E.burns_span_1.f(3))),
+                (3, 4),
+            )
+            self.assertEqual(combined.F.burns_span_length_1.v(4), 1)
+            self.assertEqual(tuple(combined.E.burns_span_1.f(4)), ())
 
 
 if __name__ == "__main__":
