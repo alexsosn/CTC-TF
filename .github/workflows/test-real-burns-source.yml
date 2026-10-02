@@ -8,7 +8,6 @@ on:
       - '.github/workflows/test-real-burns-source.yml'
       - 'scripts/check_real_burns_source.py'
       - 'scripts/audit_burns_alignment.py'
-      - 'scripts/audit_burns_alignment.py'
       - 'scripts/parse_workbooks_to_csv.py'
       - 'scripts/sources.py'
       - 'src/ugarit_context_parsing/**'
