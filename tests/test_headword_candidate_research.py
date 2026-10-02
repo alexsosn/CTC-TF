@@ -164,6 +164,8 @@ class CandidateResearchAggregateTests(unittest.TestCase):
                     "no_match": 0,
                     "ambiguous": 0,
                 },
+                "core_span_cardinality": {"0": 1, "1": 3},
+                "expanded_span_cardinality": {"0": 2, "1": 2},
             },
         )
         self.assertEqual(
@@ -177,6 +179,8 @@ class CandidateResearchAggregateTests(unittest.TestCase):
                     "no_match": 0,
                     "ambiguous": 1,
                 },
+                "left_span_cardinality": {"0": 1, "1": 2, "2+": 1},
+                "right_span_cardinality": {"0": 2, "1": 2},
             },
         )
         self.assertEqual(stats["excluded_mixed_or_unsupported"], 1)
