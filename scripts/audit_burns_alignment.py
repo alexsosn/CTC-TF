@@ -234,8 +234,9 @@ def aggregate_headword_candidate_research(
 ) -> dict[str, object]:
     """Measure narrow candidate interpretations without changing alignment.
 
-    Only current HEADWORD_NOT_FOUND occurrences on an indexed exact context
-    line enter the audit. The payload is aggregate-only and contains no source
+    Resolved-line lexical occurrences enter the audit regardless of whether
+    production currently resolves them, keeping the evidence counterfactual and
+    stable across matcher improvements. The payload is aggregate-only and contains no source
     strings, identifiers, locators or node ids.
     """
 
@@ -266,12 +267,18 @@ def aggregate_headword_candidate_research(
         syntax_relevant = any(char in annotation.headword for char in "()/")
 
         for occurrence in alignment.occurrences:
-            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
-                continue
             line_node = occurrence.context_line_node
-            if line_node is None or line_node not in index.line_words:
+            if line_node is None:
+                continue
+            if occurrence.reason not in {
+                BurnsAlignmentReason.NONE,
+                BurnsAlignmentReason.HEADWORD_NOT_FOUND,
+                BurnsAlignmentReason.AMBIGUOUS_HEADWORD_SPAN,
+            }:
+                continue
+            if line_node not in index.line_words:
                 raise ValueError(
-                    "HEADWORD_NOT_FOUND occurrence lacks indexed context line"
+                    "headword candidate research occurrence lacks indexed context line"
                 )
 
             if parenthesis_candidates is not None:
