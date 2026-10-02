@@ -294,6 +294,34 @@ def _source_payload(source: NormalizedBurnsSource) -> list[dict[str, object]]:
     ]
 
 
+def _occurrence_lane_payload(module: BurnsFeatureModule) -> list[dict[str, object]]:
+    return [
+        {
+            "carrier_node": carrier,
+            "lane": lane,
+            "annotation_id": annotation_id,
+            "occurrence_id": occurrence_id,
+            "span_nodes": list(span),
+        }
+        for (carrier, lane), (annotation_id, occurrence_id, span)
+        in module.occurrence_lanes.items()
+    ]
+
+
+def _findspot_audit_payload(module: BurnsFeatureModule) -> dict[str, object]:
+    return {
+        "conflicts": {
+            str(node): {field: list(values) for field, values in fields.items()}
+            for node, fields in module.findspot_audit.conflicts.items()
+        },
+        "incomplete": {
+            str(node): list(fields)
+            for node, fields in module.findspot_audit.incomplete.items()
+        },
+        "unmapped_record_ids": list(module.findspot_audit.unmapped_record_ids),
+    }
+
+
 def build_feature_module_report(
     source: NormalizedBurnsSource,
     alignments: tuple[BurnsAnnotationAlignment, ...],
@@ -319,28 +347,8 @@ def build_feature_module_report(
             "max_lane": module.max_lane,
         },
         "feature_inventory": feature_files,
-        "occurrence_lanes": [
-            {
-                "carrier_node": carrier,
-                "lane": lane,
-                "annotation_id": annotation_id,
-                "occurrence_id": occurrence_id,
-                "span_nodes": list(span),
-            }
-            for (carrier, lane), (annotation_id, occurrence_id, span)
-            in module.occurrence_lanes.items()
-        ],
-        "findspot_audit": {
-            "conflicts": {
-                str(node): {field: list(values) for field, values in fields.items()}
-                for node, fields in module.findspot_audit.conflicts.items()
-            },
-            "incomplete": {
-                str(node): list(fields)
-                for node, fields in module.findspot_audit.incomplete.items()
-            },
-            "unmapped_record_ids": list(module.findspot_audit.unmapped_record_ids),
-        },
+        "occurrence_lanes": _occurrence_lane_payload(module),
+        "findspot_audit": _findspot_audit_payload(module),
         "source_records": _source_payload(source),
         "alignment": build_alignment_report(source, alignments, index),
     }
@@ -374,6 +382,18 @@ def write_feature_module(
     ):
         raise ValueError(
             "Burns feature module report occurrence counts disagree with module data"
+        )
+
+    expected_occurrence_lanes = _occurrence_lane_payload(module)
+    if report.get("occurrence_lanes") != expected_occurrence_lanes:
+        raise ValueError(
+            "Burns feature module report occurrence-lane provenance disagrees with module data"
+        )
+
+    expected_findspot_audit = _findspot_audit_payload(module)
+    if report.get("findspot_audit") != expected_findspot_audit:
+        raise ValueError(
+            "Burns feature module report findspot audit disagrees with module data"
         )
 
     expected = frozenset(
