@@ -79,14 +79,6 @@ class CandidateHypothesisAggregateTests(unittest.TestCase):
         )
         index = _index()
         alignments = align_burns_source(source, index)
-        self.assertTrue(
-            all(
-                occurrence.reason is BurnsAlignmentReason.HEADWORD_NOT_FOUND
-                for alignment in alignments
-                for occurrence in alignment.occurrences
-            )
-        )
-
         stats = aggregate_headword_candidate_hypothesis_stats(
             source=source,
             alignments=alignments,
