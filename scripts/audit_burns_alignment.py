@@ -26,6 +26,7 @@ from ugarit_context_parsing.alignment import (  # noqa: E402
     BurnsAlignmentReason,
     BurnsAnchorKind,
     BurnsAnnotationAlignment,
+    _candidate_spans,
     _headword_tokens,
     align_burns_source,
     alignment_report_json,
@@ -314,6 +315,139 @@ def aggregate_headword_expression_stats(
         "editorial_marker_signatures": {
             key: _headword_audit_bucket(counter)
             for key, counter in sorted(marker_signature_buckets.items())
+        },
+    }
+
+
+_LINE_DRIFT_OFFSETS = (-2, -1, 1, 2)
+_LINE_DRIFT_OUTCOMES = (
+    "ambiguous_neighbor_span",
+    "multi_neighbor",
+    "no_neighbor_match",
+    "unique_neighbor",
+)
+
+
+def _offset_label(offset: int) -> str:
+    return f"{offset:+d}"
+
+
+def _line_drift_bucket(counter: Counter[str]) -> dict[str, int]:
+    return {
+        **{name: counter.get(name, 0) for name in _LINE_DRIFT_OUTCOMES},
+        "occurrences": sum(counter.values()),
+    }
+
+
+def aggregate_line_address_drift_stats(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Audit exact neighboring-line rescues for HEADWORD_NOT_FOUND occurrences.
+
+    This is diagnostic only. It never changes an occurrence anchor or treats a
+    neighboring lexical coincidence as an address correction.
+    """
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in line-drift audit source")
+
+    reverse_lines: dict[int, tuple[str, str, int]] = {}
+    for key, node in index.line_nodes.items():
+        if node in reverse_lines:
+            raise ValueError("CUC line node has multiple structural identities")
+        reverse_lines[node] = key
+
+    occurrences = 0
+    outcomes: Counter[str] = Counter()
+    available_offsets: Counter[str] = Counter()
+    matched_offsets: Counter[str] = Counter()
+    unique_offsets: Counter[str] = Counter()
+    syntax_buckets: dict[str, Counter[str]] = defaultdict(Counter)
+    unique_rescue_lines: dict[tuple[str, str, int], list[int]] = defaultdict(list)
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("alignment references unknown annotation in line-drift audit")
+        syntax_class = str(classify_headword_expression(annotation.headword)["exclusive_class"])
+        tokens = _headword_tokens(annotation.headword)
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            line_node = occurrence.context_line_node
+            if line_node is None:
+                raise ValueError("HEADWORD_NOT_FOUND occurrence lacks context line")
+            identity = reverse_lines.get(line_node)
+            if identity is None:
+                raise ValueError(
+                    "HEADWORD_NOT_FOUND context line has no unique CUC structural identity"
+                )
+            tablet, column, line = identity
+            occurrences += 1
+
+            matched: dict[int, int] = {}
+            for offset in _LINE_DRIFT_OFFSETS:
+                neighbor = index.line_nodes.get((tablet, column, line + offset))
+                if neighbor is None:
+                    continue
+                label = _offset_label(offset)
+                available_offsets[label] += 1
+                spans = _candidate_spans(tokens, neighbor, index)
+                if spans:
+                    matched_offsets[label] += 1
+                    matched[offset] = len(spans)
+
+            if not matched:
+                outcome = "no_neighbor_match"
+            elif len(matched) > 1:
+                outcome = "multi_neighbor"
+            else:
+                offset, span_count = next(iter(matched.items()))
+                if span_count == 1:
+                    outcome = "unique_neighbor"
+                    label = _offset_label(offset)
+                    unique_offsets[label] += 1
+                    unique_rescue_lines[(tablet, column, offset)].append(line)
+                else:
+                    outcome = "ambiguous_neighbor_span"
+
+            outcomes[outcome] += 1
+            syntax_buckets[syntax_class][outcome] += 1
+
+    run_histograms: dict[str, Counter[int]] = defaultdict(Counter)
+    for (_, _, offset), lines in unique_rescue_lines.items():
+        ordered = sorted(set(lines))
+        if not ordered:
+            continue
+        run_length = 1
+        previous = ordered[0]
+        for line in ordered[1:]:
+            if line == previous + 1:
+                run_length += 1
+            else:
+                run_histograms[_offset_label(offset)][run_length] += 1
+                run_length = 1
+            previous = line
+        run_histograms[_offset_label(offset)][run_length] += 1
+
+    return {
+        "occurrences": occurrences,
+        "outcomes": _counter_payload(outcomes),
+        "available_neighbor_offsets": dict(sorted(available_offsets.items())),
+        "matched_neighbor_offsets": dict(sorted(matched_offsets.items())),
+        "unique_rescue_offsets": dict(sorted(unique_offsets.items())),
+        "unique_rescue_run_lengths": {
+            label: _counter_payload(counter)
+            for label, counter in sorted(run_histograms.items())
+        },
+        "syntax_classes": {
+            key: _line_drift_bucket(counter)
+            for key, counter in sorted(syntax_buckets.items())
         },
     }
 
