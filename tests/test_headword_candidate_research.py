@@ -137,11 +137,11 @@ class CandidateResearchAggregateTests(unittest.TestCase):
         )
         alignments = align_burns_source(source, index)
 
-        # The current production literal matcher must still fail every authored
-        # expression in this research fixture.
+        # Research accounting is counterfactual and must remain stable even
+        # after production learns an evidenced syntax class.
         self.assertTrue(
-            all(
-                occurrence.reason.value == "headword_not_found"
+            any(
+                occurrence.reason.value == "none"
                 for alignment in alignments
                 for occurrence in alignment.occurrences
             )
