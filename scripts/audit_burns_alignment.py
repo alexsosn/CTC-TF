@@ -42,6 +42,7 @@ from ugarit_context_parsing.headword_expression import (  # noqa: E402
     SquareBracketMask,
     literal_headword_tokens,
     nfc,
+    parenthesis_core_opaque_group_tokens,
     parse_square_bracket_mask,
     simple_parenthesis_candidate_tokens,
     simple_token_slash_candidate_tokens,
@@ -289,37 +290,9 @@ def parenthesis_core_with_bracket_mask(
 def opaque_parenthesis_core_with_inner_brackets(
     headword: str,
 ) -> tuple[str, ...] | None:
-    """Research a simple parenthesis core when all bracket/slash markup is omitted.
+    """Research alias for the now evidenced production candidate rule."""
 
-    The inner group's syntax is deliberately opaque: if every square bracket and
-    every slash lies inside the one parenthesized group, none of it contributes
-    characters to the lexical core selected by the reviewed #78 rule.
-    """
-
-    text = nfc(headword or "")
-    if "[" not in text and "]" not in text:
-        return None
-    unbalanced, openers, max_depth = _delimiter_balance(text, "(", ")")
-    if unbalanced or openers != 1 or max_depth != 1 or text.count(")") != 1:
-        return None
-    start = text.index("(")
-    end = text.index(")", start + 1)
-    if start > 0 and not text[start - 1].isspace():
-        return None
-    if end + 1 < len(text) and not text[end + 1].isspace():
-        return None
-
-    before = text[:start].strip()
-    inside = text[start + 1 : end]
-    after = text[end + 1 :].strip()
-    outside = f"{before} {after}"
-    if any(char in outside for char in "[]/"):
-        return None
-    if "[" not in inside and "]" not in inside:
-        return None
-
-    tokens = literal_headword_tokens(" ".join(part for part in (before, after) if part))
-    return tokens or None
+    return parenthesis_core_opaque_group_tokens(headword)
 
 
 def compare_cuc_restoration_mask(
