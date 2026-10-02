@@ -76,6 +76,32 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         and item.anchor_kind is BurnsAnchorKind.WORD_SPAN
         for alignment in alignments for item in alignment.occurrences
     )
+    expected_headword_outcomes = {
+        "ambiguous_span": sum(
+            item.reason.value == "ambiguous_headword_span"
+            for alignment in alignments for item in alignment.occurrences
+        ),
+        "matched": selected,
+        "not_found": sum(
+            item.reason.value == "headword_not_found"
+            for alignment in alignments for item in alignment.occurrences
+        ),
+    }
+    if headword_expression_stats["outcomes"] != {
+        key: value for key, value in expected_headword_outcomes.items() if value
+    }:
+        raise AssertionError(
+            "headword-expression denominator diverges from alignment outcomes: "
+            f"actual={headword_expression_stats['outcomes']!r} "
+            f"expected={expected_headword_outcomes!r}"
+        )
+    eligible = int(headword_expression_stats["eligible_occurrences"])
+    for partition_name in ("exclusive_classes", "syntax_signatures"):
+        partition = headword_expression_stats[partition_name]
+        if sum(int(bucket["occurrences"]) for bucket in partition.values()) != eligible:
+            raise AssertionError(
+                f"headword-expression {partition_name} does not partition eligible occurrences"
+            )
     if materialize([
         "module", str(source_root), "--input-format", "csv", "--cuc", str(cuc_root),
         "--output", str(output),
