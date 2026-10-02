@@ -170,11 +170,9 @@ class TextFabricFeatureOnlyEdgeResearchTests(unittest.TestCase):
 
             hits = tuple(
                 combined.S.search(
-                    """
-                    s:word burns_occurrence_id_1=burns-occurrence-sha256:synthetic
-                    m:word
-                    s -burns_span_1> m
-                    """,
+                    "s:word burns_occurrence_id_1=burns-occurrence-sha256:synthetic\n"
+                    "m:word\n"
+                    "s -burns_span_1> m",
                     silent="deep",
                 )
             )
