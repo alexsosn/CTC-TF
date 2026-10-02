@@ -270,7 +270,7 @@ def build_feature_module(
     )
 
 
-def _plain_module(module: BurnsFeatureModule) -> tuple[dict, dict, dict, int, dict]:
+def _plain_module(module: BurnsFeatureModule) -> tuple[dict, dict, dict, dict, int, dict]:
     return (
         dict(module.compatibility),
         {name: dict(values) for name, values in module.node_features.items()},
