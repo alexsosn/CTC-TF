@@ -6,6 +6,7 @@ from types import MappingProxyType
 
 from scripts.audit_burns_alignment import (
     compare_cuc_restoration_mask,
+    opaque_parenthesis_core_with_inner_brackets,
     parenthesis_core_with_bracket_mask,
 )
 from ugarit_context_parsing.cuc_index import ReviewedCucIndex
@@ -63,6 +64,16 @@ class ParenthesisBracketCompositionTests(unittest.TestCase):
         self.assertEqual(candidate.tokens, ("a", "c"))
         self.assertEqual(candidate.restored_positions, ((0,), ()))
         self.assertFalse(candidate.brackets_omitted_with_parenthesis)
+
+    def test_opaque_bracket_slash_markup_entirely_inside_omitted_group_can_be_researched(self):
+        candidate = opaque_parenthesis_core_with_inner_brackets("a ([b/c]) d")
+        self.assertEqual(candidate, ("a", "d"))
+        self.assertIsNone(
+            opaque_parenthesis_core_with_inner_brackets("[a] (b/c) d")
+        )
+        self.assertIsNone(
+            opaque_parenthesis_core_with_inner_brackets("a ([b]) d/e")
+        )
 
     def test_crossing_or_mixed_slash_syntax_fails_closed(self):
         for value in ("[a (b]) c", "a ([b/c]) d", "a (b) [c"):
