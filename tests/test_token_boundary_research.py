@@ -59,8 +59,8 @@ class TokenBoundaryResearchTests(unittest.TestCase):
         self.assertEqual(stats["eligible_clean_marker_gaps"], 5)
 
     def test_payload_contains_no_lexical_strings_ids_locators_or_nodes(self):
-        source = normalize_workbook_records((_record(1, "secret token", 10),))
-        index = _index({10: ("secrettoken",)})
+        source = normalize_workbook_records((_record(1, "secretlexeme otherlexeme", 10),))
+        index = _index({10: ("secretlexemeotherlexeme",)})
         alignments = align_burns_source(source, index)
         payload = json.dumps(
             aggregate_token_boundary_research(
@@ -71,9 +71,9 @@ class TokenBoundaryResearchTests(unittest.TestCase):
             sort_keys=True,
         )
         for restricted in (
-            "secret",
-            "token",
-            "secrettoken",
+            "secretlexeme",
+            "otherlexeme",
+            "secretlexemeotherlexeme",
             "KTU 1.14",
             "I.10",
             source.records[0].record_id,
