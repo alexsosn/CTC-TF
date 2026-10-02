@@ -145,7 +145,7 @@ class FeatureOnlyModuleBuildTests(unittest.TestCase):
             name
             for name in module.node_features
             if name.startswith(("burns_occurrence_id_", "burns_annotation_id_", "burns_headword_",
-                                "burns_root_", "burns_category_", "burns_semantic_status_",
+                                "burns_match_rule_", "burns_root_", "burns_category_", "burns_semantic_status_",
                                 "burns_worksheet_role_", "burns_section_", "burns_span_length_"))
         ]
         self.assertEqual(lexical_names, [])
