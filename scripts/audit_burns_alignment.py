@@ -1352,7 +1352,7 @@ def aggregate_residual_clean_gap_research(
             raise ValueError(
                 "clean/marker residual unexpectedly has multiple production candidates"
             )
-        _rule, tokens = candidates
+        _rule, tokens = candidates[0]
 
         for occurrence in alignment.occurrences:
             if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
