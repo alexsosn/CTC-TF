@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from dataclasses import replace
 
 from test_headword_candidate_research import _index, _record
 from scripts.audit_burns_alignment import aggregate_one_edit_research
@@ -59,8 +60,63 @@ class OneEditResearchTests(unittest.TestCase):
             stats["deletion_positions"],
             {"end": 1, "internal": 1, "start": 1},
         )
+        self.assertEqual(
+            stats["substitution_pair_positions"],
+            {"U+0063>U+0064@end": 1},
+        )
+        self.assertEqual(
+            stats["insertion_codepoint_positions"],
+            {"U+0078@internal": 1},
+        )
+        self.assertEqual(
+            stats["deletion_codepoint_positions"],
+            {
+                "U+0078@end": 1,
+                "U+0078@internal": 1,
+                "U+0078@start": 1,
+            },
+        )
+        self.assertEqual(
+            stats["confusion_distinct_annotations"],
+            {
+                "deletion:U+0078": 3,
+                "insertion:U+0078": 1,
+                "substitution:U+0063>U+0064": 1,
+            },
+        )
         self.assertEqual(stats["ambiguous_distance1_candidates"], 1)
         self.assertEqual(stats["distinct_annotations"], 5)
+
+    def test_repeated_references_do_not_inflate_independent_confusion_evidence(self):
+        record = replace(
+            _record(1, "abcx", 10),
+            references="I.10, 20",
+        )
+        source = normalize_workbook_records((record,))
+        index = _index(
+            {
+                10: ("abc",),
+                20: ("abc",),
+            }
+        )
+        alignments = align_burns_source(source, index)
+        stats = aggregate_one_edit_research(
+            source=source,
+            alignments=alignments,
+            index=index,
+        )
+
+        self.assertEqual(stats["occurrences"], 2)
+        self.assertEqual(stats["distinct_annotations"], 1)
+        self.assertEqual(stats["annotation_occurrence_multiplicity"], {"2": 1})
+        self.assertEqual(
+            stats["confusion_distinct_annotations"],
+            {"deletion:U+0078": 1},
+        )
+        self.assertEqual(
+            stats["deletion_codepoint_positions"],
+            {"U+0078@end": 2},
+        )
 
     def test_payload_does_not_expose_lexical_strings_ids_locators_or_nodes(self):
         source = normalize_workbook_records((_record(1, "secreta", 10),))
