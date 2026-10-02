@@ -14,7 +14,11 @@ from pathlib import Path
 
 from tf.fabric import Fabric
 
-from scripts.audit_burns_alignment import aggregate_alignment_stats, aggregate_lexical_gap_stats
+from scripts.audit_burns_alignment import (
+    aggregate_alignment_stats,
+    aggregate_headword_expression_stats,
+    aggregate_lexical_gap_stats,
+)
 from ugarit_context_parsing.alignment import (
     BurnsAlignmentConfidence, BurnsAlignmentDisposition, BurnsAnchorKind,
     align_burns_source,
@@ -47,6 +51,10 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         source=normalized,
         alignments=alignments,
         index=index,
+    )
+    headword_expression_stats = aggregate_headword_expression_stats(
+        source=normalized,
+        alignments=alignments,
     )
     disposition_counts = Counter(item.disposition.value for item in alignments)
     annotation_reasons = Counter((item.disposition.value, item.reason.value) for item in alignments)
@@ -140,6 +148,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "occurrence_states": {"/".join(key): count for key, count in sorted(occurrence_counts.items())},
         "native_entities": selected,
         "lexical_gap": lexical_gap_stats,
+        "headword_expression": headword_expression_stats,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
         "tablet_findspot_incomplete": len(report["findspot_audit"]["incomplete"]),
         "unmapped_findspot_records": len(report["findspot_audit"]["unmapped_record_ids"]),
