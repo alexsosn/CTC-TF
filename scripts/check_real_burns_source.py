@@ -183,6 +183,18 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
     if tuple(combined.F.otype.s("entity")):
         raise AssertionError("feature-only Burns module created entity nodes")
 
+    exact_match_rules = {
+        occurrence.occurrence_id: occurrence.match_rule
+        for alignment in alignments
+        for occurrence in alignment.occurrences
+        if occurrence.anchor_kind is BurnsAnchorKind.WORD_SPAN
+        and occurrence.confidence is BurnsAlignmentConfidence.EXACT_LEXICAL
+    }
+    if set(exact_match_rules) != {
+        item["occurrence_id"] for item in report["occurrence_lanes"]
+    }:
+        raise AssertionError("feature-only report and exact alignment occurrence ids diverge")
+
     if len(report["occurrence_lanes"]) != selected:
         raise AssertionError("feature-only report lost exact lexical occurrences")
     for item in report["occurrence_lanes"]:
@@ -194,9 +206,13 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         if combined.F.otype.v(carrier) != "word":
             raise AssertionError("Burns lexical lane carrier is not a CUC word")
         occurrence_feature = combined.Fs(f"burns_occurrence_id_{lane}", warn=False)
+        match_rule_feature = combined.Fs(f"burns_match_rule_{lane}", warn=False)
         length_feature = combined.Fs(f"burns_span_length_{lane}", warn=False)
         if not occurrence_feature or occurrence_feature.v(carrier) != item["occurrence_id"]:
             raise AssertionError("Burns occurrence lane is not natively queryable")
+        expected_rule = exact_match_rules[item["occurrence_id"]]
+        if not expected_rule or not match_rule_feature or match_rule_feature.v(carrier) != expected_rule:
+            raise AssertionError("Burns lexical match-rule provenance diverges from alignment")
         if not length_feature or length_feature.v(carrier) != len(span):
             raise AssertionError("Burns span length disagrees with local report")
         edge = combined.Es(f"burns_span_{lane}", warn=False)
@@ -206,7 +222,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
 
     lexical_prefixes = (
         "burns_occurrence_id_", "burns_annotation_id_", "burns_headword_",
-        "burns_root_", "burns_category_", "burns_semantic_status_",
+        "burns_match_rule_", "burns_root_", "burns_category_", "burns_semantic_status_",
         "burns_worksheet_role_", "burns_section_", "burns_span_length_",
     )
     for name in combined.Fall():
