@@ -7,6 +7,7 @@ locators. The runner downloads the original Workbooks and discards derivatives.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import resource
 from collections import Counter
@@ -16,6 +17,7 @@ from tf.fabric import Fabric
 
 from scripts.audit_burns_alignment import (
     aggregate_alignment_stats,
+    aggregate_bracket_restoration_research,
     aggregate_feature_only_lane_stats,
     aggregate_headword_candidate_research,
     aggregate_headword_expression_stats,
@@ -33,6 +35,60 @@ from ugarit_context_parsing.feature_module import CATEGORY_NAMES, REPORT_FILE, S
 from ugarit_context_parsing.source import load_csv_directory
 
 
+def _sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _load_editorial_research(cuc_root: Path):
+    """Load extra CUC editorial features for research on the pinned CI checkout.
+
+    Production alignment must not depend on these files until #79 extends the
+    reviewed-CUC fingerprint contract.
+    """
+
+    names = ("sign.tf", "emen.tf", "cert.tf", "alt.tf")
+    fingerprints = {
+        name: {
+            "size": (cuc_root / name).stat().st_size,
+            "sha256": _sha256(cuc_root / name),
+        }
+        for name in names
+    }
+    api = Fabric(locations=[str(cuc_root.resolve())], modules=[""], silent="deep").load(
+        "sign emen cert alt",
+        silent="deep",
+    )
+    if not api:
+        raise AssertionError("could not load reviewed CUC editorial features for research")
+
+    sign_nodes = tuple(int(node) for node in api.F.otype.s("sign"))
+    sign_values = {
+        node: str(value)
+        for node in sign_nodes
+        if (value := api.F.sign.v(node)) is not None
+    }
+    sign_emen = {
+        node: str(value)
+        for node in sign_nodes
+        if (value := api.F.emen.v(node)) is not None
+    }
+    sign_cert = {
+        node: str(value)
+        for node in sign_nodes
+        if (value := api.F.cert.v(node)) is not None
+    }
+    sign_alt = {
+        node: str(value)
+        for node in sign_nodes
+        if (value := api.F.alt.v(node)) is not None
+    }
+    return sign_values, sign_emen, sign_cert, sign_alt, fingerprints
+
+
 def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
     source = load_csv_directory(source_root)
     normalized = normalize_workbook_records(source.records)
@@ -44,6 +100,22 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         )
     index = build_reviewed_cuc_index(cuc_root)
     alignments = align_burns_source(normalized, index)
+    (
+        sign_values,
+        sign_emen,
+        sign_cert,
+        sign_alt,
+        editorial_fingerprints,
+    ) = _load_editorial_research(cuc_root)
+    bracket_restoration_research = aggregate_bracket_restoration_research(
+        source=normalized,
+        alignments=alignments,
+        index=index,
+        sign_values=sign_values,
+        sign_emen=sign_emen,
+        sign_cert=sign_cert,
+        sign_alt=sign_alt,
+    )
     alignment_stats = aggregate_alignment_stats(
         file_count=len(source.files),
         source=normalized,
@@ -258,6 +330,8 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "feature_only_lanes": feature_only_lane_stats,
         "headword_expression": headword_expression_stats,
         "headword_candidate_research": headword_candidate_research,
+        "bracket_restoration_research": bracket_restoration_research,
+        "editorial_file_fingerprints": editorial_fingerprints,
         "line_address_drift": line_address_drift_stats,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
         "tablet_findspot_incomplete": len(report["findspot_audit"]["incomplete"]),

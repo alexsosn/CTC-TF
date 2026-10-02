@@ -60,7 +60,7 @@ Burns occurrences that have an exact lexical CUC word span are stored on the **f
 - `burns_occurrence_id_N`
 - `burns_annotation_id_N`
 - `burns_headword_N`
-- `burns_match_rule_N` (`literal`, `parenthesis_core`, `slash_left`, or `slash_right`)
+- `burns_match_rule_N` (`literal`, `parenthesis_core`, `parenthesis_core_opaque_group`, `slash_left`, or `slash_right`)
 - `burns_root_N` when supplied
 - `burns_category_N`
 - `burns_semantic_status_N`
@@ -89,9 +89,9 @@ s -burns_span_1> m""",
 ))
 ```
 
-Lane count is derived from the supplied exact alignments rather than hard-coded. On the current pinned real-source audit, 7,253 exact lexical occurrences occupy 5,880 start words. Lane-depth distribution is 4,913 starts at depth 1, 633 at depth 2, 290 at depth 3, 29 at depth 4, 2 at depth 5, and 13 at depth 6. Consumers must inspect the feature inventory/report rather than hard-code a maximum.
+Lane count is derived from the supplied exact alignments rather than hard-coded. On the current pinned real-source audit, 7,402 exact lexical occurrences occupy 5,909 start words. Lane-depth distribution is 4,837 starts at depth 1, 724 at depth 2, 303 at depth 3, 30 at depth 4, 2 at depth 5, and 13 at depth 6. Consumers must inspect the feature inventory/report rather than hard-code a maximum.
 
-`burns_headword_N` is the source headword label, **not** a verified lemma. `burns_match_rule_N` records which exact candidate rule produced the published span, so non-literal recovery remains queryable provenance rather than an invisible normalization. The matcher now interprets two narrowly evidenced headword-expression classes: one balanced non-nested parenthesized group contributes the exact **core with that group omitted**, and one token-internal slash contributes exact left/right alternatives. This raises the pinned real-source exact count from 4,357 to 7,253. Another 1,991 resolved-line occurrences still have no exact lexical span, and 275 have multiple exact candidate spans; those remain in the local alignment report and are **not** emitted as lexical features on line/tablet nodes. Square-bracket restoration semantics and more complex/mixed expressions remain separate research rather than being hidden behind fuzzy matching.
+`burns_headword_N` is the source headword label, **not** a verified lemma. `burns_match_rule_N` records which exact candidate rule produced the published span, so non-literal recovery remains queryable provenance rather than an invisible normalization. The matcher now interprets narrowly evidenced headword-expression classes: one balanced non-nested parenthesized group contributes the exact **core with that group omitted**; one token-internal slash contributes exact left/right alternatives; and bracket/slash markup that lies wholly inside an already-omitted parenthesized group may remain opaque because none of its characters enter the lexical anchor. This raises the pinned real-source exact count from 4,357 to 7,402. Another 1,841 resolved-line occurrences still have no exact lexical span, and 276 have multiple exact candidate spans; those remain in the local alignment report and are **not** emitted as lexical features on line/tablet nodes. Square brackets that survive into the lexical core are still not stripped: the current real data supplied no supported exact case that would justify a restoration-aware `emen` rule.
 
 ### Tablet-scoped excavation observations
 

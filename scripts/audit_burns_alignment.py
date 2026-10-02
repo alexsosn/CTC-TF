@@ -14,6 +14,7 @@ import sys
 import tempfile
 import unicodedata
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -38,6 +39,11 @@ from ugarit_context_parsing.annotations import (  # noqa: E402
 )
 from ugarit_context_parsing.cuc_index import ReviewedCucIndex, build_reviewed_cuc_index  # noqa: E402
 from ugarit_context_parsing.headword_expression import (  # noqa: E402
+    SquareBracketMask,
+    literal_headword_tokens,
+    nfc,
+    parenthesis_core_opaque_group_tokens,
+    parse_square_bracket_mask,
     simple_parenthesis_candidate_tokens,
     simple_token_slash_candidate_tokens,
 )
@@ -197,6 +203,338 @@ def classify_headword_expression(headword: str) -> dict[str, object]:
         "exclusive_class": exclusive_class,
     }
 
+
+
+@dataclass(frozen=True)
+class ParenthesisBracketCore:
+    tokens: tuple[str, ...]
+    restored_positions: tuple[tuple[int, ...], ...]
+    brackets_omitted_with_parenthesis: bool
+
+
+def _balanced_square_segment(value: str) -> bool:
+    depth = 0
+    group_chars = 0
+    for char in value:
+        if char == "[":
+            if depth:
+                return False
+            depth = 1
+            group_chars = 0
+        elif char == "]":
+            if not depth or group_chars == 0:
+                return False
+            depth = 0
+        elif depth and not char.isspace() and char not in _EDITORIAL_MARKERS:
+            group_chars += 1
+    return depth == 0
+
+
+def parenthesis_core_with_bracket_mask(
+    headword: str,
+) -> ParenthesisBracketCore | None:
+    """Research one simple parenthesis core while preserving surviving brackets."""
+
+    text = nfc(headword or "")
+    if "/" in text or "[" not in text and "]" not in text:
+        return None
+    unbalanced, openers, max_depth = _delimiter_balance(text, "(", ")")
+    if unbalanced or openers != 1 or max_depth != 1 or text.count(")") != 1:
+        return None
+    start = text.index("(")
+    end = text.index(")", start + 1)
+    if start > 0 and not text[start - 1].isspace():
+        return None
+    if end + 1 < len(text) and not text[end + 1].isspace():
+        return None
+
+    before = text[:start].strip()
+    inside = text[start + 1 : end].strip()
+    after = text[end + 1 :].strip()
+    if not inside:
+        return None
+
+    # A bracket group may not cross the boundary of material that the reviewed
+    # parenthesis-core rule removes.
+    if not all(_balanced_square_segment(part) for part in (before, inside, after)):
+        return None
+
+    core_text = " ".join(part for part in (before, after) if part)
+    if not core_text:
+        return None
+    brackets_in_core = "[" in core_text or "]" in core_text
+    brackets_in_omitted = "[" in inside or "]" in inside
+
+    if brackets_in_core:
+        parsed = parse_square_bracket_mask(core_text)
+        if parsed is None:
+            return None
+        return ParenthesisBracketCore(
+            tokens=parsed.tokens,
+            restored_positions=parsed.restored_positions,
+            brackets_omitted_with_parenthesis=False,
+        )
+
+    if not brackets_in_omitted:
+        return None
+    tokens = literal_headword_tokens(core_text)
+    if not tokens:
+        return None
+    return ParenthesisBracketCore(
+        tokens=tokens,
+        restored_positions=tuple(() for _ in tokens),
+        brackets_omitted_with_parenthesis=True,
+    )
+
+
+def opaque_parenthesis_core_with_inner_brackets(
+    headword: str,
+) -> tuple[str, ...] | None:
+    """Research alias for the now evidenced production candidate rule."""
+
+    return parenthesis_core_opaque_group_tokens(headword)
+
+
+def compare_cuc_restoration_mask(
+    *,
+    candidate_tokens: tuple[str, ...],
+    restored_positions: tuple[tuple[int, ...], ...],
+    span: tuple[int, ...],
+    index: ReviewedCucIndex,
+    sign_values: dict[int, str],
+    sign_emen: dict[int, str],
+    sign_cert: dict[int, str],
+    sign_alt: dict[int, str],
+) -> dict[str, object]:
+    """Compare Burns restoration positions with exact CUC sign-level evidence."""
+
+    if len(candidate_tokens) != len(restored_positions) or len(span) != len(candidate_tokens):
+        return {
+            "restoration": "sign_mapping_mismatch",
+            "missing_count": 0,
+            "extra_count": 0,
+            "cert_values": {},
+            "alt_values": {},
+        }
+
+    expected_slots: set[int] = set()
+    all_slots: list[int] = []
+    for token, positions, word in zip(
+        candidate_tokens, restored_positions, span, strict=True
+    ):
+        slots = tuple(index.word_slots.get(word, ()))
+        if len(slots) != len(token):
+            return {
+                "restoration": "sign_mapping_mismatch",
+                "missing_count": 0,
+                "extra_count": 0,
+                "cert_values": {},
+                "alt_values": {},
+            }
+        try:
+            signs = tuple(nfc(sign_values[slot]) for slot in slots)
+        except KeyError:
+            return {
+                "restoration": "sign_mapping_mismatch",
+                "missing_count": 0,
+                "extra_count": 0,
+                "cert_values": {},
+                "alt_values": {},
+            }
+        if "".join(signs) != nfc(token):
+            return {
+                "restoration": "sign_mapping_mismatch",
+                "missing_count": 0,
+                "extra_count": 0,
+                "cert_values": {},
+                "alt_values": {},
+            }
+        if any(position < 0 or position >= len(slots) for position in positions):
+            return {
+                "restoration": "sign_mapping_mismatch",
+                "missing_count": 0,
+                "extra_count": 0,
+                "cert_values": {},
+                "alt_values": {},
+            }
+        expected_slots.update(slots[position] for position in positions)
+        all_slots.extend(slots)
+
+    actual_restored = {
+        slot for slot in all_slots if sign_emen.get(slot) == "restored"
+    }
+    missing = expected_slots - actual_restored
+    extra = actual_restored - expected_slots
+    if missing and extra:
+        restoration = "missing_and_extra"
+    elif missing:
+        restoration = "missing"
+    elif extra:
+        restoration = "extra"
+    else:
+        restoration = "exact"
+
+    cert_counter = Counter(
+        value for slot in all_slots if (value := sign_cert.get(slot))
+    )
+    alt_counter = Counter(
+        value for slot in all_slots if (value := sign_alt.get(slot))
+    )
+    return {
+        "restoration": restoration,
+        "missing_count": len(missing),
+        "extra_count": len(extra),
+        "cert_values": dict(sorted(cert_counter.items())),
+        "alt_values": dict(sorted(alt_counter.items())),
+    }
+
+
+def aggregate_bracket_restoration_research(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+    sign_values: dict[int, str],
+    sign_emen: dict[int, str],
+    sign_cert: dict[int, str],
+    sign_alt: dict[int, str],
+) -> dict[str, object]:
+    """Audit bracketed resolved-line occurrences against exact CUC sign evidence.
+
+    This audit is deliberately counterfactual: it recomputes candidate/evidence
+    classes even after production starts resolving a class, so its denominator
+    and research conclusion stay stable across matcher improvements.
+    """
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in bracket restoration research")
+
+    occurrences = 0
+    syntax_classes: Counter[str] = Counter()
+    lexical_outcomes: Counter[str] = Counter()
+    restoration_outcomes: Counter[str] = Counter()
+    cert_exact: Counter[str] = Counter()
+    alt_exact: Counter[str] = Counter()
+    omitted_unique = 0
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError(
+                "alignment references unknown annotation in bracket restoration research"
+            )
+        headword = annotation.headword
+        if "[" not in headword and "]" not in headword:
+            continue
+
+        for occurrence in alignment.occurrences:
+            line_node = occurrence.context_line_node
+            if line_node is None:
+                continue
+            if occurrence.reason not in {
+                BurnsAlignmentReason.NONE,
+                BurnsAlignmentReason.HEADWORD_NOT_FOUND,
+                BurnsAlignmentReason.AMBIGUOUS_HEADWORD_SPAN,
+            }:
+                continue
+            if line_node not in index.line_words:
+                raise ValueError(
+                    "bracket restoration research occurrence lacks indexed context line"
+                )
+            occurrences += 1
+
+            candidate_tokens: tuple[str, ...] | None = None
+            restored_positions: tuple[tuple[int, ...], ...] | None = None
+            omitted = False
+
+            if "(" in headword or ")" in headword:
+                parenthesis = parenthesis_core_with_bracket_mask(headword)
+                if parenthesis is not None:
+                    candidate_tokens = parenthesis.tokens
+                    restored_positions = parenthesis.restored_positions
+                    omitted = parenthesis.brackets_omitted_with_parenthesis
+                    syntax_class = (
+                        "parenthesis_core_brackets_omitted"
+                        if omitted
+                        else "parenthesis_core_brackets_survive"
+                    )
+                else:
+                    syntax_class = "unsupported"
+            elif "/" in headword:
+                syntax_class = "unsupported"
+            else:
+                parsed = parse_square_bracket_mask(headword)
+                if parsed is not None:
+                    candidate_tokens = parsed.tokens
+                    restored_positions = parsed.restored_positions
+                    syntax_class = "literal_bracket"
+                else:
+                    syntax_class = "unsupported"
+
+            syntax_classes[syntax_class] += 1
+            if candidate_tokens is None or restored_positions is None:
+                opaque_core = opaque_parenthesis_core_with_inner_brackets(headword)
+                if opaque_core is None:
+                    lexical_outcomes["unsupported"] += 1
+                    continue
+                syntax_classes[syntax_class] -= 1
+                if syntax_classes[syntax_class] == 0:
+                    del syntax_classes[syntax_class]
+                syntax_class = "parenthesis_core_opaque_bracketed_group"
+                syntax_classes[syntax_class] += 1
+                candidate_tokens = opaque_core
+                restored_positions = tuple(() for _ in candidate_tokens)
+                omitted = True
+
+            spans = _candidate_spans(candidate_tokens, line_node, index)
+            if not spans:
+                lexical_outcomes["no_match"] += 1
+                continue
+            if len(spans) > 1:
+                lexical_outcomes["ambiguous"] += 1
+                continue
+
+            lexical_outcomes["unique"] += 1
+            if omitted:
+                omitted_unique += 1
+                continue
+
+            evidence = compare_cuc_restoration_mask(
+                candidate_tokens=candidate_tokens,
+                restored_positions=restored_positions,
+                span=spans[0],
+                index=index,
+                sign_values=sign_values,
+                sign_emen=sign_emen,
+                sign_cert=sign_cert,
+                sign_alt=sign_alt,
+            )
+            restoration = str(evidence["restoration"])
+            restoration_outcomes[restoration] += 1
+            if restoration == "exact":
+                cert_exact.update(
+                    {
+                        str(key): int(value)
+                        for key, value in dict(evidence["cert_values"]).items()
+                    }
+                )
+                alt_exact.update(
+                    {
+                        str(key): int(value)
+                        for key, value in dict(evidence["alt_values"]).items()
+                    }
+                )
+
+    return {
+        "occurrences": occurrences,
+        "syntax_classes": _counter_payload(syntax_classes),
+        "lexical_outcomes": _counter_payload(lexical_outcomes),
+        "restoration_outcomes": _counter_payload(restoration_outcomes),
+        "omitted_bracket_group_unique_matches": omitted_unique,
+        "cert_values_on_exact_restoration": _counter_payload(cert_exact),
+        "alt_values_on_exact_restoration": _counter_payload(alt_exact),
+    }
 
 
 _CANDIDATE_RESEARCH_PARENTHESES = (

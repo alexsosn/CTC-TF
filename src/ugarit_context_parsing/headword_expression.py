@@ -7,6 +7,7 @@ alignment fails closed rather than guessing.
 from __future__ import annotations
 
 import unicodedata
+from dataclasses import dataclass
 
 EDITORIAL_MARKERS = "*†!?"
 
@@ -46,6 +47,97 @@ def _delimiter_balance(value: str, opener: str, closer: str) -> tuple[bool, int,
     return unbalanced, openers, max_depth
 
 
+@dataclass(frozen=True)
+class SquareBracketMask:
+    """Debracketed tokens plus character positions Burns marks as restored."""
+
+    debracketed: str
+    tokens: tuple[str, ...]
+    restored_positions: tuple[tuple[int, ...], ...]
+
+
+def parse_square_bracket_mask(headword: str) -> SquareBracketMask | None:
+    """Parse balanced non-nested square-bracket restoration markup.
+
+    Brackets themselves are never lexical characters. The result preserves a
+    per-token character-position mask after the historical trailing editorial
+    markers are removed. This helper does not authorize lexical alignment.
+    """
+
+    text = nfc(headword or "")
+    if "[" not in text and "]" not in text:
+        return None
+
+    depth = 0
+    group_chars = 0
+    saw_group = False
+    raw_tokens: list[list[str]] = [[]]
+    raw_flags: list[list[bool]] = [[]]
+
+    def ensure_token() -> None:
+        if not raw_tokens:
+            raw_tokens.append([])
+            raw_flags.append([])
+
+    for char in text:
+        if char == "[":
+            if depth != 0:
+                return None
+            depth = 1
+            group_chars = 0
+            saw_group = True
+            continue
+        if char == "]":
+            if depth != 1 or group_chars == 0:
+                return None
+            depth = 0
+            continue
+        if char.isspace():
+            if raw_tokens[-1]:
+                raw_tokens.append([])
+                raw_flags.append([])
+            continue
+        ensure_token()
+        raw_tokens[-1].append(char)
+        raw_flags[-1].append(depth == 1)
+        if depth == 1 and char not in EDITORIAL_MARKERS:
+            group_chars += 1
+
+    if depth != 0 or not saw_group:
+        return None
+    if raw_tokens and not raw_tokens[-1]:
+        raw_tokens.pop()
+        raw_flags.pop()
+
+    debracketed_parts: list[str] = []
+    tokens: list[str] = []
+    restored: list[tuple[int, ...]] = []
+    any_restored_lexical = False
+    for chars, flags in zip(raw_tokens, raw_flags, strict=True):
+        raw = "".join(chars)
+        debracketed_parts.append(raw)
+        while chars and chars[-1] in EDITORIAL_MARKERS:
+            chars.pop()
+            flags.pop()
+        if not chars:
+            return None
+        token = "".join(chars)
+        positions = tuple(index for index, flag in enumerate(flags) if flag)
+        if positions:
+            any_restored_lexical = True
+        tokens.append(token)
+        restored.append(positions)
+
+    if not tokens or not any_restored_lexical:
+        return None
+
+    return SquareBracketMask(
+        debracketed=" ".join(debracketed_parts),
+        tokens=tuple(tokens),
+        restored_positions=tuple(restored),
+    )
+
+
 def simple_parenthesis_candidate_tokens(
     headword: str,
 ) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
@@ -83,6 +175,44 @@ def simple_parenthesis_candidate_tokens(
     if not core or not expanded or core == expanded:
         return None
     return core, expanded
+
+
+def parenthesis_core_opaque_group_tokens(
+    headword: str,
+) -> tuple[str, ...] | None:
+    """Return the exact core when all bracket/slash markup is inside one omitted group.
+
+    This rule is intentionally narrow and is supported by #79 real-source
+    evidence. Square-bracket or slash syntax that survives outside the
+    parenthesized group is never normalized by this rule.
+    """
+
+    text = nfc(headword or "")
+    if "[" not in text and "]" not in text:
+        return None
+    unbalanced, openers, max_depth = _delimiter_balance(text, "(", ")")
+    if unbalanced or openers != 1 or max_depth != 1 or text.count(")") != 1:
+        return None
+
+    start = text.index("(")
+    end = text.index(")", start + 1)
+    if start > 0 and not text[start - 1].isspace():
+        return None
+    if end + 1 < len(text) and not text[end + 1].isspace():
+        return None
+
+    before = text[:start].strip()
+    inside = text[start + 1 : end]
+    after = text[end + 1 :].strip()
+    outside = " ".join(part for part in (before, after) if part)
+
+    if any(char in outside for char in "[]/"):
+        return None
+    if "[" not in inside and "]" not in inside:
+        return None
+
+    tokens = literal_headword_tokens(outside)
+    return tokens or None
 
 
 def simple_token_slash_candidate_tokens(
@@ -128,6 +258,10 @@ def headword_candidates(
     if parenthesis is not None:
         core, _expanded = parenthesis
         return (("parenthesis_core", core),)
+
+    opaque_parenthesis = parenthesis_core_opaque_group_tokens(headword)
+    if opaque_parenthesis is not None:
+        return (("parenthesis_core_opaque_group", opaque_parenthesis),)
 
     slash = simple_token_slash_candidate_tokens(headword)
     if slash is not None:

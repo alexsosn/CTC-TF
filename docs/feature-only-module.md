@@ -37,7 +37,7 @@ word in its span. Metadata is scalar and lane-numbered:
 - `burns_occurrence_id_N`
 - `burns_annotation_id_N`
 - `burns_headword_N`
-- `burns_match_rule_N` (`literal`, `parenthesis_core`, `slash_left`, or `slash_right`)
+- `burns_match_rule_N` (`literal`, `parenthesis_core`, `parenthesis_core_opaque_group`, `slash_left`, or `slash_right`)
 - `burns_root_N` where Burns supplies one
 - `burns_category_N`
 - `burns_semantic_status_N`
@@ -95,14 +95,16 @@ The earlier extended-warp `entity` experiment is retired: there is no
 available only through explicit `module-v1` compatibility invocation.
 
 Current pinned real-source evidence after the evidenced headword-expression
-rules: 7,253 exact lexical occurrences on 5,880 distinct carrier words. The
-lane-depth distribution is 4,913 carriers at depth 1, 633 at depth 2, 290 at
-depth 3, 29 at depth 4, 2 at depth 5, and 13 at depth 6. The implementation is
+rules: 7,402 exact lexical occurrences on 5,909 distinct carrier words. The
+lane-depth distribution is 4,837 carriers at depth 1, 724 at depth 2, 303 at
+depth 3, 30 at depth 4, 2 at depth 5, and 13 at depth 6. The implementation is
 dynamic; consumers discover lanes from the feature inventory rather than
 assuming a corpus-derived maximum.
 
-The matcher interprets only two non-literal expression classes here: a single
-balanced non-nested parenthesized group is omitted from the lexical core, and a
-single token-internal slash supplies exact left/right alternatives. Complex or
-mixed punctuation and square-bracket restorations still fail closed unless a
-separate reviewed rule applies.
+The matcher interprets a small reviewed set of non-literal expression classes: a
+single balanced non-nested parenthesized group is omitted from the lexical core;
+a single token-internal slash supplies exact left/right alternatives; and
+bracket/slash markup wholly contained in an already-omitted parenthesized group
+may remain opaque. This last rule does not debracket lexical text or assert a
+restoration reading. Square brackets that survive into the lexical core and
+other complex/mixed punctuation still fail closed.
