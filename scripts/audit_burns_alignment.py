@@ -194,6 +194,207 @@ def classify_headword_expression(headword: str) -> dict[str, object]:
     }
 
 
+
+def simple_parenthesis_candidate_tokens(
+    headword: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    """Return (core, expanded) for one conservative parenthesized group.
+
+    This is a research helper, not production alignment semantics. It accepts
+    exactly one balanced, non-nested group whose parentheses are token/group
+    boundaries and rejects mixed slash/square-bracket syntax.
+    """
+
+    text = unicodedata.normalize("NFC", headword or "")
+    if "/" in text or "[" in text or "]" in text:
+        return None
+    unbalanced, openers, max_depth = _delimiter_balance(text, "(", ")")
+    if unbalanced or openers != 1 or max_depth != 1 or text.count(")") != 1:
+        return None
+
+    start = text.index("(")
+    end = text.index(")", start + 1)
+    if start > 0 and not text[start - 1].isspace():
+        return None
+    if end + 1 < len(text) and not text[end + 1].isspace():
+        return None
+
+    before = text[:start].strip()
+    inside = text[start + 1 : end].strip()
+    after = text[end + 1 :].strip()
+    if not inside:
+        return None
+
+    core_text = " ".join(part for part in (before, after) if part)
+    expanded_text = " ".join(part for part in (before, inside, after) if part)
+    core = _headword_tokens(core_text)
+    expanded = _headword_tokens(expanded_text)
+    if not core or not expanded or core == expanded:
+        return None
+    return core, expanded
+
+
+def simple_token_slash_candidate_tokens(
+    headword: str,
+) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    """Return (left, right) for one token-internal slash alternative.
+
+    Standalone slash tokens, multiple slashes, empty branches and expressions
+    mixed with parentheses/square brackets deliberately fail closed.
+    """
+
+    text = unicodedata.normalize("NFC", headword or "")
+    if any(char in text for char in "()[]"):
+        return None
+    raw_tokens = text.split()
+    slash_positions = [
+        index for index, token in enumerate(raw_tokens) if "/" in token
+    ]
+    if len(slash_positions) != 1:
+        return None
+
+    index = slash_positions[0]
+    token = raw_tokens[index]
+    if token.count("/") != 1 or token == "/":
+        return None
+    left_raw, right_raw = token.split("/", 1)
+    if not left_raw or not right_raw:
+        return None
+
+    left_tokens = list(raw_tokens)
+    right_tokens = list(raw_tokens)
+    left_tokens[index] = left_raw
+    right_tokens[index] = right_raw
+    left = _headword_tokens(" ".join(left_tokens))
+    right = _headword_tokens(" ".join(right_tokens))
+    if not left or not right or left == right:
+        return None
+    return left, right
+
+
+_CANDIDATE_RESEARCH_PARENTHESES = (
+    "ambiguous",
+    "core_and_expanded",
+    "core_only",
+    "expanded_only",
+    "no_match",
+)
+_CANDIDATE_RESEARCH_SLASH = (
+    "ambiguous",
+    "both_branches",
+    "left_only",
+    "no_match",
+    "right_only",
+)
+
+
+def _candidate_research_payload(
+    eligible: int,
+    counter: Counter[str],
+    outcomes: tuple[str, ...],
+) -> dict[str, object]:
+    return {
+        "eligible_occurrences": eligible,
+        "outcomes": {name: counter.get(name, 0) for name in outcomes},
+    }
+
+
+def aggregate_headword_candidate_research(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Measure narrow candidate interpretations without changing alignment.
+
+    Only current HEADWORD_NOT_FOUND occurrences on an indexed exact context
+    line enter the audit. The payload is aggregate-only and contains no source
+    strings, identifiers, locators or node ids.
+    """
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in headword candidate research")
+
+    parenthesis_outcomes: Counter[str] = Counter()
+    slash_outcomes: Counter[str] = Counter()
+    parenthesis_eligible = 0
+    slash_eligible = 0
+    excluded = 0
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError(
+                "alignment references unknown annotation in headword candidate research"
+            )
+        parenthesis_candidates = simple_parenthesis_candidate_tokens(
+            annotation.headword
+        )
+        slash_candidates = simple_token_slash_candidate_tokens(annotation.headword)
+        syntax_relevant = any(char in annotation.headword for char in "()/")
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            line_node = occurrence.context_line_node
+            if line_node is None or line_node not in index.line_words:
+                raise ValueError(
+                    "HEADWORD_NOT_FOUND occurrence lacks indexed context line"
+                )
+
+            if parenthesis_candidates is not None:
+                parenthesis_eligible += 1
+                core, expanded = parenthesis_candidates
+                core_spans = _candidate_spans(core, line_node, index)
+                expanded_spans = _candidate_spans(expanded, line_node, index)
+                if len(core_spans) > 1 or len(expanded_spans) > 1:
+                    parenthesis_outcomes["ambiguous"] += 1
+                elif core_spans and expanded_spans:
+                    parenthesis_outcomes["core_and_expanded"] += 1
+                elif core_spans:
+                    parenthesis_outcomes["core_only"] += 1
+                elif expanded_spans:
+                    parenthesis_outcomes["expanded_only"] += 1
+                else:
+                    parenthesis_outcomes["no_match"] += 1
+                continue
+
+            if slash_candidates is not None:
+                slash_eligible += 1
+                left, right = slash_candidates
+                left_spans = _candidate_spans(left, line_node, index)
+                right_spans = _candidate_spans(right, line_node, index)
+                if len(left_spans) > 1 or len(right_spans) > 1:
+                    slash_outcomes["ambiguous"] += 1
+                elif left_spans and right_spans:
+                    slash_outcomes["both_branches"] += 1
+                elif left_spans:
+                    slash_outcomes["left_only"] += 1
+                elif right_spans:
+                    slash_outcomes["right_only"] += 1
+                else:
+                    slash_outcomes["no_match"] += 1
+                continue
+
+            if syntax_relevant or "[" in annotation.headword or "]" in annotation.headword:
+                excluded += 1
+
+    return {
+        "parentheses": _candidate_research_payload(
+            parenthesis_eligible,
+            parenthesis_outcomes,
+            _CANDIDATE_RESEARCH_PARENTHESES,
+        ),
+        "token_internal_slash": _candidate_research_payload(
+            slash_eligible,
+            slash_outcomes,
+            _CANDIDATE_RESEARCH_SLASH,
+        ),
+        "excluded_mixed_or_unsupported": excluded,
+    }
+
+
 def _headword_audit_outcome(occurrence) -> str | None:
     """Return a lexical-expression outcome only for an exactly resolved line context."""
 
