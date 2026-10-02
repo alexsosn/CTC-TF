@@ -87,3 +87,86 @@ Production expansion in #78 is authorized only for a syntax class where:
 
 Unsupported, nested, mixed punctuation and square-bracket expressions stay
 unresolved rather than being normalized heuristically.
+
+
+## Real-source evidence
+
+Pinned Workbooks + reviewed CUC 0.2.8 on PR #88, research head
+`6d826b4b284440b13075cc8727ef9dae0ab64d3b`, passed the unit and real-source
+gates.
+
+### Simple single-parenthesis expressions
+
+3,357 current `HEADWORD_NOT_FOUND` occurrences satisfy the conservative simple
+single-parenthesis grammar.
+
+Exact cited-line cardinality:
+
+- core (parenthesized group omitted): 2,873 unique, 105 repeated/ambiguous, 379 absent;
+- expanded (parentheses removed but contents retained): 23 unique, 0 repeated, 3,334 absent.
+
+Joint outcomes:
+
+- core only: 2,850;
+- core + expanded: 23;
+- expanded only: **0**;
+- ambiguous: 105;
+- neither: 379.
+
+This is stronger than the original optional-candidate hypothesis. No real
+occurrence in this simple class requires the expanded expression to obtain an
+exact match. Every observed expanded exact match already coexists with an exact
+core match. The production rule authorized by this evidence is therefore:
+
+> For the narrowly parsed simple-parenthesis class, the lexical anchor candidate
+> is the **core with the parenthesized group omitted**, not a union of core and
+> expanded spans.
+
+This remains conservative: 105 repeated core spans become explicit lexical
+ambiguity and 379 cases remain unresolved. Mixed, nested, unbalanced and
+square-bracket syntax is not normalized by this rule.
+
+### Simple token-internal slash expressions
+
+35 current `HEADWORD_NOT_FOUND` occurrences satisfy the conservative
+token-internal single-slash grammar.
+
+Exact cited-line outcomes:
+
+- left only: 16;
+- right only: 7;
+- both branches: 1;
+- neither: 11;
+- repeated-span ambiguity: 0.
+
+Independent cardinality gives 17 unique left-branch matches and 8 unique
+right-branch matches. Both branches are therefore genuinely attested across the
+cited source lines. The production rule authorized for this narrow syntax class
+is an ordered, de-duplicated **left/right alternative candidate set**.
+
+When both alternatives yield different exact spans, the result must remain
+`AMBIGUOUS_HEADWORD_SPAN`; no branch preference is justified.
+
+### Coverage implication before implementation
+
+Without changing any other syntax class, the evidence authorizes up to:
+
+- 2,873 newly exact simple-parenthesis occurrences;
+- 23 newly exact simple-slash occurrences;
+- 106 additional explicit ambiguous-span occurrences (105 parenthesis core
+  repetitions + 1 line matching both slash branches).
+
+The production run, not this arithmetic projection, is authoritative because it
+must re-run the complete deterministic alignment and module gates.
+
+## Decision
+
+Gate 2 is satisfied for exactly two syntax classes:
+
+1. one balanced, non-nested parenthesized group, not mixed with slash or square
+   brackets: use the core candidate only;
+2. one token-internal slash, not mixed with parentheses/square brackets: use both
+   branches as exact alternatives.
+
+Everything else fails closed and is left for #79 or follow-up research. No fuzzy,
+morphological or edit-distance matching is authorized by this issue.
