@@ -1622,6 +1622,204 @@ def aggregate_token_boundary_research(
     }
 
 
+
+def _position_bucket(index: int, length: int) -> str:
+    if index == 0:
+        return "start"
+    if index == length - 1:
+        return "end"
+    return "internal"
+
+
+def _codepoint_label(char: str) -> str:
+    return f"U+{ord(char):04X}"
+
+
+def _one_edit_detail(source: str, target: str) -> tuple[str, str, str | None]:
+    """Return (operation, codepoint/pair label, position) for distance-1 strings."""
+
+    source = nfc(source)
+    target = nfc(target)
+    if _levenshtein_distance(source, target) != 1:
+        raise ValueError("one-edit detail requires Levenshtein distance exactly 1")
+
+    if len(source) == len(target):
+        index = next(
+            i for i, (left, right) in enumerate(zip(source, target, strict=True))
+            if left != right
+        )
+        label = f"{_codepoint_label(source[index])}>{_codepoint_label(target[index])}"
+        return "substitution", label, _position_bucket(index, len(source))
+
+    if len(target) == len(source) + 1:
+        index = 0
+        while index < len(source) and source[index] == target[index]:
+            index += 1
+        label = _codepoint_label(target[index])
+        return "insertion", label, _position_bucket(index, len(target))
+
+    if len(source) == len(target) + 1:
+        index = 0
+        while index < len(target) and source[index] == target[index]:
+            index += 1
+        label = _codepoint_label(source[index])
+        return "deletion", label, _position_bucket(index, len(source))
+
+    raise ValueError("distance-1 strings have unsupported length difference")
+
+
+def aggregate_one_edit_research(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Classify #81 unique one-edit residuals without exposing lexical strings."""
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in one-edit research")
+
+    reverse_lines: dict[int, tuple[str, str, int]] = {}
+    for key, node in index.line_nodes.items():
+        if node in reverse_lines:
+            raise ValueError("CUC line node has multiple structural identities")
+        reverse_lines[node] = key
+
+    occurrences = 0
+    ambiguous_distance1_candidates = 0
+    operations: Counter[str] = Counter()
+    substitution_pairs: Counter[str] = Counter()
+    inserted_codepoints: Counter[str] = Counter()
+    deleted_codepoints: Counter[str] = Counter()
+    insertion_positions: Counter[str] = Counter()
+    deletion_positions: Counter[str] = Counter()
+    substitution_positions: Counter[str] = Counter()
+    combining_mark_operations = 0
+    annotation_occurrences: Counter[str] = Counter()
+    workbook_operations: dict[int, Counter[str]] = defaultdict(Counter)
+    worksheet_role_operations: dict[str, Counter[str]] = defaultdict(Counter)
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("alignment references unknown annotation in one-edit research")
+
+        syntax_class = str(
+            classify_headword_expression(annotation.headword)["exclusive_class"]
+        )
+        if syntax_class not in {"clean", "marker_only"}:
+            continue
+
+        candidates = headword_candidates(annotation.headword)
+        if len(candidates) != 1:
+            raise ValueError("clean/marker one-edit residual has multiple production candidates")
+        _rule, tokens = candidates[0]
+        if len(tokens) != 1:
+            continue
+        token = tokens[0]
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            line_node = occurrence.context_line_node
+            if line_node is None or line_node not in index.line_words:
+                raise ValueError("one-edit residual lacks indexed context line")
+
+            if _neighbor_candidate_outcome(
+                annotation=annotation,
+                line_node=line_node,
+                index=index,
+                reverse_lines=reverse_lines,
+            ) != "no_neighbor_match":
+                continue
+            if _token_boundary_spans(tokens, line_node, index):
+                continue
+
+            words = index.line_words[line_node]
+            values = tuple(nfc(index.word_g_cons[word]) for word in words)
+
+            containment = [
+                value
+                for value in values
+                if value != token and token in value
+            ]
+            if len(containment) == 1:
+                continue
+
+            distances = [
+                (_levenshtein_distance(token, value), value)
+                for value in values
+                if value != token
+            ]
+            if not distances:
+                continue
+            minimum = min(distance for distance, _value in distances)
+            if minimum != 1:
+                continue
+            closest = [value for distance, value in distances if distance == 1]
+            if len(closest) != 1:
+                ambiguous_distance1_candidates += 1
+                continue
+
+            target = closest[0]
+            operation, label, position = _one_edit_detail(token, target)
+            occurrences += 1
+            annotation_occurrences[annotation.annotation_id] += 1
+            operations[operation] += 1
+            workbook_operations[annotation.workbook_number][operation] += 1
+            worksheet_role_operations[annotation.worksheet_role.value][operation] += 1
+
+            if operation == "substitution":
+                substitution_pairs[label] += 1
+                assert position is not None
+                substitution_positions[position] += 1
+                source_label, target_label = label.split(">", 1)
+                source_char = chr(int(source_label[2:], 16))
+                target_char = chr(int(target_label[2:], 16))
+                if unicodedata.combining(source_char) or unicodedata.combining(target_char):
+                    combining_mark_operations += 1
+            elif operation == "insertion":
+                inserted_codepoints[label] += 1
+                assert position is not None
+                insertion_positions[position] += 1
+                char = chr(int(label[2:], 16))
+                if unicodedata.combining(char):
+                    combining_mark_operations += 1
+            elif operation == "deletion":
+                deleted_codepoints[label] += 1
+                assert position is not None
+                deletion_positions[position] += 1
+                char = chr(int(label[2:], 16))
+                if unicodedata.combining(char):
+                    combining_mark_operations += 1
+
+    return {
+        "occurrences": occurrences,
+        "ambiguous_distance1_candidates": ambiguous_distance1_candidates,
+        "operations": _counter_payload(operations),
+        "substitution_pairs": _counter_payload(substitution_pairs),
+        "substitution_positions": _counter_payload(substitution_positions),
+        "inserted_codepoints": _counter_payload(inserted_codepoints),
+        "insertion_positions": _counter_payload(insertion_positions),
+        "deleted_codepoints": _counter_payload(deleted_codepoints),
+        "deletion_positions": _counter_payload(deletion_positions),
+        "combining_mark_operations": combining_mark_operations,
+        "distinct_annotations": len(annotation_occurrences),
+        "annotation_occurrence_multiplicity": _counter_payload(
+            Counter(annotation_occurrences.values())
+        ),
+        "workbook_operations": {
+            str(workbook): _counter_payload(counter)
+            for workbook, counter in sorted(workbook_operations.items())
+        },
+        "worksheet_role_operations": {
+            role: _counter_payload(counter)
+            for role, counter in sorted(worksheet_role_operations.items())
+        },
+    }
+
+
 def aggregate_lexical_gap_stats(
     *,
     source: NormalizedBurnsSource,
