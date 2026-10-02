@@ -17,25 +17,24 @@ def _agora_status_section() -> str:
 
 
 class AgoraStatusDocumentationContractTests(unittest.TestCase):
-    def test_current_registration_and_working_local_module_are_distinguished(self):
+    def test_current_cuc_burns_registration_is_described(self):
         section = _agora_status_section().casefold()
-        self.assertIn("legacy", section)
-        self.assertTrue("single-input" in section or "one-source" in section)
-        self.assertIn("module", section)
-        self.assertIn("public", section)
-        self.assertIn("context-fabric", section)
+        self.assertIn("cuc-burns", section)
+        self.assertIn("feature-module", section)
+        self.assertIn("parent `cuc`", section)
+        self.assertIn("local-module", section)
+        self.assertIn("alexsosn/agora#175", section)
+        self.assertNotIn("legacy single-input", section)
 
-    def test_parent_resource_support_is_open_but_explicitly_post_1_0(self):
+    def test_managed_parent_execution_remains_external(self):
         section = _agora_status_section().casefold()
         self.assertIn("alexsosn/agora#135", section)
         self.assertIn("open", section)
-        self.assertIn("deferred", section)
-        self.assertIn("after agora 1.0", section)
-        self.assertNotIn("until that lands", section)
+        self.assertIn("managed", section)
+        self.assertIn("parent", section)
 
-    def test_migration_tracker_and_no_fake_workaround_boundary_remain_explicit(self):
+    def test_no_fake_one_input_or_parent_copy_workaround_is_advertised(self):
         section = _agora_status_section().casefold()
-        self.assertIn("#29", section)
         self.assertIn("fake one-input", section)
         self.assertIn("copy cuc", section)
         self.assertIn("network", section)
