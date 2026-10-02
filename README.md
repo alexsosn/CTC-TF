@@ -88,9 +88,9 @@ s -burns_span_1> m""",
 ))
 ```
 
-Lane count is derived from the supplied exact alignments rather than hard-coded. On the current pinned real-source audit, 4,357 exact lexical occurrences occupy 4,260 start words; 97 starts require lane 2 and none require a higher lane. Future lexical-alignment improvements may increase that maximum, so consumers should inspect the feature inventory/report rather than assume two lanes forever.
+Lane count is derived from the supplied exact alignments rather than hard-coded. On the current pinned real-source audit, 7,308 exact lexical occurrences occupy 5,924 start words and require up to lane 6. Consumers must inspect the feature inventory/report rather than assume a fixed lane maximum.
 
-`burns_headword_N` is the source headword label, **not** a verified lemma. The current matcher still has 4,993 resolved-line occurrences without an exact lexical span; those remain in the local alignment report and are **not** emitted as lexical features on line/tablet nodes. The headword-expression and line-address audits show that literal matching is not a complete model: parentheses/brackets/slash account for a large systematic failure class, while ±1/±2 line drift explains only a small minority. Follow-up work is tracked separately rather than hidden behind fuzzy matching.
+`burns_headword_N` is the verbatim source grouping label, **not** a verified lemma. The matcher now handles two source-grounded expression classes before exact CUC matching: one balanced, non-nested parenthesized group is omitted as a qualifier, and one simple inline slash is treated as two alternative branches whose exact-span union is resolved conservatively. These bounded rules raise exact lexical coverage from 4,357 to 7,308 occurrences. Another 1,933 resolved-line occurrences still lack an exact lexical span, and 278 occurrences have multiple exact candidate spans; both remain in the local alignment report and are **not** emitted as lexical features on line/tablet nodes. Square-bracket restoration, complex parentheses/slashes, morphology/tokenization and documented line-remapping questions remain separate research tasks; no fuzzy matching is used.
 
 ### Tablet-scoped excavation observations
 
