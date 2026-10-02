@@ -197,11 +197,14 @@ def build_feature_module(
             except KeyError as exc:
                 raise ValueError("unsupported Burns workbook category") from exc
 
+            if occurrence.match_rule is None:
+                raise ValueError("exact Burns lexical occurrence is missing match-rule provenance")
+
             values: dict[str, str | int] = {
                 "burns_occurrence_id": occurrence.occurrence_id,
                 "burns_annotation_id": annotation.annotation_id,
                 "burns_headword": annotation.headword,
-                "burns_match_rule": occurrence.match_rule or "literal",
+                "burns_match_rule": occurrence.match_rule,
                 "burns_category": category,
                 "burns_semantic_status": annotation.semantic_status.value,
                 "burns_worksheet_role": annotation.worksheet_role.value,
