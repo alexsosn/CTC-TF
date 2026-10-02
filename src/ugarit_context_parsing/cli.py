@@ -7,6 +7,11 @@ from pathlib import Path
 from .alignment import align_burns_source
 from .annotations import BurnsNormalizationError, normalize_workbook_records
 from .cuc_index import CucCompatibilityError, build_reviewed_cuc_index
+from .feature_module import (
+    build_feature_module,
+    build_feature_module_report,
+    write_feature_module,
+)
 from .graph import build_tf_data
 from .module import build_burns_module, build_burns_module_report, write_burns_module
 from .pdf_source import load_pdf_directory
@@ -44,7 +49,7 @@ def _parser() -> argparse.ArgumentParser:
 
     module = sub.add_parser(
         "module",
-        help="native v2 entity-node module (new output directory; no JSON annotation features)",
+        help="feature-only CUC module (existing nodes only; no warp replacement)",
     )
     _add_source_arguments(module)
     _add_cuc_argument(module)
@@ -55,13 +60,6 @@ def _parser() -> argparse.ArgumentParser:
     )
     _add_source_arguments(module_v1)
     _add_cuc_argument(module_v1)
-
-    entities = sub.add_parser(
-        "entities",
-        help="alias of native v2 'module' for existing experimental callers",
-    )
-    _add_source_arguments(entities)
-    _add_cuc_argument(entities)
 
     convert = sub.add_parser(
         "convert",
@@ -110,7 +108,7 @@ def _run_module(args: argparse.Namespace) -> int:
     return 0
 
 
-def _reject_entities_overlap(source: Path, cuc: Path, output: Path) -> None:
+def _reject_module_overlap(source: Path, cuc: Path, output: Path) -> None:
     """Protect all three trees, including ``..`` and symlinked ancestors."""
     source_root = source.resolve()
     cuc_root = cuc.resolve()
@@ -120,19 +118,19 @@ def _reject_entities_overlap(source: Path, cuc: Path, output: Path) -> None:
             raise SystemExit(f"native Burns output overlaps {label} directory: {output}")
 
 
-def _run_entities(args: argparse.Namespace) -> int:
-    """Native v2; a new path is mandatory, never overwrite unknown v1 output."""
-    from tf.fabric import Fabric
-
-    from .entity_writer import write_entity_artifact
+def _run_feature_module(args: argparse.Namespace) -> int:
+    """Publish the corrected feature-only Burns module over reviewed CUC."""
 
     try:
         source = _load_source(args)
     except SourceValidationError as exc:
         raise SystemExit(f"source validation failed: {exc}") from exc
-    _reject_entities_overlap(source.root, args.cuc, args.output)
+
+    _reject_module_overlap(source.root, args.cuc, args.output)
     if args.output.exists() or args.output.is_symlink():
-        raise SystemExit(f"native Burns output already exists (refusing to overwrite): {args.output}")
+        raise SystemExit(
+            f"Burns feature-module output already exists (refusing to overwrite): {args.output}"
+        )
 
     try:
         normalized = normalize_workbook_records(source.records)
@@ -142,22 +140,20 @@ def _run_entities(args: argparse.Namespace) -> int:
         index = build_reviewed_cuc_index(args.cuc)
     except CucCompatibilityError as exc:
         raise SystemExit(f"CUC validation failed: {exc}") from exc
+
     alignments = align_burns_source(normalized, index)
-    # Fingerprint validation accepts relative paths; load exactly that CUC
-    # directory by absolute location, never as a Text-Fabric module identifier.
-    cuc_dir = args.cuc.resolve()
-    api = Fabric(locations=[str(cuc_dir)], modules=[""], silent="deep").loadAll(silent="deep")
-    if api is None:
-        raise SystemExit("Text-Fabric could not load the exact reviewed CUC base")
-    if not write_entity_artifact(normalized, alignments, index, api, args.output):
-        raise SystemExit("Text-Fabric refused the native Burns entity extension")
+    module = build_feature_module(normalized, alignments, index)
+    report = build_feature_module_report(normalized, alignments, index, module)
+    if not write_feature_module(module, report, args.output):
+        raise SystemExit("Text-Fabric refused the Burns feature-only module")
+
     print(
         f"materialized {len(source.files)} Workbook {args.input_format.upper()} files / "
-        f"{len(normalized.records)} records as native Burns entities at {args.output}; "
-        f"load ordered Text-Fabric locations [{cuc_dir}, {args.output.resolve()}]"
+        f"{len(normalized.records)} records / {len(normalized.annotations)} annotations "
+        f"as a feature-only Burns module at {args.output}; "
+        f"load ordered Text-Fabric locations [{args.cuc.resolve()}, {args.output.resolve()}]"
     )
     return 0
-
 
 def _run_convert(args: argparse.Namespace) -> int:
     print(LEGACY_CONVERT_WARNING, file=sys.stderr)
@@ -182,8 +178,8 @@ def _run_convert(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    if args.command in ("module", "entities"):
-        return _run_entities(args)
+    if args.command == "module":
+        return _run_feature_module(args)
     if args.command == "module-v1":
         return _run_module(args)
     return _run_convert(args)

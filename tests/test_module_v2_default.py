@@ -1,9 +1,5 @@
-"""#68: primary module command must not silently return the defective v1 JSON output.
+"""#82: primary module command must be the corrected feature-only CUC overlay."""
 
-This is a public-routing contract, complementary to the real Fabric output and
-reviewed-CUC/MCP end-to-end tests. Do not erase the old v1 API without an
-explicit compatibility command and a non-overwriting v2 publication policy.
-"""
 from __future__ import annotations
 
 import importlib.util
@@ -21,7 +17,7 @@ class ModuleV2DefaultTests(unittest.TestCase):
             importlib.util.find_spec("ugarit_context_parsing.native_features")
         )
 
-    def test_module_is_native_default_and_v1_has_explicit_legacy_command(self):
+    def test_module_is_feature_only_default_and_v1_has_explicit_legacy_command(self):
         parser = cli._parser()
         native = parser.parse_args([
             "module", "workbooks", "--input-format", "csv",
@@ -35,23 +31,36 @@ class ModuleV2DefaultTests(unittest.TestCase):
         self.assertEqual(legacy.command, "module-v1")
         self.assertEqual(native.cuc, Path("cuc/tf/0.2.8"))
         self.assertEqual(legacy.cuc, native.cuc)
-        self.assertIn("module-v1", parser.format_help())
+        help_text = parser.format_help()
+        self.assertIn("feature-only", help_text)
+        self.assertIn("module-v1", help_text)
+        self.assertNotIn("entities", help_text)
 
-    def test_primary_module_and_entities_alias_use_native_writer_not_v1(self):
-        args = ["workbooks", "--input-format", "csv", "--cuc", "cuc", "--output", "native"]
+    def test_entities_alias_is_removed(self):
+        parser = cli._parser()
+        with self.assertRaises(SystemExit):
+            parser.parse_args([
+                "entities", "workbooks", "--input-format", "csv",
+                "--cuc", "cuc", "--output", "native",
+            ])
+
+    def test_primary_module_routes_to_feature_only_writer_not_legacy(self):
+        args = [
+            "workbooks", "--input-format", "csv",
+            "--cuc", "cuc", "--output", "native",
+        ]
         with (
-            patch.object(cli, "_run_entities", return_value=0) as native,
+            patch.object(cli, "_run_feature_module", return_value=0) as native,
             patch.object(cli, "_run_module", side_effect=AssertionError("v1 used")) as legacy,
         ):
             self.assertEqual(cli.main(["module", *args]), 0)
-            self.assertEqual(cli.main(["entities", *args]), 0)
-            self.assertEqual(native.call_count, 2)
-            self.assertEqual([item.args[0].command for item in native.call_args_list], ["module", "entities"])
+            native.assert_called_once()
+            self.assertEqual(native.call_args.args[0].command, "module")
             legacy.assert_not_called()
 
     def test_v1_is_only_accessed_via_explicit_compatibility_command(self):
         with (
-            patch.object(cli, "_run_entities", side_effect=AssertionError("native used")) as native,
+            patch.object(cli, "_run_feature_module", side_effect=AssertionError("feature module used")) as native,
             patch.object(cli, "_run_module", return_value=0) as legacy,
         ):
             self.assertEqual(cli.main([
