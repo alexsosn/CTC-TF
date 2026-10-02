@@ -11,8 +11,7 @@ from unittest.mock import patch
 
 from tf.fabric import Fabric
 
-from test_burns_entity_extension import _write_indexed_base
-from test_burns_tf_module import _index, _record
+from test_burns_tf_module import _index, _record, _write_synthetic_base
 from ugarit_context_parsing import cli
 from ugarit_context_parsing.feature_module import REPORT_FILE, SCHEMA
 
@@ -22,7 +21,7 @@ class ModuleV2EndToEndTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             base = root / "cuc"
-            _write_indexed_base(base)
+            _write_synthetic_base(base)
             source_root = root / "workbooks"
             source_root.mkdir()
             source = SimpleNamespace(
