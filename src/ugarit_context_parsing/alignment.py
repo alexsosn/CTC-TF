@@ -2,22 +2,23 @@ from __future__ import annotations
 
 import hashlib
 import json
-import unicodedata
 from collections import Counter
 from dataclasses import dataclass
 from enum import Enum
 
 from .annotations import BurnsAnnotation, NormalizedBurnsSource
 from .cuc_index import ReviewedCucIndex
+from .headword_expression import (
+    headword_candidate_token_sets,
+    literal_headword_tokens,
+    nfc,
+)
 from .references import (
     BurnsReferenceStatus,
     BurnsTarget,
     ParsedBurnsReference,
     parse_burns_reference,
 )
-
-_EDITORIAL_MARKERS = "*†!?"
-
 
 class BurnsAlignmentDisposition(str, Enum):
     ALIGNED = "aligned"
@@ -79,7 +80,7 @@ class BurnsAnnotationAlignment:
 
 
 def _nfc(value: str) -> str:
-    return unicodedata.normalize("NFC", value)
+    return nfc(value)
 
 
 def _occurrence_id(annotation_id: str, ordinal: int, target: BurnsTarget) -> str:
@@ -103,12 +104,9 @@ def _occurrence_id(annotation_id: str, ordinal: int, target: BurnsTarget) -> str
 
 
 def _headword_tokens(headword: str) -> tuple[str, ...]:
-    tokens: list[str] = []
-    for raw in _nfc(headword).split():
-        token = raw.rstrip(_EDITORIAL_MARKERS)
-        if token:
-            tokens.append(token)
-    return tuple(tokens)
+    """Compatibility wrapper for the historical literal tokenizer."""
+
+    return literal_headword_tokens(headword)
 
 
 def _candidate_spans(
@@ -151,7 +149,14 @@ def _line_occurrence(
             context_line_node=line_node,
         )
 
-    spans = _candidate_spans(tokens, line_node, index)
+    candidate_tokens = headword_candidate_token_sets(annotation.headword)
+    spans = tuple(
+        dict.fromkeys(
+            span
+            for candidate in candidate_tokens
+            for span in _candidate_spans(candidate, line_node, index)
+        )
+    )
     if len(spans) == 1:
         return BurnsAlignmentOccurrence(
             occurrence_id=occurrence_id,
