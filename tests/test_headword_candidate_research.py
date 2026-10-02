@@ -102,6 +102,13 @@ class CandidateHypothesisAggregateTests(unittest.TestCase):
         )
         self.assertEqual(stats["parentheses"]["eligible_occurrences"], 2)
         self.assertEqual(
+            stats["parentheses"]["candidate_span_cardinality"],
+            {
+                "include_group": {"1": 2},
+                "omit_group": {"0": 1, "1": 1},
+            },
+        )
+        self.assertEqual(
             stats["slash"]["outcomes"],
             {
                 "distinct_candidate_spans": 1,
@@ -110,6 +117,13 @@ class CandidateHypothesisAggregateTests(unittest.TestCase):
             },
         )
         self.assertEqual(stats["slash"]["eligible_occurrences"], 3)
+        self.assertEqual(
+            stats["slash"]["candidate_span_cardinality"],
+            {
+                "slash_left": {"0": 1, "1": 2},
+                "slash_right": {"0": 1, "1": 2},
+            },
+        )
 
     def test_aggregate_is_source_safe_and_counts_unsupported_shapes(self):
         source = normalize_workbook_records(
