@@ -75,9 +75,10 @@ For lane N, the start word receives scalar features such as:
 
 and an ordinary valueless edge feature:
 
-- `burns_span_N`: start word -> all CUC word nodes in that occurrence span,
-  including the start word itself if Text-Fabric round-trip/search proves
-  self-edges are safe.
+- `burns_span_N`: start word -> the **remaining** CUC word nodes in that
+  occurrence span, excluding the carrier/start word. Reconstruction is always
+  `(start, *E.burns_span_N.f(start))`; a single-word occurrence has
+  `burns_span_length_N=1` and no outgoing span edge.
 
 Lanes are assigned deterministically **per start word** by sorting occurrences by
 stable identity. Different start words reuse lane numbers. A second lane is
@@ -185,10 +186,46 @@ The old JSON `module-v1` compatibility path can remain temporarily if needed for
 rollback, but it must stay explicitly legacy and must not be confused with the
 new public module.
 
-## Open evidence before implementation
+## Research-gate results
 
-1. Real start-word collision/lane inventory.
-2. Synthetic Text-Fabric proof that an edge-only module with self-edge span
-   membership saves, reloads with the base warp unchanged, and is queryable via
-   TF Search.
-3. Context-Fabric/cfabric-mcp composition proof for the proposed lane features.
+### Real lane/collision inventory
+
+Pinned Workbooks + reviewed CUC 0.2.8 on PR #86 produced:
+
+- exact lexical occurrences: **4,357**
+- distinct start words: **4,260**
+- lane depth 1: 4,163 start words
+- lane depth 2: 97 start words
+- maximum lane depth: **2**
+- span lengths: 1 word = 3,728; 2 = 417; 3 = 204; 4 = 5; 5 = 3
+- identical start+span groups: multiplicity 1 = 4,247; multiplicity 2 = 55;
+  no higher multiplicity
+- start words with multiple distinct spans: 42
+- start words with multiple Burns categories: 61
+- start words with multiple semantic statuses: 36
+
+So multiplicity is real and scalar single-value projection would lose data, but
+the current exact corpus needs only two lanes. The implementation must still
+derive lane count dynamically because #78/#79 may widen lexical coverage later.
+
+### TF edge-only / self-edge experiment
+
+A synthetic module containing only ordinary node/edge features loads together
+with the base without changing `maxSlot`, `maxNode`, `otype` or `oslots`.
+That validates a true module representation.
+
+A self-edge `start -> start` is retained by the low-level edge API, but TF
+Search relation `s -burns_span_N> m` does not surface the self-pair. Therefore
+the production schema must **not** rely on a self-edge for normal query
+semantics.
+
+Decision: the carrier/start word is an implicit first span member. The edge
+feature links the carrier only to subsequent span words. A single-word
+occurrence is represented by its carrier metadata plus
+`burns_span_length_N=1` and no outgoing edge.
+
+### Remaining evidence before production finalization
+
+1. Synthetic Text-Fabric proof of the revised non-self span encoding and normal
+   search/reconstruction.
+2. Context-Fabric/cfabric-mcp composition proof for the proposed lane features.
