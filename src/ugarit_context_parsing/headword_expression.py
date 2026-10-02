@@ -177,6 +177,44 @@ def simple_parenthesis_candidate_tokens(
     return core, expanded
 
 
+def parenthesis_core_opaque_group_tokens(
+    headword: str,
+) -> tuple[str, ...] | None:
+    """Return the exact core when all bracket/slash markup is inside one omitted group.
+
+    This rule is intentionally narrow and is supported by #79 real-source
+    evidence. Square-bracket or slash syntax that survives outside the
+    parenthesized group is never normalized by this rule.
+    """
+
+    text = nfc(headword or "")
+    if "[" not in text and "]" not in text:
+        return None
+    unbalanced, openers, max_depth = _delimiter_balance(text, "(", ")")
+    if unbalanced or openers != 1 or max_depth != 1 or text.count(")") != 1:
+        return None
+
+    start = text.index("(")
+    end = text.index(")", start + 1)
+    if start > 0 and not text[start - 1].isspace():
+        return None
+    if end + 1 < len(text) and not text[end + 1].isspace():
+        return None
+
+    before = text[:start].strip()
+    inside = text[start + 1 : end]
+    after = text[end + 1 :].strip()
+    outside = " ".join(part for part in (before, after) if part)
+
+    if any(char in outside for char in "[]/"):
+        return None
+    if "[" not in inside and "]" not in inside:
+        return None
+
+    tokens = literal_headword_tokens(outside)
+    return tokens or None
+
+
 def simple_token_slash_candidate_tokens(
     headword: str,
 ) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
@@ -220,6 +258,10 @@ def headword_candidates(
     if parenthesis is not None:
         core, _expanded = parenthesis
         return (("parenthesis_core", core),)
+
+    opaque_parenthesis = parenthesis_core_opaque_group_tokens(headword)
+    if opaque_parenthesis is not None:
+        return (("parenthesis_core_opaque_group", opaque_parenthesis),)
 
     slash = simple_token_slash_candidate_tokens(headword)
     if slash is not None:
