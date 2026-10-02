@@ -17,6 +17,7 @@ from tf.fabric import Fabric
 from scripts.audit_burns_alignment import (
     aggregate_alignment_stats,
     aggregate_feature_only_lane_stats,
+    aggregate_headword_candidate_hypothesis_stats,
     aggregate_headword_expression_stats,
     aggregate_lexical_gap_stats,
     aggregate_line_address_drift_stats,
@@ -56,6 +57,11 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
     headword_expression_stats = aggregate_headword_expression_stats(
         source=normalized,
         alignments=alignments,
+    )
+    headword_candidate_hypothesis_stats = aggregate_headword_candidate_hypothesis_stats(
+        source=normalized,
+        alignments=alignments,
+        index=index,
     )
     line_address_drift_stats = aggregate_line_address_drift_stats(
         source=normalized,
@@ -235,6 +241,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "lexical_gap": lexical_gap_stats,
         "feature_only_lanes": feature_only_lane_stats,
         "headword_expression": headword_expression_stats,
+        "headword_candidate_hypotheses": headword_candidate_hypothesis_stats,
         "line_address_drift": line_address_drift_stats,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
         "tablet_findspot_incomplete": len(report["findspot_audit"]["incomplete"]),
