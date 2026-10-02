@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import io
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
@@ -11,19 +11,14 @@ from ugarit_context_parsing import cli
 from ugarit_context_parsing.cuc_index import CucCompatibilityError
 
 
-LEGACY_WARNING = (
-    "deprecated: 'convert' creates the legacy standalone Burns row-slot corpus; "
-    "use 'module' for the CUC-aligned feature module\n"
-)
-
 
 class ModuleCliTests(unittest.TestCase):
-    def test_help_exposes_native_primary_and_explicit_legacy_commands(self) -> None:
+    def test_help_exposes_feature_primary_and_explicit_v1_compatibility(self) -> None:
         help_text = cli._parser().format_help()
         self.assertIn("module", help_text)
         self.assertIn("module-v1", help_text)
         self.assertIn("CUC-aligned", help_text)
-        self.assertIn("deprecated", help_text.lower())
+        self.assertNotIn("convert", help_text)
 
     def test_module_command_requires_cuc_and_preserves_paths(self) -> None:
         parser = cli._parser()
@@ -63,8 +58,6 @@ class ModuleCliTests(unittest.TestCase):
             patch.object(cli, "build_burns_module", builder),
             patch.object(cli, "build_burns_module_report", reporter),
             patch.object(cli, "write_burns_module", writer),
-            patch.object(cli, "build_tf_data") as standalone_builder,
-            patch.object(cli, "write_artifact") as standalone_writer,
             redirect_stdout(io.StringIO()),
         ):
             result = cli.main([
@@ -79,8 +72,6 @@ class ModuleCliTests(unittest.TestCase):
         builder.assert_called_once_with(normalized, alignments, index)
         reporter.assert_called_once_with(normalized, alignments, index, module)
         writer.assert_called_once_with(module, report, Path("tf/burns-module"))
-        standalone_builder.assert_not_called()
-        standalone_writer.assert_not_called()
 
     def test_pdf_v1_compatibility_uses_pdf_loader_and_v1_writer(self) -> None:
         source = SimpleNamespace(files=("01/Worksheet 1.pdf",), records=(object(),))
@@ -133,26 +124,6 @@ class ModuleCliTests(unittest.TestCase):
                 "--cuc", "wrong-cuc", "--output", "tf/burns-module",
             ])
         writer.assert_not_called()
-
-    def test_legacy_convert_still_runs_with_visible_deprecation(self) -> None:
-        source = SimpleNamespace(files=("01/Worksheet 1.csv",), records=(object(),))
-        data = object()
-        report = {"status": "ok"}
-        stderr = io.StringIO()
-        with (
-            patch.object(cli, "load_csv_directory", return_value=source),
-            patch.object(cli, "build_tf_data", return_value=data),
-            patch.object(cli, "build_conversion_report", return_value=report),
-            patch.object(cli, "write_artifact", return_value=True),
-            redirect_stderr(stderr),
-            redirect_stdout(io.StringIO()),
-        ):
-            result = cli.main([
-                "convert", "burns-source", "--input-format", "csv",
-                "--output", "tf/legacy",
-            ])
-        self.assertEqual(result, 0)
-        self.assertEqual(stderr.getvalue(), LEGACY_WARNING)
 
 
 if __name__ == "__main__":
