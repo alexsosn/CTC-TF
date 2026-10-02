@@ -10,6 +10,7 @@ from ugarit_context_parsing import cli
 
 
 ROOT = Path(__file__).resolve().parents[1]
+# Current-master RED: feature-only product still ships the standalone row-slot path.
 
 
 class StandaloneConvertRemovalContractTests(unittest.TestCase):
