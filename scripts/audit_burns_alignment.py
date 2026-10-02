@@ -144,6 +144,18 @@ def _parenthesis_shape(value: str) -> str:
     return "medial"
 
 
+def _trailing_editorial_markers(value: str) -> str:
+    """Return the distinct documented trailing markers in canonical order."""
+
+    seen: set[str] = set()
+    for raw in value.split():
+        token = raw
+        while token and token[-1] in _EDITORIAL_MARKERS:
+            seen.add(token[-1])
+            token = token[:-1]
+    return "".join(marker for marker in _EDITORIAL_MARKERS if marker in seen)
+
+
 def classify_headword_expression(headword: str) -> dict[str, object]:
     """Classify authored headword punctuation without interpreting its semantics."""
 
@@ -151,11 +163,8 @@ def classify_headword_expression(headword: str) -> dict[str, object]:
     parentheses = "(" in text or ")" in text
     square_brackets = "[" in text or "]" in text
     slash = "/" in text
-    trailing_editorial_marker = any(
-        token.endswith(tuple(_EDITORIAL_MARKERS))
-        for token in text.split()
-        if token
-    )
+    trailing_editorial_markers = _trailing_editorial_markers(text)
+    trailing_editorial_marker = bool(trailing_editorial_markers)
     unbalanced_parentheses, _, _ = _delimiter_balance(text, "(", ")")
     unbalanced_square_brackets, _, _ = _delimiter_balance(text, "[", "]")
 
@@ -175,6 +184,7 @@ def classify_headword_expression(headword: str) -> dict[str, object]:
         "square_brackets": square_brackets,
         "slash": slash,
         "trailing_editorial_marker": trailing_editorial_marker,
+        "trailing_editorial_markers": trailing_editorial_markers,
         "unbalanced_parentheses": unbalanced_parentheses,
         "unbalanced_square_brackets": unbalanced_square_brackets,
         "parenthesis_shape": _parenthesis_shape(text),
@@ -232,6 +242,8 @@ def aggregate_headword_expression_stats(
     flag_buckets: dict[str, Counter[str]] = defaultdict(Counter)
     exclusive_buckets: dict[str, Counter[str]] = defaultdict(Counter)
     parenthesis_buckets: dict[str, Counter[str]] = defaultdict(Counter)
+    syntax_signature_buckets: dict[str, Counter[str]] = defaultdict(Counter)
+    marker_signature_buckets: dict[str, Counter[str]] = defaultdict(Counter)
 
     boolean_flags = (
         "parentheses",
@@ -255,6 +267,24 @@ def aggregate_headword_expression_stats(
                 continue
             outcomes[outcome] += 1
             exclusive_buckets[str(shape["exclusive_class"])][outcome] += 1
+
+            signature_parts = [
+                label
+                for flag, label in (
+                    ("parentheses", "parentheses"),
+                    ("square_brackets", "square_brackets"),
+                    ("slash", "slash"),
+                    ("trailing_editorial_marker", "marker"),
+                )
+                if bool(shape[flag])
+            ]
+            syntax_signature = "+".join(signature_parts) if signature_parts else "clean"
+            syntax_signature_buckets[syntax_signature][outcome] += 1
+
+            marker_signature = str(shape["trailing_editorial_markers"])
+            if marker_signature:
+                marker_signature_buckets[marker_signature][outcome] += 1
+
             for flag in boolean_flags:
                 if bool(shape[flag]):
                     flag_buckets[flag][outcome] += 1
@@ -276,6 +306,14 @@ def aggregate_headword_expression_stats(
         "parenthesis_shapes": {
             key: _headword_audit_bucket(counter)
             for key, counter in sorted(parenthesis_buckets.items())
+        },
+        "syntax_signatures": {
+            key: _headword_audit_bucket(counter)
+            for key, counter in sorted(syntax_signature_buckets.items())
+        },
+        "editorial_marker_signatures": {
+            key: _headword_audit_bucket(counter)
+            for key, counter in sorted(marker_signature_buckets.items())
         },
     }
 
