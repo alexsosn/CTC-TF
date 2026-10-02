@@ -104,6 +104,31 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
             for alignment in alignments for item in alignment.occurrences
         ),
     }
+    expected_issue_78_outcomes = {
+        "ambiguous_span": 278,
+        "matched": 7308,
+        "not_found": 1933,
+    }
+    if expected_headword_outcomes != expected_issue_78_outcomes:
+        raise AssertionError(
+            "bounded #78 headword-expression semantics changed real-source coverage: "
+            f"actual={expected_headword_outcomes!r} "
+            f"expected={expected_issue_78_outcomes!r}"
+        )
+    expected_issue_78_lanes = {
+        "occurrences": 7308,
+        "start_words": 5924,
+        "max_lane": 6,
+    }
+    if any(
+        int(feature_only_lane_stats[name]) != value
+        for name, value in expected_issue_78_lanes.items()
+    ):
+        raise AssertionError(
+            "feature-only lane inventory changed after #78 semantics: "
+            f"actual={{name: feature_only_lane_stats[name] for name in expected_issue_78_lanes}} "
+            f"expected={expected_issue_78_lanes!r}"
+        )
     if int(feature_only_lane_stats["occurrences"]) != selected:
         raise AssertionError(
             "feature-only lane audit diverges from exact lexical occurrence count: "
