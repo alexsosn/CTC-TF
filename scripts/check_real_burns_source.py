@@ -18,6 +18,7 @@ from scripts.audit_burns_alignment import (
     aggregate_alignment_stats,
     aggregate_headword_expression_stats,
     aggregate_lexical_gap_stats,
+    aggregate_line_address_drift_stats,
 )
 from ugarit_context_parsing.alignment import (
     BurnsAlignmentConfidence, BurnsAlignmentDisposition, BurnsAnchorKind,
@@ -56,6 +57,11 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         source=normalized,
         alignments=alignments,
     )
+    line_address_drift_stats = aggregate_line_address_drift_stats(
+        source=normalized,
+        alignments=alignments,
+        index=index,
+    )
     disposition_counts = Counter(item.disposition.value for item in alignments)
     annotation_reasons = Counter((item.disposition.value, item.reason.value) for item in alignments)
     occurrence_reasons = Counter(
@@ -87,6 +93,12 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
             for alignment in alignments for item in alignment.occurrences
         ),
     }
+    if int(line_address_drift_stats["occurrences"]) != expected_headword_outcomes["not_found"]:
+        raise AssertionError(
+            "line-address drift denominator diverges from HEADWORD_NOT_FOUND occurrences: "
+            f"actual={line_address_drift_stats['occurrences']!r} "
+            f"expected={expected_headword_outcomes['not_found']!r}"
+        )
     if headword_expression_stats["outcomes"] != {
         key: value for key, value in expected_headword_outcomes.items() if value
     }:
@@ -175,6 +187,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "native_entities": selected,
         "lexical_gap": lexical_gap_stats,
         "headword_expression": headword_expression_stats,
+        "line_address_drift": line_address_drift_stats,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
         "tablet_findspot_incomplete": len(report["findspot_audit"]["incomplete"]),
         "unmapped_findspot_records": len(report["findspot_audit"]["unmapped_record_ids"]),
