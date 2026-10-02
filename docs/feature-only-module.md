@@ -37,6 +37,7 @@ word in its span. Metadata is scalar and lane-numbered:
 - `burns_occurrence_id_N`
 - `burns_annotation_id_N`
 - `burns_headword_N`
+- `burns_match_rule_N` (`literal`, `parenthesis_core`, `slash_left`, or `slash_right`)
 - `burns_root_N` where Burns supplies one
 - `burns_category_N`
 - `burns_semantic_status_N`
@@ -71,7 +72,7 @@ s -burns_span_1> m""",
 ))
 ```
 
-A Burns headword is a source grouping label, not a certified lemma. Failed or
+A Burns headword is a source grouping label, not a certified lemma. `burns_match_rule_N` preserves the exact candidate rule that established the published word span. Failed or
 ambiguous lexical narrowing is kept in the local report and does not emit
 lexical features on CUC line/column/tablet nodes.
 
