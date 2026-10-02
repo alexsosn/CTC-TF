@@ -3,6 +3,8 @@
 The module owns no nodes and no warp. Exact Burns lexical occurrences are
 represented on existing CUC word carriers with deterministic per-start lanes;
 ordinary edge features link the carrier to subsequent words of multi-word spans.
+Structural-only alignment fallbacks remain report data and are never projected
+as lexical features.
 """
 from __future__ import annotations
 
