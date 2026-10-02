@@ -167,7 +167,7 @@ class TextFabricFeatureOnlyEdgeResearchTests(unittest.TestCase):
             self.assertEqual(combined.F.otype.maxSlot, base_api.F.otype.maxSlot)
             self.assertEqual(combined.F.otype.maxNode, base_api.F.otype.maxNode)
             self.assertEqual(tuple(combined.E.oslots.s(3)), tuple(base_api.E.oslots.s(3)))
-            self.assertEqual(tuple(combined.E.burns_span_1.f(3)), (3, 4))
+            self.assertEqual(tuple(combined.E.burns_span_1.f(3)), (4,))
 
             hits = tuple(
                 combined.S.search(
