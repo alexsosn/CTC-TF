@@ -24,6 +24,7 @@ from scripts.audit_burns_alignment import (
     aggregate_headword_expression_stats,
     aggregate_lexical_gap_stats,
     aggregate_line_address_drift_stats,
+    aggregate_residual_clean_gap_research,
 )
 from ugarit_context_parsing.alignment import (
     BurnsAlignmentConfidence, BurnsAlignmentDisposition, BurnsAnchorKind,
@@ -157,6 +158,11 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         alignments=alignments,
         index=index,
     )
+    residual_clean_gap_research = aggregate_residual_clean_gap_research(
+        source=normalized,
+        alignments=alignments,
+        index=index,
+    )
     feature_only_lane_stats = aggregate_feature_only_lane_stats(
         source=normalized,
         alignments=alignments,
@@ -204,6 +210,19 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
             f"actual={line_address_drift_stats['occurrences']!r} "
             f"expected={expected_headword_outcomes['not_found']!r}"
         )
+    expected_clean_marker_gaps = sum(
+        int(headword_expression_stats["exclusive_classes"].get(name, {}).get("not_found", 0))
+        for name in ("clean", "marker_only")
+    )
+    if int(residual_clean_gap_research["occurrences"]) != expected_clean_marker_gaps:
+        raise AssertionError(
+            "residual clean-gap denominator diverges from clean/marker HEADWORD_NOT_FOUND: "
+            f"actual={residual_clean_gap_research['occurrences']!r} "
+            f"expected={expected_clean_marker_gaps!r}"
+        )
+    if sum(int(value) for value in residual_clean_gap_research["classes"].values()) != expected_clean_marker_gaps:
+        raise AssertionError("residual clean-gap classes do not partition denominator")
+
     if headword_expression_stats["outcomes"] != {
         key: value for key, value in expected_headword_outcomes.items() if value
     }:
@@ -351,6 +370,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "complex_headword_expression_research": complex_headword_expression_research,
         "editorial_file_fingerprints": editorial_fingerprints,
         "line_address_drift": line_address_drift_stats,
+        "residual_clean_gap_research": residual_clean_gap_research,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
         "tablet_findspot_incomplete": len(report["findspot_audit"]["incomplete"]),
         "unmapped_findspot_records": len(report["findspot_audit"]["unmapped_record_ids"]),
