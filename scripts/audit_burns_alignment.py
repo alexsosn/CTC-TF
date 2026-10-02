@@ -1466,6 +1466,162 @@ def aggregate_residual_clean_gap_research(
     }
 
 
+
+def aggregate_token_boundary_research(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Characterize exact-consonant token-boundary residuals, aggregate-only."""
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in token-boundary research")
+
+    reverse_lines: dict[int, tuple[str, str, int]] = {}
+    for key, node in index.line_nodes.items():
+        if node in reverse_lines:
+            raise ValueError("CUC line node has multiple structural identities")
+        reverse_lines[node] = key
+
+    eligible_clean_marker_gaps = 0
+    excluded_expression_syntax = 0
+    occurrences = 0
+    span_cardinality: Counter[str] = Counter()
+    directions: Counter[str] = Counter()
+    transitions: Counter[str] = Counter()
+    window_directions: Counter[str] = Counter()
+    length_signatures: Counter[str] = Counter()
+    workbook_directions: dict[int, Counter[str]] = defaultdict(Counter)
+    worksheet_role_directions: dict[str, Counter[str]] = defaultdict(Counter)
+    neighbor_evidence: Counter[str] = Counter()
+    annotation_occurrences: Counter[str] = Counter()
+    signature_annotations: dict[str, set[str]] = defaultdict(set)
+    target_windows_with_empty_g_cons = 0
+    occurrences_with_empty_g_cons = 0
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("alignment references unknown annotation in token-boundary research")
+
+        syntax_class = str(
+            classify_headword_expression(annotation.headword)["exclusive_class"]
+        )
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+
+            if syntax_class not in {"clean", "marker_only"}:
+                excluded_expression_syntax += 1
+                continue
+
+            eligible_clean_marker_gaps += 1
+            candidates = headword_candidates(annotation.headword)
+            if len(candidates) != 1:
+                raise ValueError(
+                    "clean/marker token-boundary residual has multiple production candidates"
+                )
+            _rule, tokens = candidates[0]
+
+            line_node = occurrence.context_line_node
+            if line_node is None or line_node not in index.line_words:
+                raise ValueError("token-boundary residual lacks indexed context line")
+
+            spans = _token_boundary_spans(tokens, line_node, index)
+            if not spans:
+                continue
+
+            occurrences += 1
+            annotation_occurrences[annotation.annotation_id] += 1
+            span_cardinality[_candidate_count_bucket(len(spans))] += 1
+
+            occurrence_directions: set[str] = set()
+            occurrence_transitions: set[str] = set()
+            source_lengths = ",".join(str(len(token)) for token in tokens)
+            occurrence_has_empty_g_cons = False
+
+            for span in spans:
+                target_values = tuple(nfc(index.word_g_cons[node]) for node in span)
+                if len(tokens) > len(target_values):
+                    direction = "merge"
+                elif len(tokens) < len(target_values):
+                    direction = "split"
+                else:
+                    direction = "resegment"
+                transition = f"{len(tokens)}->{len(target_values)}"
+                target_lengths = ",".join(str(len(value)) for value in target_values)
+                signature = f"{source_lengths}->{target_lengths}"
+                if any(value == "" for value in target_values):
+                    target_windows_with_empty_g_cons += 1
+                    occurrence_has_empty_g_cons = True
+
+                occurrence_directions.add(direction)
+                occurrence_transitions.add(transition)
+                window_directions[direction] += 1
+                length_signatures[signature] += 1
+                signature_annotations[signature].add(annotation.annotation_id)
+
+            if occurrence_has_empty_g_cons:
+                occurrences_with_empty_g_cons += 1
+
+            direction = (
+                next(iter(occurrence_directions))
+                if len(occurrence_directions) == 1
+                else "mixed"
+            )
+            transition = (
+                next(iter(occurrence_transitions))
+                if len(occurrence_transitions) == 1
+                else "mixed"
+            )
+            directions[direction] += 1
+            transitions[transition] += 1
+            workbook_directions[annotation.workbook_number][direction] += 1
+            worksheet_role_directions[annotation.worksheet_role.value][direction] += 1
+
+            neighbor = _neighbor_candidate_outcome(
+                annotation=annotation,
+                line_node=line_node,
+                index=index,
+                reverse_lines=reverse_lines,
+            )
+            if neighbor != "no_neighbor_match":
+                neighbor_evidence[neighbor] += 1
+
+    return {
+        "eligible_clean_marker_gaps": eligible_clean_marker_gaps,
+        "excluded_expression_syntax": excluded_expression_syntax,
+        "occurrences": occurrences,
+        "span_cardinality": _counter_payload(span_cardinality),
+        "directions": _counter_payload(directions),
+        "token_count_transitions": _counter_payload(transitions),
+        "window_directions": _counter_payload(window_directions),
+        "token_length_signatures": _counter_payload(length_signatures),
+        "neighbor_evidence": _counter_payload(neighbor_evidence),
+        "distinct_annotations": len(annotation_occurrences),
+        "annotation_occurrence_multiplicity": _counter_payload(
+            Counter(annotation_occurrences.values())
+        ),
+        "signature_distinct_annotations": {
+            signature: len(annotation_ids)
+            for signature, annotation_ids in sorted(signature_annotations.items())
+        },
+        "target_windows_with_empty_g_cons": target_windows_with_empty_g_cons,
+        "occurrences_with_empty_g_cons": occurrences_with_empty_g_cons,
+        "workbook_directions": {
+            str(workbook): _counter_payload(counter)
+            for workbook, counter in sorted(workbook_directions.items())
+        },
+        "worksheet_role_directions": {
+            role: _counter_payload(counter)
+            for role, counter in sorted(worksheet_role_directions.items())
+        },
+    }
+
+
 def aggregate_lexical_gap_stats(
     *,
     source: NormalizedBurnsSource,

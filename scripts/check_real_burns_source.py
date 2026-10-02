@@ -25,6 +25,7 @@ from scripts.audit_burns_alignment import (
     aggregate_lexical_gap_stats,
     aggregate_line_address_drift_stats,
     aggregate_residual_clean_gap_research,
+    aggregate_token_boundary_research,
 )
 from ugarit_context_parsing.alignment import (
     BurnsAlignmentConfidence, BurnsAlignmentDisposition, BurnsAnchorKind,
@@ -163,6 +164,11 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         alignments=alignments,
         index=index,
     )
+    token_boundary_research = aggregate_token_boundary_research(
+        source=normalized,
+        alignments=alignments,
+        index=index,
+    )
     feature_only_lane_stats = aggregate_feature_only_lane_stats(
         source=normalized,
         alignments=alignments,
@@ -222,6 +228,20 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         )
     if sum(int(value) for value in residual_clean_gap_research["classes"].values()) != expected_clean_marker_gaps:
         raise AssertionError("residual clean-gap classes do not partition denominator")
+
+    expected_boundary_occurrences = sum(
+        int(value)
+        for key, value in residual_clean_gap_research["token_boundary_span_cardinality"].items()
+        if key != "0"
+    )
+    if int(token_boundary_research["occurrences"]) != expected_boundary_occurrences:
+        raise AssertionError(
+            "token-boundary research diverges from #81 exact-boundary probe: "
+            f"actual={token_boundary_research['occurrences']!r} "
+            f"expected={expected_boundary_occurrences!r}"
+        )
+    if int(token_boundary_research["eligible_clean_marker_gaps"]) != expected_clean_marker_gaps:
+        raise AssertionError("token-boundary research clean/marker denominator drifted")
 
     if headword_expression_stats["outcomes"] != {
         key: value for key, value in expected_headword_outcomes.items() if value
@@ -371,6 +391,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "editorial_file_fingerprints": editorial_fingerprints,
         "line_address_drift": line_address_drift_stats,
         "residual_clean_gap_research": residual_clean_gap_research,
+        "token_boundary_research": token_boundary_research,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
         "tablet_findspot_incomplete": len(report["findspot_audit"]["incomplete"]),
         "unmapped_findspot_records": len(report["findspot_audit"]["unmapped_record_ids"]),
