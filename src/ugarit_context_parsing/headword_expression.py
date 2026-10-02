@@ -7,6 +7,7 @@ alignment fails closed rather than guessing.
 from __future__ import annotations
 
 import unicodedata
+from dataclasses import dataclass
 
 EDITORIAL_MARKERS = "*†!?"
 
@@ -44,6 +45,97 @@ def _delimiter_balance(value: str, opener: str, closer: str) -> tuple[bool, int,
     if depth:
         unbalanced = True
     return unbalanced, openers, max_depth
+
+
+@dataclass(frozen=True)
+class SquareBracketMask:
+    """Debracketed tokens plus character positions Burns marks as restored."""
+
+    debracketed: str
+    tokens: tuple[str, ...]
+    restored_positions: tuple[tuple[int, ...], ...]
+
+
+def parse_square_bracket_mask(headword: str) -> SquareBracketMask | None:
+    """Parse balanced non-nested square-bracket restoration markup.
+
+    Brackets themselves are never lexical characters. The result preserves a
+    per-token character-position mask after the historical trailing editorial
+    markers are removed. This helper does not authorize lexical alignment.
+    """
+
+    text = nfc(headword or "")
+    if "[" not in text and "]" not in text:
+        return None
+
+    depth = 0
+    group_chars = 0
+    saw_group = False
+    raw_tokens: list[list[str]] = [[]]
+    raw_flags: list[list[bool]] = [[]]
+
+    def ensure_token() -> None:
+        if not raw_tokens:
+            raw_tokens.append([])
+            raw_flags.append([])
+
+    for char in text:
+        if char == "[":
+            if depth != 0:
+                return None
+            depth = 1
+            group_chars = 0
+            saw_group = True
+            continue
+        if char == "]":
+            if depth != 1 or group_chars == 0:
+                return None
+            depth = 0
+            continue
+        if char.isspace():
+            if raw_tokens[-1]:
+                raw_tokens.append([])
+                raw_flags.append([])
+            continue
+        ensure_token()
+        raw_tokens[-1].append(char)
+        raw_flags[-1].append(depth == 1)
+        if depth == 1 and char not in EDITORIAL_MARKERS:
+            group_chars += 1
+
+    if depth != 0 or not saw_group:
+        return None
+    if raw_tokens and not raw_tokens[-1]:
+        raw_tokens.pop()
+        raw_flags.pop()
+
+    debracketed_parts: list[str] = []
+    tokens: list[str] = []
+    restored: list[tuple[int, ...]] = []
+    any_restored_lexical = False
+    for chars, flags in zip(raw_tokens, raw_flags, strict=True):
+        raw = "".join(chars)
+        debracketed_parts.append(raw)
+        while chars and chars[-1] in EDITORIAL_MARKERS:
+            chars.pop()
+            flags.pop()
+        if not chars:
+            return None
+        token = "".join(chars)
+        positions = tuple(index for index, flag in enumerate(flags) if flag)
+        if positions:
+            any_restored_lexical = True
+        tokens.append(token)
+        restored.append(positions)
+
+    if not tokens or not any_restored_lexical:
+        return None
+
+    return SquareBracketMask(
+        debracketed=" ".join(debracketed_parts),
+        tokens=tuple(tokens),
+        restored_positions=tuple(restored),
+    )
 
 
 def simple_parenthesis_candidate_tokens(
