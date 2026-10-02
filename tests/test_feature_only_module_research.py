@@ -121,14 +121,15 @@ class TextFabricFeatureOnlyEdgeResearchTests(unittest.TestCase):
                 module_fabric.save(
                     nodeFeatures={
                         "burns_occurrence_id_1": {
-                            3: "burns-occurrence-sha256:synthetic",
+                            3: "burns-occurrence-sha256:multi",
+                            4: "burns-occurrence-sha256:single",
                         },
-                        "burns_span_length_1": {3: 2},
+                        "burns_span_length_1": {3: 2, 4: 1},
                     },
                     edgeFeatures={
-                        # Include the start word itself so single-word and
-                        # multi-word spans have one reconstruction rule.
-                        "burns_span_1": {3: {3, 4}},
+                        # Carrier/start is implicit; only subsequent members
+                        # are edges so TF Search never depends on self-relations.
+                        "burns_span_1": {3: {4}},
                     },
                     metaData={
                         "burns_occurrence_id_1": {"valueType": "str"},
