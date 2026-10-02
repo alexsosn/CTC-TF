@@ -40,6 +40,7 @@ from ugarit_context_parsing.annotations import (  # noqa: E402
 from ugarit_context_parsing.cuc_index import ReviewedCucIndex, build_reviewed_cuc_index  # noqa: E402
 from ugarit_context_parsing.headword_expression import (  # noqa: E402
     SquareBracketMask,
+    headword_candidates,
     literal_headword_tokens,
     nfc,
     parenthesis_core_opaque_group_tokens,
