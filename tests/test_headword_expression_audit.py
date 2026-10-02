@@ -136,6 +136,7 @@ class HeadwordExpressionClassifierTests(unittest.TestCase):
                 "square_brackets": True,
                 "slash": True,
                 "trailing_editorial_marker": True,
+                "trailing_editorial_markers": "*",
                 "unbalanced_parentheses": False,
                 "unbalanced_square_brackets": False,
                 "parenthesis_shape": "none",
@@ -160,10 +161,9 @@ class HeadwordExpressionClassifierTests(unittest.TestCase):
                 )
 
     def test_marker_only_and_clean_are_distinct(self):
-        self.assertEqual(
-            classify_headword_expression("private*")["exclusive_class"],
-            "marker_only",
-        )
+        marked = classify_headword_expression("private*†!")
+        self.assertEqual(marked["exclusive_class"], "marker_only")
+        self.assertEqual(marked["trailing_editorial_markers"], "*†!")
         self.assertEqual(
             classify_headword_expression("private")["exclusive_class"],
             "clean",
@@ -223,6 +223,10 @@ class HeadwordExpressionAggregateTests(unittest.TestCase):
             {"ambiguous_span": 1, "matched": 1, "not_found": 1},
         )
         self.assertEqual(
+            stats["editorial_marker_signatures"],
+            {},
+        )
+        self.assertEqual(
             stats["exclusive_classes"],
             {
                 "parentheses": {"ambiguous_span": 0, "matched": 1, "not_found": 0, "occurrences": 1},
@@ -241,6 +245,14 @@ class HeadwordExpressionAggregateTests(unittest.TestCase):
         self.assertEqual(
             stats["parenthesis_shapes"]["trailing"],
             {"ambiguous_span": 0, "matched": 1, "not_found": 0, "occurrences": 1},
+        )
+        self.assertEqual(
+            stats["syntax_signatures"],
+            {
+                "parentheses": {"ambiguous_span": 0, "matched": 1, "not_found": 0, "occurrences": 1},
+                "slash": {"ambiguous_span": 1, "matched": 0, "not_found": 0, "occurrences": 1},
+                "square_brackets": {"ambiguous_span": 0, "matched": 0, "not_found": 1, "occurrences": 1},
+            },
         )
 
     def test_aggregate_payload_does_not_leak_source_strings(self):
