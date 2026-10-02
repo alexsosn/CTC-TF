@@ -28,8 +28,7 @@ from ugarit_context_parsing.alignment import (
 from ugarit_context_parsing.annotations import normalize_workbook_records
 from ugarit_context_parsing.cli import main as materialize
 from ugarit_context_parsing.cuc_index import build_reviewed_cuc_index
-from ugarit_context_parsing.entity_extension import CATEGORY_NAMES
-from ugarit_context_parsing.entity_writer import REPORT_FILE, SCHEMA
+from ugarit_context_parsing.feature_module import CATEGORY_NAMES, REPORT_FILE, SCHEMA
 from ugarit_context_parsing.source import load_csv_directory
 
 
@@ -132,22 +131,29 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         raise AssertionError("default native module command failed on actual Burns source")
     report = json.loads((output / REPORT_FILE).read_text(encoding="utf-8"))
     if report["schema"] != SCHEMA:
-        raise AssertionError("real Burns output has wrong schema")
-    expected_counts = {
-        "source_records": len(source.records),
-        "annotations": len(normalized.annotations),
-        "native_entities": selected,
-    }
-    if report["counts"] != expected_counts:
+        raise AssertionError("real Burns output has wrong feature-only schema")
+    counts = report["counts"]
+    if (
+        counts["source_records"] != len(source.records)
+        or counts["annotations"] != len(normalized.annotations)
+        or counts["exact_lexical_occurrences"] != selected
+        or counts["max_lane"] != feature_only_lane_stats["max_lane"]
+    ):
         raise AssertionError(
-            "real Burns local report lost records, annotations, or lexical occurrences: "
-            f"actual={report['counts']!r} expected={expected_counts!r}"
+            "real Burns local report lost records, annotations, lexical occurrences, or lanes: "
+            f"actual={counts!r}"
         )
     inventory = {item.name for item in output.iterdir()}
     if inventory != set(report["feature_inventory"]) | {REPORT_FILE}:
         raise AssertionError("real Burns output/report feature inventories disagree")
-    if "burns_annotations.tf" in inventory:
-        raise AssertionError("legacy per-word JSON feature leaked into real native output")
+    forbidden = {
+        "otype.tf", "oslots.tf", "otext.tf",
+        "burns_annotations.tf", "burns_annotation_ids.tf", "burns_headwords.tf",
+        "burns_semantic_statuses.tf", "burns_worksheet_roles.tf", "burns_sections.tf",
+    }
+    leaked = sorted(forbidden & inventory)
+    if leaked:
+        raise AssertionError(f"forbidden warp/legacy Burns features leaked: {leaked!r}")
 
     original = Fabric(locations=[str(cuc_root.resolve())], modules=[""], silent="deep").loadAll(silent="deep")
     combined = Fabric(
@@ -155,24 +161,54 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         modules=[""], silent="deep",
     ).loadAll(silent="deep")
     if original is None or combined is None:
-        raise AssertionError("real Burns native module cannot be composed with reviewed CUC")
-    if combined.F.otype.maxSlot != original.F.otype.maxSlot:
-        raise AssertionError("CUC sign-slot boundary changed")
-    if combined.F.otype.maxNode != original.F.otype.maxNode + selected:
-        raise AssertionError("real Burns extended warp has wrong total node count")
+        raise AssertionError("real Burns feature-only module cannot be composed with reviewed CUC")
+    if (
+        combined.F.otype.maxSlot != original.F.otype.maxSlot
+        or combined.F.otype.maxNode != original.F.otype.maxNode
+    ):
+        raise AssertionError("Burns feature-only module changed the CUC node universe")
     for node in range(1, original.F.otype.maxNode + 1):
         if combined.F.otype.v(node) != original.F.otype.v(node):
             raise AssertionError(f"CUC original node type changed at node {node}")
         if node > original.F.otype.maxSlot and (
-            set(combined.E.oslots.s(node)) != set(original.E.oslots.s(node))
+            tuple(combined.E.oslots.s(node)) != tuple(original.E.oslots.s(node))
         ):
             raise AssertionError(f"CUC original sign extent changed at node {node}")
-    entity_nodes = tuple(combined.F.otype.s("entity"))
-    if len(entity_nodes) != selected:
-        raise AssertionError("real Burns entity count differs from exact lexical alignment inventory")
-    for node in entity_nodes:
-        if not combined.F.burns_headword.v(node) or not combined.E.oslots.s(node):
-            raise AssertionError("real Burns entity missing source headword or sign extent")
+    if tuple(combined.F.otype.s("entity")):
+        raise AssertionError("feature-only Burns module created entity nodes")
+
+    if len(report["occurrence_lanes"]) != selected:
+        raise AssertionError("feature-only report lost exact lexical occurrences")
+    for item in report["occurrence_lanes"]:
+        carrier = int(item["carrier_node"])
+        lane = int(item["lane"])
+        span = tuple(int(node) for node in item["span_nodes"])
+        if not span or span[0] != carrier:
+            raise AssertionError("feature-only report has invalid carrier/span identity")
+        if combined.F.otype.v(carrier) != "word":
+            raise AssertionError("Burns lexical lane carrier is not a CUC word")
+        occurrence_feature = combined.Fs(f"burns_occurrence_id_{lane}", warn=False)
+        length_feature = combined.Fs(f"burns_span_length_{lane}", warn=False)
+        if not occurrence_feature or occurrence_feature.v(carrier) != item["occurrence_id"]:
+            raise AssertionError("Burns occurrence lane is not natively queryable")
+        if not length_feature or length_feature.v(carrier) != len(span):
+            raise AssertionError("Burns span length disagrees with local report")
+        edge = combined.Es(f"burns_span_{lane}", warn=False)
+        actual_tail = tuple(edge.f(carrier)) if edge else ()
+        if actual_tail != span[1:]:
+            raise AssertionError("Burns span edge disagrees with local report")
+
+    lexical_prefixes = (
+        "burns_occurrence_id_", "burns_annotation_id_", "burns_headword_",
+        "burns_root_", "burns_category_", "burns_semantic_status_",
+        "burns_worksheet_role_", "burns_section_", "burns_span_length_",
+    )
+    for name in combined.Fall():
+        if name.startswith(lexical_prefixes):
+            feature = combined.Fs(name, warn=False)
+            for node in feature.data:
+                if combined.F.otype.v(node) != "word":
+                    raise AssertionError(f"lexical lane feature {name} leaked beyond CUC words")
     for name in ("burns_locus", "burns_room", "burns_point", "burns_depth", "burns_disputed"):
         if name in combined.Fall():
             for node in combined.Fs(name).data:
@@ -207,7 +243,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "peak_rss_kib_linux": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
     }
     print("real_burns_audit=" + json.dumps(summary, sort_keys=True, separators=(",", ":")))
-    print("Real Burns Workbooks parser + reviewed CUC native module + lossless inventory: PASS")
+    print("Real Burns Workbooks parser + reviewed CUC feature-only module + lossless inventory: PASS")
 
 
 def main() -> None:
