@@ -1196,6 +1196,276 @@ def aggregate_line_address_drift_stats(
     }
 
 
+
+def _is_subsequence(tokens: tuple[str, ...], values: tuple[str, ...]) -> bool:
+    """Return whether every token occurs in order, allowing intervening words."""
+
+    if not tokens:
+        return False
+    position = 0
+    for value in values:
+        if value == tokens[position]:
+            position += 1
+            if position == len(tokens):
+                return True
+    return False
+
+
+def _token_boundary_spans(
+    tokens: tuple[str, ...],
+    line_node: int,
+    index: ReviewedCucIndex,
+) -> tuple[tuple[int, ...], ...]:
+    """Find contiguous CUC windows with identical concatenated consonants."""
+
+    if not tokens:
+        return ()
+    words = index.line_words[line_node]
+    values = tuple(nfc(index.word_g_cons[word]) for word in words)
+    wanted = "".join(tokens)
+    matches: list[tuple[int, ...]] = []
+    for start in range(len(words)):
+        combined = ""
+        for end in range(start, len(words)):
+            combined += values[end]
+            if len(combined) > len(wanted):
+                break
+            if combined == wanted:
+                if values[start : end + 1] != tokens:
+                    matches.append(tuple(words[start : end + 1]))
+                break
+    return tuple(matches)
+
+
+def _levenshtein_distance(left: str, right: str) -> int:
+    """Small deterministic Levenshtein distance for diagnostics only."""
+
+    if left == right:
+        return 0
+    if not left:
+        return len(right)
+    if not right:
+        return len(left)
+    previous = list(range(len(right) + 1))
+    for i, lchar in enumerate(left, 1):
+        current = [i]
+        for j, rchar in enumerate(right, 1):
+            current.append(
+                min(
+                    current[-1] + 1,
+                    previous[j] + 1,
+                    previous[j - 1] + (lchar != rchar),
+                )
+            )
+        previous = current
+    return previous[-1]
+
+
+def _single_edit_operation(source: str, target: str) -> str:
+    if len(source) == len(target):
+        return "substitution"
+    if len(target) == len(source) + 1:
+        return "insertion"
+    if len(source) == len(target) + 1:
+        return "deletion"
+    return "other"
+
+
+def _neighbor_candidate_outcome(
+    *,
+    annotation,
+    line_node: int,
+    index: ReviewedCucIndex,
+    reverse_lines: dict[int, tuple[str, str, int]],
+) -> str:
+    identity = reverse_lines.get(line_node)
+    if identity is None:
+        raise ValueError("residual gap context line has no unique CUC structural identity")
+    tablet, column, line = identity
+    candidates = headword_candidates(annotation.headword)
+
+    matched: dict[int, int] = {}
+    for offset in _LINE_DRIFT_OFFSETS:
+        neighbor = index.line_nodes.get((tablet, column, line + offset))
+        if neighbor is None:
+            continue
+        spans = {
+            span
+            for _rule, tokens in candidates
+            for span in _candidate_spans(tokens, neighbor, index)
+        }
+        if spans:
+            matched[offset] = len(spans)
+
+    if not matched:
+        return "no_neighbor_match"
+    if len(matched) > 1:
+        return "multi_neighbor"
+    return (
+        "unique_neighbor"
+        if next(iter(matched.values())) == 1
+        else "ambiguous_neighbor_span"
+    )
+
+
+def aggregate_residual_clean_gap_research(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Classify clean/marker-only residual lexical misses without source strings."""
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in residual clean-gap research")
+
+    reverse_lines: dict[int, tuple[str, str, int]] = {}
+    for key, node in index.line_nodes.items():
+        if node in reverse_lines:
+            raise ValueError("CUC line node has multiple structural identities")
+        reverse_lines[node] = key
+
+    occurrences = 0
+    syntax_classes: Counter[str] = Counter()
+    classes: Counter[str] = Counter()
+    neighbor_evidence: Counter[str] = Counter()
+    boundary_cardinality: Counter[str] = Counter()
+    containment_operations: Counter[str] = Counter()
+    edit1_operations: Counter[str] = Counter()
+    workbook_classes: dict[int, Counter[str]] = defaultdict(Counter)
+    worksheet_role_classes: dict[str, Counter[str]] = defaultdict(Counter)
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("alignment references unknown annotation in residual clean-gap research")
+
+        syntax_class = str(
+            classify_headword_expression(annotation.headword)["exclusive_class"]
+        )
+        if syntax_class not in {"clean", "marker_only"}:
+            continue
+
+        candidates = headword_candidates(annotation.headword)
+        if len(candidates) != 1:
+            raise ValueError(
+                "clean/marker residual unexpectedly has multiple production candidates"
+            )
+        _rule, tokens = candidates
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            line_node = occurrence.context_line_node
+            if line_node is None or line_node not in index.line_words:
+                raise ValueError("residual clean gap lacks indexed context line")
+
+            words = index.line_words[line_node]
+            try:
+                values = tuple(nfc(index.word_g_cons[word]) for word in words)
+            except KeyError as exc:
+                raise ValueError("residual clean-gap line references word without g_cons") from exc
+
+            occurrences += 1
+            syntax_classes[syntax_class] += 1
+
+            neighbor = _neighbor_candidate_outcome(
+                annotation=annotation,
+                line_node=line_node,
+                index=index,
+                reverse_lines=reverse_lines,
+            )
+
+            boundary_spans = _token_boundary_spans(tokens, line_node, index)
+            boundary_cardinality[_candidate_count_bucket(len(boundary_spans))] += 1
+
+            wanted = Counter(tokens)
+            available = Counter(values)
+            exact_hits = sum(
+                min(count, available[token]) for token, count in wanted.items()
+            )
+            all_present = exact_hits == sum(wanted.values()) if wanted else False
+            in_order = all_present and _is_subsequence(tokens, values)
+
+            containment_candidates: list[tuple[str, str]] = []
+            edit1_candidates: list[tuple[str, str]] = []
+            if len(tokens) == 1:
+                token = tokens[0]
+                for value in values:
+                    if value != token and token in value:
+                        if value.startswith(token):
+                            operation = "prefix"
+                        elif value.endswith(token):
+                            operation = "suffix"
+                        else:
+                            operation = "internal"
+                        containment_candidates.append((value, operation))
+
+                distances = [
+                    (_levenshtein_distance(token, value), value)
+                    for value in values
+                    if value != token
+                ]
+                if distances:
+                    minimum = min(distance for distance, _value in distances)
+                    if minimum == 1:
+                        closest = [
+                            value for distance, value in distances if distance == minimum
+                        ]
+                        if len(closest) == 1:
+                            value = closest[0]
+                            edit1_candidates.append(
+                                (value, _single_edit_operation(token, value))
+                            )
+
+            if neighbor != "no_neighbor_match":
+                classification = "neighbor_evidence"
+                neighbor_evidence[neighbor] += 1
+            elif boundary_spans:
+                classification = "token_boundary_exact"
+            elif len(tokens) > 1 and in_order:
+                classification = "all_tokens_in_order_noncontiguous"
+            elif len(tokens) > 1 and all_present:
+                classification = "all_tokens_present_reordered"
+            elif len(tokens) == 1 and len(containment_candidates) == 1:
+                classification = "unique_single_token_containment"
+                containment_operations[containment_candidates[0][1]] += 1
+            elif len(tokens) == 1 and len(edit1_candidates) == 1:
+                classification = "unique_single_token_edit1"
+                edit1_operations[edit1_candidates[0][1]] += 1
+            elif exact_hits > 0:
+                classification = "partial_exact_token_overlap"
+            elif exact_hits == 0:
+                classification = "no_exact_token_overlap"
+            else:
+                classification = "other"
+
+            classes[classification] += 1
+            workbook_classes[annotation.workbook_number][classification] += 1
+            worksheet_role_classes[annotation.worksheet_role.value][classification] += 1
+
+    return {
+        "occurrences": occurrences,
+        "syntax_classes": _counter_payload(syntax_classes),
+        "classes": _counter_payload(classes),
+        "neighbor_evidence": _counter_payload(neighbor_evidence),
+        "token_boundary_span_cardinality": _counter_payload(boundary_cardinality),
+        "single_token_unique_containment_operations": _counter_payload(
+            containment_operations
+        ),
+        "single_token_unique_edit1_operations": _counter_payload(edit1_operations),
+        "workbook_classes": {
+            str(workbook): _counter_payload(counter)
+            for workbook, counter in sorted(workbook_classes.items())
+        },
+        "worksheet_role_classes": {
+            role: _counter_payload(counter)
+            for role, counter in sorted(worksheet_role_classes.items())
+        },
+    }
+
+
 def aggregate_lexical_gap_stats(
     *,
     source: NormalizedBurnsSource,
