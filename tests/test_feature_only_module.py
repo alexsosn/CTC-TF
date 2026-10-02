@@ -289,6 +289,33 @@ class FeatureOnlyModuleWriterTests(unittest.TestCase):
                 )
             self.assertFalse((root / "counts").exists())
 
+    def test_writer_rejects_forged_occurrence_lanes_and_findspot_audit(self):
+        _, _, _, module, report = _fixture()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+
+            forged_lanes = json.loads(json.dumps(report))
+            forged_lanes["occurrence_lanes"][0]["span_nodes"] = [999]
+            with self.assertRaisesRegex(ValueError, "occurrence|lane|report"):
+                write_feature_module(
+                    module,
+                    forged_lanes,
+                    root / "lanes",
+                    fabric_factory=_RefuseFabric,
+                )
+            self.assertFalse((root / "lanes").exists())
+
+            forged_findspots = json.loads(json.dumps(report))
+            forged_findspots["findspot_audit"]["conflicts"]["16"]["burns_room"] = ["forged"]
+            with self.assertRaisesRegex(ValueError, "findspot|report"):
+                write_feature_module(
+                    module,
+                    forged_findspots,
+                    root / "findspots",
+                    fabric_factory=_RefuseFabric,
+                )
+            self.assertFalse((root / "findspots").exists())
+
     def test_refused_tf_save_never_creates_output(self):
         _, _, _, module, report = _fixture()
         with tempfile.TemporaryDirectory() as temp:
