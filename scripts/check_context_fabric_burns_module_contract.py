@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Real Context-Fabric/cfabric-mcp compatibility contract for CUC + v1 Burns.
+"""Legacy v1 Context-Fabric/cfabric-mcp compatibility contract.
 
-The production `module` entry point emits v2 native entities. This distinct
-contract intentionally pins the explicit `module-v1` compatibility command to
-prove that existing consumers retain their historical feature-only behavior.
+The production `module` entry point now emits the corrected feature-only lane
+schema. This distinct contract intentionally pins the explicit `module-v1`
+compatibility command so the historical JSON-valued module remains testable for
+rollback without being confused with the primary product.
 """
 
 from __future__ import annotations
@@ -114,8 +115,8 @@ def run_contract(cuc_dir: str | Path) -> None:
         _write_synthetic_csv(source_root, record)
 
         # Preserve the prior v1 contract only via the explicitly named
-        # compatibility entry point. The separate native-CUC workflow verifies
-        # the primary `module` command and its extended warp.
+        # compatibility entry point. The separate reviewed-CUC workflow verifies
+        # the primary feature-only `module` command.
         result = cli_main([
             "module-v1", str(source_root), "--input-format", "csv",
             "--cuc", str(cuc), "--output", str(output),
