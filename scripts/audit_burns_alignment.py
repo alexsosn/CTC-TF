@@ -320,6 +320,241 @@ def aggregate_headword_expression_stats(
     }
 
 
+
+def _research_parenthesis_candidates(
+    headword: str,
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Return narrow include/omit hypotheses for one simple parenthesized group.
+
+    This helper is diagnostic only. It deliberately rejects bracket/slash
+    overlap, multiple/nested groups, unbalanced delimiters, and empty
+    candidates rather than broadening production alignment.
+    """
+
+    text = unicodedata.normalize("NFC", headword or "")
+    if "[" in text or "]" in text or "/" in text:
+        return ()
+    unbalanced, openers, max_depth = _delimiter_balance(text, "(", ")")
+    if unbalanced or openers != 1 or max_depth != 1:
+        return ()
+
+    start = text.find("(")
+    end = text.find(")", start + 1)
+    if start < 0 or end < 0:
+        return ()
+
+    before = text[:start]
+    inside = text[start + 1 : end]
+    after = text[end + 1 :]
+    include = _headword_tokens(" ".join((before, inside, after)))
+    omit = _headword_tokens(" ".join((before, after)))
+    if not include or not omit:
+        return ()
+    return (
+        ("include_group", include),
+        ("omit_group", omit),
+    )
+
+
+def _research_slash_candidates(
+    headword: str,
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Return narrow branch hypotheses for one inline slash token."""
+
+    text = unicodedata.normalize("NFC", headword or "")
+    if any(char in text for char in "()[]"):
+        return ()
+    raw_tokens = text.split()
+    slash_tokens = [index for index, token in enumerate(raw_tokens) if "/" in token]
+    if len(slash_tokens) != 1 or text.count("/") != 1:
+        return ()
+
+    index = slash_tokens[0]
+    token = raw_tokens[index]
+    if token == "/":
+        return ()
+    left, right = token.split("/", 1)
+    if not left or not right:
+        return ()
+
+    left_tokens = list(raw_tokens)
+    left_tokens[index] = left
+    right_tokens = list(raw_tokens)
+    right_tokens[index] = right
+    left_candidate = _headword_tokens(" ".join(left_tokens))
+    right_candidate = _headword_tokens(" ".join(right_tokens))
+    if not left_candidate or not right_candidate:
+        return ()
+    return (
+        ("slash_left", left_candidate),
+        ("slash_right", right_candidate),
+    )
+
+
+def _research_parenthesis_unsupported_reason(headword: str) -> str | None:
+    text = unicodedata.normalize("NFC", headword or "")
+    if "(" not in text and ")" not in text:
+        return None
+    if "[" in text or "]" in text:
+        return "square_brackets"
+    if "/" in text:
+        return "slash_overlap"
+    unbalanced, openers, max_depth = _delimiter_balance(text, "(", ")")
+    if unbalanced:
+        return "unbalanced"
+    if openers != 1 or max_depth != 1:
+        return "multiple_or_nested"
+    if not _research_parenthesis_candidates(text):
+        return "empty_candidate"
+    return None
+
+
+def _research_slash_unsupported_reason(headword: str) -> str | None:
+    text = unicodedata.normalize("NFC", headword or "")
+    if "/" not in text:
+        return None
+    if "(" in text or ")" in text:
+        return "parentheses_overlap"
+    if "[" in text or "]" in text:
+        return "square_brackets"
+    raw_tokens = text.split()
+    if "/" in raw_tokens:
+        return "standalone_slash"
+    slash_tokens = [token for token in raw_tokens if "/" in token]
+    if text.count("/") != 1:
+        return "multiple_slashes"
+    if len(slash_tokens) != 1:
+        return "multiple_slash_tokens"
+    left, right = slash_tokens[0].split("/", 1)
+    if not left or not right:
+        return "empty_branch"
+    if not _research_slash_candidates(text):
+        return "unsupported"
+    return None
+
+
+def _candidate_hypothesis_outcome(
+    candidates: tuple[tuple[str, tuple[str, ...]], ...],
+    *,
+    line_node: int,
+    index: ReviewedCucIndex,
+) -> str:
+    spans_by_label = {
+        label: _candidate_spans(tokens, line_node, index)
+        for label, tokens in candidates
+    }
+    union = {
+        span
+        for spans in spans_by_label.values()
+        for span in spans
+    }
+    if not union:
+        return "no_match"
+    if any(len(spans) > 1 for spans in spans_by_label.values()):
+        return "ambiguous_span"
+    if len(union) > 1:
+        return "distinct_candidate_spans"
+
+    only_span = next(iter(union))
+    matching_labels = [
+        label
+        for label, spans in spans_by_label.items()
+        if only_span in spans
+    ]
+    if len(matching_labels) > 1:
+        return "same_span_multiple_candidates"
+    if len(matching_labels) != 1:
+        raise ValueError("candidate hypothesis union lost its matching label")
+    return f"unique_{matching_labels[0]}"
+
+
+def aggregate_headword_candidate_hypothesis_stats(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Evaluate bounded expression hypotheses on current lexical misses.
+
+    Output is aggregate-only: static outcome/support labels and integer counts.
+    """
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in candidate-hypothesis audit source")
+
+    parent_outcomes: Counter[str] = Counter()
+    parent_unsupported: Counter[str] = Counter()
+    parent_shapes: dict[str, Counter[str]] = defaultdict(Counter)
+    slash_outcomes: Counter[str] = Counter()
+    slash_unsupported: Counter[str] = Counter()
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError(
+                "alignment references unknown annotation in candidate-hypothesis audit"
+            )
+        headword = annotation.headword
+        shape = classify_headword_expression(headword)
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            line_node = occurrence.context_line_node
+            if line_node is None:
+                raise ValueError("HEADWORD_NOT_FOUND occurrence lacks context line")
+
+            if bool(shape["parentheses"]):
+                reason = _research_parenthesis_unsupported_reason(headword)
+                if reason is not None:
+                    parent_unsupported[reason] += 1
+                else:
+                    candidates = _research_parenthesis_candidates(headword)
+                    if not candidates:
+                        raise ValueError("supported parenthesis hypothesis produced no candidates")
+                    outcome = _candidate_hypothesis_outcome(
+                        candidates,
+                        line_node=line_node,
+                        index=index,
+                    )
+                    parent_outcomes[outcome] += 1
+                    parent_shapes[str(shape["parenthesis_shape"])][outcome] += 1
+
+            if bool(shape["slash"]):
+                reason = _research_slash_unsupported_reason(headword)
+                if reason is not None:
+                    slash_unsupported[reason] += 1
+                else:
+                    candidates = _research_slash_candidates(headword)
+                    if not candidates:
+                        raise ValueError("supported slash hypothesis produced no candidates")
+                    slash_outcomes[
+                        _candidate_hypothesis_outcome(
+                            candidates,
+                            line_node=line_node,
+                            index=index,
+                        )
+                    ] += 1
+
+    return {
+        "parentheses": {
+            "eligible_occurrences": sum(parent_outcomes.values()),
+            "outcomes": _counter_payload(parent_outcomes),
+            "unsupported": _counter_payload(parent_unsupported),
+            "position_shapes": {
+                key: _counter_payload(counter)
+                for key, counter in sorted(parent_shapes.items())
+            },
+        },
+        "slash": {
+            "eligible_occurrences": sum(slash_outcomes.values()),
+            "outcomes": _counter_payload(slash_outcomes),
+            "unsupported": _counter_payload(slash_unsupported),
+        },
+    }
+
+
 _LINE_DRIFT_OFFSETS = (-2, -1, 1, 2)
 _LINE_DRIFT_OUTCOMES = (
     "ambiguous_neighbor_span",
