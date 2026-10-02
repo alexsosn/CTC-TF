@@ -101,3 +101,78 @@ A local-only detailed report may contain Burns headword, cited CUC line,
 candidate operations and source provenance when explicitly requested. Such a
 report must never be printed by CI, committed, uploaded, or included in the
 public TF module.
+
+
+## Real-source result
+
+Pinned Workbooks + reviewed CUC 0.2.8 on GREEN head
+`7c27bd8f2a271305670c64aa13bdc55043d0ff40` close the intended denominator
+exactly:
+
+- clean residuals: **562**;
+- marker-only residuals: **323**;
+- total: **885**.
+
+The mutually-exclusive classification hierarchy yields:
+
+- neighbor/address evidence: **124**;
+- exact consonantal sequence with different CUC/Burns token boundaries: **18**;
+- all tokens in order but non-contiguous: **2**;
+- all tokens present but reordered: **8**;
+- unique single-token containment candidate: **108**;
+- unique single-token edit-distance-1 candidate: **112**;
+- partial exact-token overlap: **313**;
+- zero exact-token overlap: **200**.
+
+The orthogonal token-boundary probe finds **19** unique boundary-only spans in
+total; one of those occurrences is classified earlier as neighbor evidence by
+the hierarchy.
+
+Neighbor evidence reproduces #91 for this denominator:
+
+- unique neighboring exact candidate: **110**;
+- multiple neighboring offsets: **14**.
+
+Unique containment relations break down as:
+
+- prefix: **64**;
+- suffix: **41**;
+- internal substring: **3**.
+
+Unique distance-1 relations break down as:
+
+- deletion: **52**;
+- substitution: **47**;
+- insertion: **13**.
+
+These counts are diagnostic, not morphological claims. In particular,
+containment is not evidence that the Burns label is a lemma, and edit distance
+is not an authorized spelling-normalization rule.
+
+### Concentration
+
+The largest current class is partial exact-token overlap (313), concentrated
+especially in Workbook I (189 occurrences). Zero-overlap contributes another
+200. This indicates that the remaining problem is not reducible to a single
+one-character transcription convention.
+
+The 112 distance-1 and 108 containment cases are large enough for separate
+source-grounded research, while the 19 exact token-boundary cases form a small
+but high-confidence structural family worth investigating independently.
+
+## Decision
+
+No production matcher change is justified in #81 itself.
+
+Split follow-up work by mechanism:
+
+1. exact token split/merge conventions;
+2. single-token containment / morphology hypotheses;
+3. one-edit transcription/orthography hypotheses;
+4. multi-token partial/zero-overlap residual inspection.
+
+Neighbor/address suspects remain under #85 rather than being reclassified as
+morphology.
+
+Concrete lexical examples remain local-only because they derive from the Burns
+Workbooks. CI continues to expose aggregate counts only.
