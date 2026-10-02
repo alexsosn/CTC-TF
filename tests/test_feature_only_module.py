@@ -182,7 +182,7 @@ class FeatureOnlyModuleWriterTests(unittest.TestCase):
                     )
 
             hits = tuple(combined.S.search(
-                "s:word burns_headword_1=bʿl mlk\n"
+                "s:word burns_category_1=divine_name\n"
                 "m:word\n"
                 "s -burns_span_1> m",
                 silent="deep",
