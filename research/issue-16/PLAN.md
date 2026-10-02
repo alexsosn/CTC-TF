@@ -195,3 +195,20 @@ The five path-filtered acceptance workflows are:
 - `test-context-fabric-burns-module.yml`;
 - `test-real-burns-source.yml`;
 - `test-appendix-cuc-concordance.yml`.
+
+## 2026-10-03 final pre-release plan supersession
+
+The active release plan is now based on the feature-only product restored by #82 plus the standalone-removal contract in #70. This section supersedes earlier phases where they conflict.
+
+Before publishing `v0.3.0`:
+
+1. Land #70 after its fresh current-master RED, exact-head full CI, and independent adversarial review.
+2. Freeze a new master release candidate only after #70 is merged.
+3. Verify package version `0.3.0`, feature-only release notes, software/data licensing boundaries, and absence of Burns-derived assets.
+4. Require the current workflow set on the exact candidate: Python matrix; reviewed-CUC index; reviewed-CUC Burns feature-module/cfabric-mcp; Context-Fabric Burns module contract; real Workbooks acceptance; Appendix concordance, plus the current lexical research gates where they are wired into those workflows.
+5. Do **not** require or recreate `agora.materializer.json`, the old one-source materializer IDs, generic row-slot Context-Fabric smoke, or standalone determinism tests.
+6. Confirm Agora documentation matches merged Agora#175 (`cuc-burns` parented feature-module / local-module) and leaves managed source+parent execution to Agora#135.
+7. Perform a fresh logically independent adversarial release review on the exact master SHA.
+8. Only then publish non-draft, non-prerelease `v0.3.0` at that SHA with no Burns-derived attached artifacts.
+
+Any older post-release branches built around `convert`, `writer.py`, `conversion-report.json`, or legacy materializer IDs become obsolete when #70 lands and should be closed or explicitly re-scoped rather than rebased mechanically.
