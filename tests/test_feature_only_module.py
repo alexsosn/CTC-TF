@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from tf.fabric import Fabric
@@ -17,6 +18,27 @@ from ugarit_context_parsing.feature_module import (
     build_feature_module_report,
     write_feature_module,
 )
+
+
+
+
+class _RefuseFabric:
+    def __init__(self, **kwargs):
+        pass
+
+    def save(self, **kwargs):
+        return False
+
+
+class _ExtraDirectoryFabric:
+    def __init__(self, **kwargs):
+        self._fabric = Fabric(**kwargs)
+
+    def save(self, **kwargs):
+        saved = self._fabric.save(**kwargs)
+        if saved:
+            (Path(kwargs["location"]) / "foreign-directory").mkdir()
+        return saved
 
 
 def _fixture():
@@ -130,6 +152,46 @@ class FeatureOnlyModuleBuildTests(unittest.TestCase):
         self.assertEqual(module.edge_features, {})
         self.assertEqual(module.max_lane, 0)
 
+
+    def test_findspot_conflicts_remain_audit_only_and_tablet_scope_is_native(self):
+        _, _, _, module, _ = _fixture()
+        self.assertEqual(module.node_features["burns_locus"], {16: "GP"})
+        self.assertNotIn("burns_room", module.node_features)
+        self.assertEqual(
+            module.findspot_audit.conflicts[16]["burns_room"],
+            ("R1", "R2", "R3", "R4", "R5"),
+        )
+        self.assertIn("burns_point", module.findspot_audit.incomplete[16])
+
+    def test_root_category_and_negative_status_remain_distinct_across_lanes(self):
+        source = normalize_workbook_records((
+            replace(
+                _record(1, headword="mlk", references="I.3", section="Section α1", root="MLK"),
+                source_file="09 Synthetic/Worksheet 1.csv",
+            ),
+            replace(
+                _record(2, headword="mlk", references="I.3", section="Section β"),
+                source_file="02 Synthetic/Worksheet 1.csv",
+            ),
+        ))
+        index = _index()
+        module = build_feature_module(source, align_burns_source(source, index), index)
+
+        carriers = {
+            lane: module.node_features[f"burns_category_{lane}"][11]
+            for lane in range(1, module.max_lane + 1)
+        }
+        self.assertEqual(set(carriers.values()), {"cultic_action", "personal_name"})
+        action_lane = next(lane for lane, category in carriers.items() if category == "cultic_action")
+        name_lane = next(lane for lane, category in carriers.items() if category == "personal_name")
+        self.assertEqual(module.node_features[f"burns_root_{action_lane}"][11], "MLK")
+        self.assertNotIn(11, module.node_features.get(f"burns_root_{name_lane}", {}))
+        self.assertEqual(
+            module.node_features[f"burns_semantic_status_{name_lane}"][11],
+            "homograph_excluded",
+        )
+        self.assertNotIn("burns_lemma_1", module.node_features)
+
     def test_build_is_deterministic_under_reversed_alignment_input(self):
         source = _source()
         index = _index()
@@ -198,6 +260,36 @@ class FeatureOnlyModuleWriterTests(unittest.TestCase):
             payload = json.loads((output / REPORT_FILE).read_text(encoding="utf-8"))
             self.assertEqual(payload["schema"], SCHEMA)
             self.assertEqual(payload["counts"]["exact_lexical_occurrences"], 5)
+
+
+    def test_refused_tf_save_never_creates_output(self):
+        _, _, _, module, report = _fixture()
+        with tempfile.TemporaryDirectory() as temp:
+            output = Path(temp) / "failed"
+            self.assertFalse(
+                write_feature_module(
+                    module,
+                    report,
+                    output,
+                    fabric_factory=_RefuseFabric,
+                )
+            )
+            self.assertFalse(output.exists())
+
+    def test_unexpected_staged_directory_is_rejected_and_cleaned(self):
+        _, _, _, module, report = _fixture()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            output = root / "burns"
+            with self.assertRaises(RuntimeError):
+                write_feature_module(
+                    module,
+                    report,
+                    output,
+                    fabric_factory=_ExtraDirectoryFabric,
+                )
+            self.assertFalse(output.exists())
+            self.assertEqual(tuple(root.iterdir()), ())
 
     def test_writer_refuses_to_replace_existing_output(self):
         _, _, _, module, report = _fixture()
