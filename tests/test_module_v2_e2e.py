@@ -1,8 +1,5 @@
-"""Default public CLI integration: a real Fabric output, not a mocked router.
+"""Default public CLI integration for the corrected feature-only Burns module."""
 
-Uses synthetic source and CUC, NOT a real Burns source coverage audit. The
-separate reviewed-CUC workflow exercises the pinned CUC and MCP consumer.
-"""
 from __future__ import annotations
 
 import json
@@ -17,10 +14,11 @@ from tf.fabric import Fabric
 from test_burns_entity_extension import _write_indexed_base
 from test_burns_tf_module import _index, _record
 from ugarit_context_parsing import cli
+from ugarit_context_parsing.feature_module import REPORT_FILE, SCHEMA
 
 
 class ModuleV2EndToEndTests(unittest.TestCase):
-    def test_primary_module_writes_v2_warp_and_native_query_with_no_json_features(self):
+    def test_primary_module_writes_feature_only_overlay_and_native_query(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             base = root / "cuc"
@@ -32,7 +30,7 @@ class ModuleV2EndToEndTests(unittest.TestCase):
                 files=("01 Synthetic/Worksheet 1.csv",),
                 records=(_record(1, headword="bʿl", references="I.2"),),
             )
-            output = root / "burns-v2"
+            output = root / "burns-feature"
             with (
                 patch.object(cli, "_load_source", return_value=source),
                 patch.object(cli, "build_reviewed_cuc_index", return_value=_index()),
@@ -41,39 +39,53 @@ class ModuleV2EndToEndTests(unittest.TestCase):
                     "module", str(source_root), "--input-format", "csv",
                     "--cuc", str(base), "--output", str(output),
                 ]), 0)
+
             inventory = {entry.name for entry in output.iterdir()}
-            self.assertIn("otype.tf", inventory)
-            self.assertIn("oslots.tf", inventory)
-            self.assertIn("burns_category.tf", inventory)
-            self.assertIn("burns_headword.tf", inventory)
-            self.assertIn("burns-entity-report.json", inventory)
+            self.assertNotIn("otype.tf", inventory)
+            self.assertNotIn("oslots.tf", inventory)
+            self.assertNotIn("otext.tf", inventory)
+            self.assertIn("burns_category_1.tf", inventory)
+            self.assertIn("burns_headword_1.tf", inventory)
+            self.assertIn("burns_span_length_1.tf", inventory)
+            self.assertIn(REPORT_FILE, inventory)
             self.assertFalse({
                 "burns_annotations.tf", "burns_annotation_ids.tf",
                 "burns_headwords.tf", "burns_worksheet_roles.tf",
                 "burns_semantic_statuses.tf", "burns_sections.tf",
             } & inventory)
-            report = json.loads((output / "burns-entity-report.json").read_text(encoding="utf-8"))
-            self.assertEqual(report["schema"], "burns-entity-module-v2")
-            self.assertEqual(report["counts"]["native_entities"], 1)
+
+            report = json.loads((output / REPORT_FILE).read_text(encoding="utf-8"))
+            self.assertEqual(report["schema"], SCHEMA)
+            self.assertEqual(report["counts"]["exact_lexical_occurrences"], 1)
+            self.assertEqual(report["counts"]["max_lane"], 1)
             self.assertEqual(len(report["source_records"]), 1)
+
+            original = Fabric(
+                locations=[str(base)], modules=[""], silent="deep"
+            ).loadAll(silent="deep")
             combined = Fabric(
                 locations=[str(base), str(output)], modules=[""], silent="deep"
             ).loadAll(silent="deep")
+            self.assertIsNotNone(original)
             self.assertIsNotNone(combined)
-            assert combined is not None
-            hits = tuple(combined.S.search(
-                "entity burns_headword=bʿl burns_category=divine_name", silent="deep"
-            ))
-            self.assertEqual(len(hits), 1)
-            self.assertEqual(combined.F.otype.v(hits[0][0]), "entity")
-            self.assertEqual(tuple(combined.L.d(hits[0][0], otype="word")), (8,))
-            self.assertIsNone(combined.F.burns_headword.v(8))
-            self.assertNotIn("burns_annotations", combined.Fall())
-            # Explicit version migration is non-destructive: never replace an
-            # existing output, even a clean artifact from the prior invocation.
+            assert original is not None and combined is not None
+            self.assertEqual(combined.F.otype.maxSlot, original.F.otype.maxSlot)
+            self.assertEqual(combined.F.otype.maxNode, original.F.otype.maxNode)
+            self.assertEqual(tuple(combined.F.otype.s("entity")), ())
+            self.assertEqual(
+                tuple(combined.S.search(
+                    "word burns_headword_1=bʿl burns_category_1=divine_name",
+                    silent="deep",
+                )),
+                ((8,),),
+            )
+            self.assertEqual(combined.F.burns_span_length_1.v(8), 1)
+            self.assertIsNone(combined.F.burns_headword_1.v(13))
+
+            # Version migration is non-destructive: never replace an existing output.
             with (
                 patch.object(cli, "_load_source", return_value=source),
-                self.assertRaisesRegex(SystemExit, "refusing to overwrite"),
+                self.assertRaisesRegex(SystemExit, "refusing to overwrite|already exists"),
             ):
                 cli.main([
                     "module", str(source_root), "--input-format", "csv",
