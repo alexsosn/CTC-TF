@@ -224,8 +224,31 @@ feature links the carrier only to subsequent span words. A single-word
 occurrence is represented by its carrier metadata plus
 `burns_span_length_N=1` and no outgoing edge.
 
-### Remaining evidence before production finalization
+### Production-gate evidence
 
-1. Synthetic Text-Fabric proof of the revised non-self span encoding and normal
-   search/reconstruction.
-2. Context-Fabric/cfabric-mcp composition proof for the proposed lane features.
+The revised non-self encoding is now covered by a synthetic Text-Fabric
+round-trip/search contract: the carrier is reconstructed as the first member,
+the edge returns only subsequent members, and single-word occurrences remain
+queryable through scalar lane metadata with no self-edge dependency.
+
+The reviewed-CUC downstream gate now materializes the primary `module` command
+as the feature-only schema, loads it together with the pinned CUC through
+Context-Fabric/cfabric-mcp, and verifies:
+
+- unchanged `maxSlot`, `maxNode`, node types, and `oslots`;
+- no `entity` nodes and no Burns-owned warp files;
+- independent same-start occurrences survive separate lanes;
+- multiword spans are queryable through `burns_span_N`;
+- lane metadata and tablet findspots remain natively searchable.
+
+The pinned real Workbooks gate independently checks all 4,357 currently exact
+lexical occurrences against the local report and emitted TF features. The 4,993
+current `HEADWORD_NOT_FOUND` occurrences remain report-only and never become
+coarse public lexical features.
+
+A publication-boundary adversarial review additionally found that aggregate
+counts alone did not bind the local report's occurrence/span provenance to the
+module data. A preserved RED demonstrated that a forged `occurrence_lanes`
+entry could previously pass writer validation. The writer now reconstructs and
+checks canonical occurrence-lane and findspot-audit payloads from the immutable
+module before invoking Text-Fabric publication.
