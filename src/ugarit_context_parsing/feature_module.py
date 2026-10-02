@@ -72,6 +72,7 @@ class _FabricLike(Protocol):
 
 @dataclass(frozen=True)
 class BurnsFeatureModule:
+    compatibility: Mapping[str, object]
     node_features: Mapping[str, Mapping[int, str | int]]
     edge_features: Mapping[str, Mapping[int, frozenset[int]]]
     metadata: Mapping[str, Mapping[str, str]]
@@ -146,7 +147,7 @@ def build_feature_module(
 ) -> BurnsFeatureModule:
     """Build a weft-only Burns module on existing CUC word/tablet nodes."""
 
-    _compatibility_payload(index)
+    compatibility = _compatibility_payload(index)
     build_alignment_report(source, alignments, index)
 
     annotations = {item.annotation_id: item for item in source.annotations}
@@ -259,6 +260,7 @@ def build_feature_module(
         )
 
     return BurnsFeatureModule(
+        compatibility=MappingProxyType(dict(compatibility)),
         node_features=immutable_nodes,
         edge_features=immutable_edges,
         metadata=_immutable_metadata(metadata),
@@ -268,14 +270,17 @@ def build_feature_module(
     )
 
 
-def _plain_module(module: BurnsFeatureModule) -> tuple[dict, dict, dict]:
+def _plain_module(module: BurnsFeatureModule) -> tuple[dict, dict, dict, int, dict]:
     return (
+        dict(module.compatibility),
         {name: dict(values) for name, values in module.node_features.items()},
         {
             name: {node: frozenset(targets) for node, targets in values.items()}
             for name, values in module.edge_features.items()
         },
         {name: dict(values) for name, values in module.metadata.items()},
+        module.max_lane,
+        dict(module.occurrence_lanes),
     )
 
 
@@ -305,7 +310,7 @@ def build_feature_module_report(
     )
     return {
         "schema": SCHEMA,
-        "cuc_compatibility": _compatibility_payload(index),
+        "cuc_compatibility": dict(module.compatibility),
         "counts": {
             "source_records": len(source.records),
             "annotations": len(source.annotations),
@@ -355,6 +360,21 @@ def write_feature_module(
         raise ValueError(f"refusing to overwrite an existing Burns feature module: {output}")
     if report.get("schema") != SCHEMA:
         raise ValueError("Burns feature module report has wrong schema")
+    if report.get("cuc_compatibility") != dict(module.compatibility):
+        raise ValueError("Burns feature module report has wrong CUC compatibility identity")
+
+    counts = report.get("counts")
+    expected_counts = {
+        "exact_lexical_occurrences": len(module.occurrence_lanes),
+        "start_words": len({carrier for carrier, _ in module.occurrence_lanes}),
+        "max_lane": module.max_lane,
+    }
+    if not isinstance(counts, Mapping) or any(
+        counts.get(name) != value for name, value in expected_counts.items()
+    ):
+        raise ValueError(
+            "Burns feature module report occurrence counts disagree with module data"
+        )
 
     expected = frozenset(
         f"{name}.tf"
