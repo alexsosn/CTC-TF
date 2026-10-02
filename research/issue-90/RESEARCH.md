@@ -77,3 +77,72 @@ A new production rule is considered only if a narrow structural class has:
 
 Otherwise #90 closes the class as a documented fail-closed boundary and passes
 only truly clean/marker-only misses to #81.
+
+
+## Real-source result
+
+Pinned Workbooks + reviewed CUC 0.2.8 on research GREEN head
+`322c803e811cf4e558bb6d881ad33d97449e3e51` passed the real-source gate and
+the denominator closes exactly against #79:
+
+- #79 unsupported bracket-bearing resolved-line occurrences: **108**;
+- #90 classified occurrences: **108**.
+
+Structural classes:
+
+- multiple or nested parenthesized groups: **72**;
+- unbalanced square brackets: **32**;
+- one simple parenthesized group with surviving mixed markup: **4**.
+
+No other unsupported shape occurs in the pinned source population.
+
+Orthogonal properties:
+
+- conservatively debracketable: **76**;
+- slash present: **28**;
+- multiple slash characters: **28**;
+- multiple square-bracket groups: **4**;
+- trailing `*†!?` marker: **29**.
+
+### Counterfactual exact matching
+
+All 76 conservatively debracketable unsupported expressions were tested against
+their cited CUC line without changing production alignment.
+
+Debracketed literal token sequence:
+
+- zero exact spans: **76**;
+- one exact span: **0**;
+- repeated exact spans: **0**.
+
+Debracketed expression passed through the already-reviewed production candidate
+grammar:
+
+- zero exact spans: **76**;
+- one exact span: **0**;
+- repeated exact spans: **0**;
+- matching candidate rules: **none**.
+
+The remaining 32 expressions have unbalanced square brackets and therefore do
+not admit even conservative debracketing.
+
+## Decision
+
+No production widening is justified by #90.
+
+The 108 cases are not hiding a straightforward bracket-removal or composition
+rule:
+
+1. 32 are malformed/unbalanced at the square-bracket syntax level;
+2. 72 contain multiple/nested parenthesized grouping that has no reviewed
+   semantics yet;
+3. 4 retain mixed markup outside the one simple parenthesized form;
+4. every one of the 76 structurally debracketable cases still has no exact cited
+   CUC span under either literal or already-authorized candidate semantics.
+
+Therefore #90 terminates at the research boundary. No CUC editorial feature is
+added to the production trust contract, no `burns_match_rule_N` value is added,
+and no unsupported occurrence is promoted to a lexical feature.
+
+These 108 cases remain explicit expression-syntax failures and must stay out of
+#81's clean/marker-only morphology/tokenization denominator.
