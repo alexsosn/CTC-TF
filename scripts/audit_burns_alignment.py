@@ -23,6 +23,7 @@ if str(ROOT) not in sys.path:
 from scripts.sources import WORKBOOKS, ensure  # noqa: E402
 from ugarit_context_parsing.alignment import (  # noqa: E402
     BurnsAlignmentConfidence,
+    BurnsAlignmentDisposition,
     BurnsAlignmentReason,
     BurnsAnchorKind,
     BurnsAnnotationAlignment,
@@ -336,6 +337,98 @@ def _line_drift_bucket(counter: Counter[str]) -> dict[str, int]:
     return {
         **{name: counter.get(name, 0) for name in _LINE_DRIFT_OUTCOMES},
         "occurrences": sum(counter.values()),
+    }
+
+
+def aggregate_feature_only_lane_stats(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Measure exact-occurrence multiplicity for a start-word lane schema.
+
+    The returned payload contains aggregate counts only. It never emits source
+    strings, identifiers, CUC node ids, or locators.
+    """
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in feature-only lane audit source")
+
+    by_start: dict[int, list[tuple[tuple[object, ...], tuple[int, ...], int, str]]] = defaultdict(list)
+    span_lengths: Counter[int] = Counter()
+    occurrences = 0
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("alignment references unknown annotation in feature-only lane audit")
+        for occurrence in alignment.occurrences:
+            if not (
+                occurrence.disposition is BurnsAlignmentDisposition.ALIGNED
+                and occurrence.confidence is BurnsAlignmentConfidence.EXACT_LEXICAL
+                and occurrence.anchor_kind is BurnsAnchorKind.WORD_SPAN
+                and occurrence.anchor_nodes
+            ):
+                continue
+
+            span = tuple(occurrence.anchor_nodes)
+            if any(node not in index.word_g_cons for node in span):
+                raise ValueError("exact Burns lexical span contains a non-word CUC node")
+            if len(set(span)) != len(span):
+                raise ValueError("exact Burns lexical span contains duplicate word nodes")
+
+            start = span[0]
+            identity = (
+                alignment.annotation_id,
+                occurrence.target_ordinal,
+                occurrence.occurrence_id,
+            )
+            by_start[start].append(
+                (
+                    identity,
+                    span,
+                    annotation.workbook_number,
+                    annotation.semantic_status.value,
+                )
+            )
+            span_lengths[len(span)] += 1
+            occurrences += 1
+
+    lanes_per_start: Counter[int] = Counter()
+    identical_span_groups: Counter[int] = Counter()
+    starts_with_multiple_distinct_spans = 0
+    starts_with_multiple_categories = 0
+    starts_with_multiple_statuses = 0
+    max_lane = 0
+
+    for entries in by_start.values():
+        ordered = sorted(entries, key=lambda item: item[0])
+        lane_count = len(ordered)
+        lanes_per_start[lane_count] += 1
+        max_lane = max(max_lane, lane_count)
+
+        spans = Counter(item[1] for item in ordered)
+        for multiplicity in spans.values():
+            identical_span_groups[multiplicity] += 1
+        if len(spans) > 1:
+            starts_with_multiple_distinct_spans += 1
+        if len({item[2] for item in ordered}) > 1:
+            starts_with_multiple_categories += 1
+        if len({item[3] for item in ordered}) > 1:
+            starts_with_multiple_statuses += 1
+
+    return {
+        "occurrences": occurrences,
+        "start_words": len(by_start),
+        "max_lane": max_lane,
+        "lanes_per_start": _counter_payload(lanes_per_start),
+        "span_lengths": _counter_payload(span_lengths),
+        "identical_span_multiplicity": _counter_payload(identical_span_groups),
+        "starts_with_multiple_distinct_spans": starts_with_multiple_distinct_spans,
+        "starts_with_multiple_categories": starts_with_multiple_categories,
+        "starts_with_multiple_statuses": starts_with_multiple_statuses,
     }
 
 
