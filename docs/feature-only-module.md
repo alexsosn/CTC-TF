@@ -37,6 +37,7 @@ word in its span. Metadata is scalar and lane-numbered:
 - `burns_occurrence_id_N`
 - `burns_annotation_id_N`
 - `burns_headword_N`
+- `burns_match_rule_N` (`literal`, `parenthesis_core`, `slash_left`, or `slash_right`)
 - `burns_root_N` where Burns supplies one
 - `burns_category_N`
 - `burns_semantic_status_N`
@@ -71,7 +72,7 @@ s -burns_span_1> m""",
 ))
 ```
 
-A Burns headword is a source grouping label, not a certified lemma. Failed or
+A Burns headword is a source grouping label, not a certified lemma. `burns_match_rule_N` preserves the exact candidate rule that established the published word span. Failed or
 ambiguous lexical narrowing is kept in the local report and does not emit
 lexical features on CUC line/column/tablet nodes.
 
@@ -93,7 +94,15 @@ The earlier extended-warp `entity` experiment is retired: there is no
 `entities` CLI alias and no Burns-owned warp. The prior JSON feature module is
 available only through explicit `module-v1` compatibility invocation.
 
-Current pinned real-source evidence: 4,357 exact lexical occurrences, 4,260
-distinct carrier words, 97 carrier words requiring a second lane, and no current
-real source carrier requiring lane 3. The implementation remains dynamic because
-later alignment improvements may increase multiplicity.
+Current pinned real-source evidence after the evidenced headword-expression
+rules: 7,253 exact lexical occurrences on 5,880 distinct carrier words. The
+lane-depth distribution is 4,913 carriers at depth 1, 633 at depth 2, 290 at
+depth 3, 29 at depth 4, 2 at depth 5, and 13 at depth 6. The implementation is
+dynamic; consumers discover lanes from the feature inventory rather than
+assuming a corpus-derived maximum.
+
+The matcher interprets only two non-literal expression classes here: a single
+balanced non-nested parenthesized group is omitted from the lexical core, and a
+single token-internal slash supplies exact left/right alternatives. Complex or
+mixed punctuation and square-bracket restorations still fail closed unless a
+separate reviewed rule applies.

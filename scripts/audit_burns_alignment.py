@@ -37,6 +37,10 @@ from ugarit_context_parsing.annotations import (  # noqa: E402
     normalize_workbook_records,
 )
 from ugarit_context_parsing.cuc_index import ReviewedCucIndex, build_reviewed_cuc_index  # noqa: E402
+from ugarit_context_parsing.headword_expression import (  # noqa: E402
+    simple_parenthesis_candidate_tokens,
+    simple_token_slash_candidate_tokens,
+)
 from ugarit_context_parsing.pdf_source import load_pdf_directory  # noqa: E402
 
 
@@ -191,6 +195,161 @@ def classify_headword_expression(headword: str) -> dict[str, object]:
         "unbalanced_square_brackets": unbalanced_square_brackets,
         "parenthesis_shape": _parenthesis_shape(text),
         "exclusive_class": exclusive_class,
+    }
+
+
+
+_CANDIDATE_RESEARCH_PARENTHESES = (
+    "ambiguous",
+    "core_and_expanded",
+    "core_only",
+    "expanded_only",
+    "no_match",
+)
+_CANDIDATE_RESEARCH_SLASH = (
+    "ambiguous",
+    "both_branches",
+    "left_only",
+    "no_match",
+    "right_only",
+)
+
+
+def _candidate_research_payload(
+    eligible: int,
+    counter: Counter[str],
+    outcomes: tuple[str, ...],
+) -> dict[str, object]:
+    return {
+        "eligible_occurrences": eligible,
+        "outcomes": {name: counter.get(name, 0) for name in outcomes},
+    }
+
+
+def aggregate_headword_candidate_research(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Measure narrow candidate interpretations without changing alignment.
+
+    Resolved-line lexical occurrences enter the audit regardless of whether
+    production currently resolves them, keeping the evidence counterfactual and
+    stable across matcher improvements. The payload is aggregate-only and contains no source
+    strings, identifiers, locators or node ids.
+    """
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in headword candidate research")
+
+    parenthesis_outcomes: Counter[str] = Counter()
+    parenthesis_core_cardinality: Counter[str] = Counter()
+    parenthesis_expanded_cardinality: Counter[str] = Counter()
+    slash_outcomes: Counter[str] = Counter()
+    slash_left_cardinality: Counter[str] = Counter()
+    slash_right_cardinality: Counter[str] = Counter()
+    parenthesis_eligible = 0
+    slash_eligible = 0
+    excluded = 0
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError(
+                "alignment references unknown annotation in headword candidate research"
+            )
+        parenthesis_candidates = simple_parenthesis_candidate_tokens(
+            annotation.headword
+        )
+        slash_candidates = simple_token_slash_candidate_tokens(annotation.headword)
+        syntax_relevant = any(char in annotation.headword for char in "()/")
+
+        for occurrence in alignment.occurrences:
+            line_node = occurrence.context_line_node
+            if line_node is None:
+                continue
+            if occurrence.reason not in {
+                BurnsAlignmentReason.NONE,
+                BurnsAlignmentReason.HEADWORD_NOT_FOUND,
+                BurnsAlignmentReason.AMBIGUOUS_HEADWORD_SPAN,
+            }:
+                continue
+            if line_node not in index.line_words:
+                raise ValueError(
+                    "headword candidate research occurrence lacks indexed context line"
+                )
+
+            if parenthesis_candidates is not None:
+                parenthesis_eligible += 1
+                core, expanded = parenthesis_candidates
+                core_spans = _candidate_spans(core, line_node, index)
+                expanded_spans = _candidate_spans(expanded, line_node, index)
+                parenthesis_core_cardinality[
+                    _candidate_count_bucket(len(core_spans))
+                ] += 1
+                parenthesis_expanded_cardinality[
+                    _candidate_count_bucket(len(expanded_spans))
+                ] += 1
+                if len(core_spans) > 1 or len(expanded_spans) > 1:
+                    parenthesis_outcomes["ambiguous"] += 1
+                elif core_spans and expanded_spans:
+                    parenthesis_outcomes["core_and_expanded"] += 1
+                elif core_spans:
+                    parenthesis_outcomes["core_only"] += 1
+                elif expanded_spans:
+                    parenthesis_outcomes["expanded_only"] += 1
+                else:
+                    parenthesis_outcomes["no_match"] += 1
+                continue
+
+            if slash_candidates is not None:
+                slash_eligible += 1
+                left, right = slash_candidates
+                left_spans = _candidate_spans(left, line_node, index)
+                right_spans = _candidate_spans(right, line_node, index)
+                slash_left_cardinality[
+                    _candidate_count_bucket(len(left_spans))
+                ] += 1
+                slash_right_cardinality[
+                    _candidate_count_bucket(len(right_spans))
+                ] += 1
+                if len(left_spans) > 1 or len(right_spans) > 1:
+                    slash_outcomes["ambiguous"] += 1
+                elif left_spans and right_spans:
+                    slash_outcomes["both_branches"] += 1
+                elif left_spans:
+                    slash_outcomes["left_only"] += 1
+                elif right_spans:
+                    slash_outcomes["right_only"] += 1
+                else:
+                    slash_outcomes["no_match"] += 1
+                continue
+
+            if syntax_relevant or "[" in annotation.headword or "]" in annotation.headword:
+                excluded += 1
+
+    return {
+        "parentheses": {
+            **_candidate_research_payload(
+                parenthesis_eligible,
+                parenthesis_outcomes,
+                _CANDIDATE_RESEARCH_PARENTHESES,
+            ),
+            "core_span_cardinality": _counter_payload(parenthesis_core_cardinality),
+            "expanded_span_cardinality": _counter_payload(parenthesis_expanded_cardinality),
+        },
+        "token_internal_slash": {
+            **_candidate_research_payload(
+                slash_eligible,
+                slash_outcomes,
+                _CANDIDATE_RESEARCH_SLASH,
+            ),
+            "left_span_cardinality": _counter_payload(slash_left_cardinality),
+            "right_span_cardinality": _counter_payload(slash_right_cardinality),
+        },
+        "excluded_mixed_or_unsupported": excluded,
     }
 
 

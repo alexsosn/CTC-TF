@@ -145,7 +145,7 @@ class FeatureOnlyModuleBuildTests(unittest.TestCase):
             name
             for name in module.node_features
             if name.startswith(("burns_occurrence_id_", "burns_annotation_id_", "burns_headword_",
-                                "burns_root_", "burns_category_", "burns_semantic_status_",
+                                "burns_match_rule_", "burns_root_", "burns_category_", "burns_semantic_status_",
                                 "burns_worksheet_role_", "burns_section_", "burns_span_length_"))
         ]
         self.assertEqual(lexical_names, [])
@@ -162,6 +162,27 @@ class FeatureOnlyModuleBuildTests(unittest.TestCase):
             ("R1", "R2", "R3", "R4", "R5"),
         )
         self.assertIn("burns_point", module.findspot_audit.incomplete[16])
+
+    def test_nonliteral_exact_candidates_publish_match_rule_per_lane(self):
+        source = normalize_workbook_records((
+            _record(1, headword="bʿl (x)", references="I.2"),
+            _record(2, headword="bʿl/foo", references="I.2"),
+        ))
+        index = _index()
+        module = build_feature_module(source, align_burns_source(source, index), index)
+
+        rules = {
+            module.node_features[f"burns_match_rule_{lane}"][8]
+            for lane in range(1, module.max_lane + 1)
+        }
+        self.assertEqual(rules, {"parenthesis_core", "slash_left"})
+        self.assertEqual(
+            {
+                module.node_features[f"burns_headword_{lane}"][8]
+                for lane in range(1, module.max_lane + 1)
+            },
+            {"bʿl (x)", "bʿl/foo"},
+        )
 
     def test_root_category_and_negative_status_remain_distinct_across_lanes(self):
         source = normalize_workbook_records((
