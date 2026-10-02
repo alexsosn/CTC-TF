@@ -169,3 +169,21 @@ Post-v0.3 branches that name `4994a45...` as an exact release gate are now
 stale sequencing documentation. They must be refreshed/rebased after the new
 release is published; they must not force publication of the known-defective
 candidate.
+
+## 2026-10-03 supersession — feature-only release topology and #70 cleanup
+
+PR #82 superseded the pre-release native-entity/extended-warp experiment and restored the primary Burns product to a **feature-only module over existing reviewed-CUC nodes**. Subsequent headword-expression and residual-gap work (#78/#79/#80/#81/#90/#91/#95) extends that feature-only model without changing the warp.
+
+Issue #70 now also removes the independent standalone row-slot `convert` product before the first stable release. Because no `v0.3.0` tag or GitHub Release exists, this is a correction of the prospective release surface rather than a post-release compatibility break.
+
+The final v0.3.0 review must therefore use these facts:
+
+- primary `module`: corrected lane/span feature-only CUC module;
+- explicit `module-v1`: six JSON-valued CUC feature-module compatibility path;
+- no standalone `convert` CLI or row-slot corpus implementation;
+- no upstream `agora.materializer.json` for the removed one-source product;
+- Agora#175 already registers `cuc-burns` as a parented `feature-module` with local-module acquisition;
+- fully managed source+parent execution remains separate Agora#135 work;
+- exact reviewed-CUC, real Workbooks, Appendix, Context-Fabric/cfabric-mcp, expression-candidate, line-drift, residual-gap, and token-boundary evidence remain release inputs.
+
+Earlier sections describing native-v2 entity nodes, retained `convert`, legacy materializer IDs, or a required Agora manifest are historical superseded plans and must not be used as the final release contract.
