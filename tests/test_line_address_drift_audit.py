@@ -324,10 +324,10 @@ class LineAddressDriftAuditTests(unittest.TestCase):
         index = _index(
             {
                 ("KTU 1.14", "I", 3): ("wrong-3",),
-                ("KTU 1.14", "I", 4): ("wrong-4", "secret-target"),
-                ("KTU 1.14", "I", 5): ("secret-target",),
+                ("KTU 1.14", "I", 4): ("target-3",),
+                ("KTU 1.14", "I", 5): ("target-4",),
                 ("KTU 1.14", "I", 6): ("wrong-6",),
-                ("KTU 1.14", "I", 7): ("secret-target",),
+                ("KTU 1.14", "I", 7): ("target-6",),
             }
         )
 
@@ -337,16 +337,19 @@ class LineAddressDriftAuditTests(unittest.TestCase):
         for ordinal, line in enumerate((3, 4, 6), start=1):
             record_id = f"burns-record-sha256:r{ordinal}"
             annotation_id = f"burns-annotation-sha256:a{ordinal}"
+            headword = f"target-{line}"
             record = replace(
                 base.records[0],
                 record_id=record_id,
                 source_row=ordinal,
+                headword=headword,
                 references=f"I.{line}",
             )
             annotation = replace(
                 base.annotations[0],
                 annotation_id=annotation_id,
                 first_source_row=ordinal,
+                headword=headword,
                 references=f"I.{line}",
                 record_ids=(record_id,),
             )
