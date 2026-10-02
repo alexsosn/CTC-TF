@@ -1,4 +1,4 @@
-name: Reviewed CUC Burns entity prototype
+name: Reviewed CUC Burns feature-only module
 
 on:
   pull_request:
@@ -6,10 +6,10 @@ on:
       - 'docs/releases/**'
       - 'tests/test_release_version.py'
       - 'src/ugarit_context_parsing/**'
-      - 'src/ugarit_context_parsing/entity_extension.py'
+      - 'src/ugarit_context_parsing/feature_module.py'
       - 'src/ugarit_context_parsing/tablet_findspots.py'
       - 'src/ugarit_context_parsing/alignment.py'
-      - 'scripts/check_reviewed_cuc_burns_entities.py'
+      - 'scripts/check_reviewed_cuc_burns_feature_module.py'
       - '.github/workflows/test-reviewed-cuc-burns-entities.yml'
       - 'scripts/check_ci_provenance.py'
       - 'pyproject.toml'
@@ -18,11 +18,11 @@ permissions:
   contents: read
 
 concurrency:
-  group: reviewed-cuc-burns-entities-${{ github.ref }}
+  group: reviewed-cuc-burns-feature-module-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  real-cuc-entity-smoke:
+  real-cuc-feature-module-smoke:
     runs-on: ubuntu-latest
     steps:
       - name: Check out Burns materializer
@@ -49,5 +49,5 @@ jobs:
           cache: pip
       - name: Install producer and exact consumer
         run: python -m pip install . .context-fabric/libs/core '.context-fabric/libs/mcp[dev]'
-      - name: Prove real CUC entity extension is searchable through cfabric-mcp
-        run: python scripts/check_reviewed_cuc_burns_entities.py .cuc/tf/0.2.8
+      - name: Prove real CUC feature-only Burns module is searchable through cfabric-mcp
+        run: python scripts/check_reviewed_cuc_burns_feature_module.py .cuc/tf/0.2.8
