@@ -6,12 +6,8 @@ Generated Burns data is local and must not be redistributed without permission.
 """
 from __future__ import annotations
 
-import ctypes
-import errno
 import json
-import os
 import shutil
-import sys
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
@@ -22,6 +18,7 @@ from .annotations import NormalizedBurnsSource
 from .cuc_index import ReviewedCucIndex
 from .entity_extension import build_entity_extension
 from .module import _compatibility_payload
+from .publication import publish_stage_noreplace
 
 REPORT_FILE = "burns-entity-report.json"
 SCHEMA = "burns-entity-module-v2"
@@ -29,45 +26,6 @@ SCHEMA = "burns-entity-module-v2"
 
 class _FabricLike(Protocol):
     def save(self, **kwargs) -> bool: ...
-
-
-def _publish_stage_noreplace(stage: Path, output: Path) -> None:
-    """Atomically publish a directory without *ever* replacing a destination.
-
-    POSIX ``Path.replace`` can replace an empty directory created between a
-    preceding existence check and the rename. Use the platform's exclusive
-    rename primitive. Unsupported kernels/filesystems fail closed; never fall
-    back to a race-prone check-then-rename. Stage and output are siblings.
-    """
-    if sys.platform.startswith("linux"):
-        libc = ctypes.CDLL(None, use_errno=True)
-        rename = getattr(libc, "renameat2", None)
-        if rename is None:
-            raise OSError(errno.ENOTSUP, "atomic no-replace renameat2 unavailable")
-        # AT_FDCWD=-100; RENAME_NOREPLACE=1.
-        rename.argtypes = (ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint)
-        rename.restype = ctypes.c_int
-        outcome = rename(-100, os.fsencode(stage), -100, os.fsencode(output), 1)
-    elif sys.platform == "darwin":
-        libc = ctypes.CDLL(None, use_errno=True)
-        rename = getattr(libc, "renamex_np", None)
-        if rename is None:
-            raise OSError(errno.ENOTSUP, "atomic exclusive renamex_np unavailable")
-        # Darwin RENAME_EXCL=0x00000004, not Linux's RENAME_NOREPLACE=1.
-        rename.argtypes = (ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint)
-        rename.restype = ctypes.c_int
-        outcome = rename(os.fsencode(stage), os.fsencode(output), 0x00000004)
-    elif os.name == "nt":
-        # Unlike POSIX rename, Windows os.rename refuses an existing target.
-        os.rename(stage, output)
-        return
-    else:
-        raise OSError(errno.ENOTSUP, "atomic no-replace directory rename unsupported")
-    if outcome != 0:
-        error = ctypes.get_errno()
-        if error in (errno.EEXIST, errno.ENOTEMPTY):
-            raise FileExistsError(error, "refusing to overwrite existing Burns entity output", str(output))
-        raise OSError(error, os.strerror(error), str(output))
 
 
 def _source_payload(source: NormalizedBurnsSource) -> list[dict[str, object]]:
@@ -166,7 +124,7 @@ def write_entity_artifact(
         # authority if another process creates output immediately afterwards.
         if output.exists() or output.is_symlink():
             raise ValueError(f"Burns entity output appeared during staging: {output}")
-        _publish_stage_noreplace(stage, output)
+        publish_stage_noreplace(stage, output)
         return True
     finally:
         if stage.exists():
