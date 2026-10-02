@@ -209,6 +209,40 @@ class LineAddressDriftAuditTests(unittest.TestCase):
         self.assertEqual(stats["matched_neighbor_offsets"], {"-1": 1})
         self.assertEqual(stats["unique_rescue_offsets"], {"-1": 1})
 
+    def test_neighbor_search_uses_current_parenthesis_candidate_semantics(self):
+        source = _source("secret-target (optional)")
+        index = _index(
+            {
+                ("KTU 1.14", "I", 3): ("wrong",),
+                ("KTU 1.14", "I", 4): ("secret-target",),
+            }
+        )
+        stats = aggregate_line_address_drift_stats(
+            source=source,
+            alignments=(_gap_alignment(),),
+            index=index,
+        )
+        self.assertEqual(stats["outcomes"], {"unique_neighbor": 1})
+        self.assertEqual(stats["matched_neighbor_offsets"], {"+1": 1})
+        self.assertEqual(stats["unique_rescue_offsets"], {"+1": 1})
+
+    def test_neighbor_search_unions_current_slash_candidate_spans(self):
+        source = _source("secret/alternate")
+        index = _index(
+            {
+                ("KTU 1.14", "I", 3): ("wrong",),
+                ("KTU 1.14", "I", 4): ("secret", "alternate"),
+            }
+        )
+        stats = aggregate_line_address_drift_stats(
+            source=source,
+            alignments=(_gap_alignment(),),
+            index=index,
+        )
+        self.assertEqual(stats["outcomes"], {"ambiguous_neighbor_span": 1})
+        self.assertEqual(stats["matched_neighbor_offsets"], {"+1": 1})
+        self.assertEqual(stats["unique_rescue_offsets"], {})
+
     def test_multiple_neighbor_offsets_are_not_a_unique_rescue(self):
         source = _source()
         index = _index(
