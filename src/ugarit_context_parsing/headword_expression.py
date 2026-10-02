@@ -119,27 +119,28 @@ def simple_token_slash_candidate_tokens(
     return left, right
 
 
-def headword_candidate_token_sets(headword: str) -> tuple[tuple[str, ...], ...]:
-    """Return ordered exact surface candidates authorized by source evidence.
-
-    Simple parentheses: use only the core with the parenthesized group omitted.
-    Real-source research found 2,873 unique core matches and zero cases that
-    required the expanded form.
-
-    Simple token-internal slash: both branches are exact alternatives; real
-    cited lines independently attest both sides.
-
-    All unsupported syntax returns the historical literal token sequence.
-    """
+def headword_candidates(
+    headword: str,
+) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """Return ordered (match_rule, tokens) candidates authorized by evidence."""
 
     parenthesis = simple_parenthesis_candidate_tokens(headword)
     if parenthesis is not None:
         core, _expanded = parenthesis
-        return (core,)
+        return (("parenthesis_core", core),)
 
     slash = simple_token_slash_candidate_tokens(headword)
     if slash is not None:
         left, right = slash
-        return tuple(dict.fromkeys((left, right)))
+        return (
+            ("slash_left", left),
+            ("slash_right", right),
+        )
 
-    return (literal_headword_tokens(headword),)
+    return (("literal", literal_headword_tokens(headword)),)
+
+
+def headword_candidate_token_sets(headword: str) -> tuple[tuple[str, ...], ...]:
+    """Compatibility projection of :func:`headword_candidates` token tuples."""
+
+    return tuple(tokens for _rule, tokens in headword_candidates(headword))
