@@ -119,3 +119,97 @@ Candidate labels are diagnostic/provenance, never confidence inflation.
 - morphology/tokenization/transcription residuals (#81);
 - source-supported systematic line remapping (#85);
 - fuzzy matching of any kind.
+
+
+## Phase A real-source result
+
+Pinned real Workbooks + reviewed CUC 0.2.8 on PR #87 provide a decisive
+operational distinction between the two hypotheses.
+
+### Simple parenthesized expressions
+
+After excluding square-bracket overlap, slash overlap, multiple/nested groups,
+and unbalanced forms, **3,458** current `HEADWORD_NOT_FOUND` occurrences are
+eligible.
+
+Per-candidate exact span cardinality:
+
+| candidate | 0 spans | 1 span | 2+ spans |
+|---|---:|---:|---:|
+| include parenthesized group | 3,432 | 26 | 0 |
+| omit parenthesized group | 422 | 2,928 | 108 |
+
+Combined-hypothesis outcomes:
+
+- unique omit-group rescue: 2,902;
+- distinct include-vs-omit spans: 26;
+- candidate ambiguity: 108;
+- no match: 422;
+- unique include-group rescue: **0**.
+
+The 26 include-group matches therefore add no independent coverage at all: every
+one occurs where omit-group also matches a different span. Treating the
+parenthesized material as an optional surface candidate would create 26 extra
+ambiguities without rescuing one additional occurrence.
+
+**Production decision:** for the strictly supported one-group syntax, the only
+evidenced surface candidate is the expression with the complete parenthesized
+group omitted. The verbatim Burns headword remains preserved as provenance.
+This is an operational alignment rule; it does not claim one universal
+philological meaning for parentheses outside the supported class.
+
+By position, unique omit-group rescues under the two-candidate research audit
+were heavily represented in trailing groups (2,785), but also present for
+leading (95) and medial (22) groups. Unsupported cases remain fail-closed:
+
+- multiple/nested: 209;
+- slash overlap: 90;
+- square-bracket overlap: 277;
+- unbalanced: 5.
+
+### Simple inline slash
+
+After excluding parenthesis overlap and complex multi-slash syntax, **35**
+current misses are eligible.
+
+Per-branch exact cardinality:
+
+| candidate | 0 spans | 1 span |
+|---|---:|---:|
+| left branch | 18 | 17 |
+| right branch | 27 | 8 |
+
+Combined outcomes:
+
+- unique left: 16;
+- unique right: 7;
+- distinct left-vs-right spans: 1;
+- no match: 11;
+- repeated-span ambiguity within one branch: 0.
+
+**Production decision:** retain both branches as exact candidates. Deduplicate
+the union by CUC span. One resulting span is exact lexical alignment; multiple
+distinct spans remain `AMBIGUOUS_HEADWORD_SPAN`; zero remain
+`HEADWORD_NOT_FOUND`.
+
+Unsupported slash cases remain fail-closed:
+
+- multiple slash characters: 28;
+- parenthesis overlap: 144.
+
+### Expected bounded coverage effect
+
+The two production rules are disjoint in this ticket. On the current pinned
+data they should move, before any #79 restoration work:
+
+- at least 2,928 simple-parenthesis occurrences to exact lexical spans;
+- 108 simple-parenthesis occurrences to explicit lexical ambiguity;
+- 23 simple-slash occurrences to exact lexical spans;
+- 1 simple-slash occurrence to explicit lexical ambiguity.
+
+Thus exact lexical coverage should rise from 4,357 to **7,308** occurrences,
+while these rules alone should reduce current `HEADWORD_NOT_FOUND` from 4,993
+to **1,933** and increase ambiguous headword spans from 169 to **278**.
+
+Those are acceptance expectations for the production TDD gate, not hard-coded
+corpus constants in the matcher.
