@@ -18,6 +18,7 @@ from tf.fabric import Fabric
 from scripts.audit_burns_alignment import (
     aggregate_alignment_stats,
     aggregate_bracket_restoration_research,
+    aggregate_complex_headword_expression_research,
     aggregate_feature_only_lane_stats,
     aggregate_headword_candidate_research,
     aggregate_headword_expression_stats,
@@ -116,6 +117,22 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         sign_cert=sign_cert,
         sign_alt=sign_alt,
     )
+    complex_headword_expression_research = (
+        aggregate_complex_headword_expression_research(
+            source=normalized,
+            alignments=alignments,
+            index=index,
+        )
+    )
+    unsupported_brackets = int(
+        bracket_restoration_research["lexical_outcomes"].get("unsupported", 0)
+    )
+    if int(complex_headword_expression_research["occurrences"]) != unsupported_brackets:
+        raise AssertionError(
+            "complex-expression research denominator diverges from #79 unsupported "
+            f"bracket occurrences: actual={complex_headword_expression_research['occurrences']!r} "
+            f"expected={unsupported_brackets!r}"
+        )
     alignment_stats = aggregate_alignment_stats(
         file_count=len(source.files),
         source=normalized,
@@ -331,6 +348,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "headword_expression": headword_expression_stats,
         "headword_candidate_research": headword_candidate_research,
         "bracket_restoration_research": bracket_restoration_research,
+        "complex_headword_expression_research": complex_headword_expression_research,
         "editorial_file_fingerprints": editorial_fingerprints,
         "line_address_drift": line_address_drift_stats,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),

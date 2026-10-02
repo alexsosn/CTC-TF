@@ -538,6 +538,155 @@ def aggregate_bracket_restoration_research(
     }
 
 
+
+def classify_unsupported_bracket_expression(
+    headword: str,
+) -> dict[str, object] | None:
+    """Classify only bracket expressions left structurally unsupported by #79.
+
+    Returning ``None`` means the expression shape is already owned by the #79
+    research model (literal bracket parsing, bracket-aware parenthesis core, or
+    opaque markup wholly inside one omitted parenthesized group).
+    """
+
+    text = nfc(headword or "")
+    if "[" not in text and "]" not in text:
+        return None
+
+    if "(" in text or ")" in text:
+        if parenthesis_core_with_bracket_mask(text) is not None:
+            return None
+        if opaque_parenthesis_core_with_inner_brackets(text) is not None:
+            return None
+    elif "/" not in text and parse_square_bracket_mask(text) is not None:
+        return None
+
+    square_unbalanced, square_openers, _square_depth = _delimiter_balance(
+        text, "[", "]"
+    )
+    paren_unbalanced, paren_openers, paren_depth = _delimiter_balance(
+        text, "(", ")"
+    )
+
+    if square_unbalanced:
+        shape = "unbalanced_square_brackets"
+    elif paren_unbalanced:
+        shape = "unbalanced_parentheses"
+    elif paren_openers > 1 or paren_depth > 1:
+        shape = "multiple_or_nested_parentheses"
+    elif paren_openers == 1:
+        shape = "simple_parenthesis_mixed_markup"
+    elif "/" in text:
+        shape = "bracket_slash_no_parenthesis"
+    else:
+        shape = "other_unsupported"
+
+    return {
+        "class": shape,
+        "slash": "/" in text,
+        "multiple_slashes": text.count("/") > 1,
+        "multiple_bracket_groups": square_openers > 1,
+        "trailing_editorial_marker": bool(_trailing_editorial_markers(text)),
+        "debracketable": parse_square_bracket_mask(text) is not None,
+    }
+
+
+def aggregate_complex_headword_expression_research(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Audit #79-unsupported bracket/mixed expressions without lexical output."""
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in complex-expression research")
+
+    occurrences = 0
+    shapes: Counter[str] = Counter()
+    flags: Counter[str] = Counter()
+    literal_cardinality: Counter[str] = Counter()
+    candidate_cardinality: Counter[str] = Counter()
+    matching_rules: Counter[str] = Counter()
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError(
+                "alignment references unknown annotation in complex-expression research"
+            )
+        classification = classify_unsupported_bracket_expression(
+            annotation.headword
+        )
+        if classification is None:
+            continue
+
+        parsed = parse_square_bracket_mask(annotation.headword)
+        for occurrence in alignment.occurrences:
+            line_node = occurrence.context_line_node
+            if line_node is None:
+                continue
+            if occurrence.reason not in {
+                BurnsAlignmentReason.NONE,
+                BurnsAlignmentReason.HEADWORD_NOT_FOUND,
+                BurnsAlignmentReason.AMBIGUOUS_HEADWORD_SPAN,
+            }:
+                continue
+            if line_node not in index.line_words:
+                raise ValueError(
+                    "complex-expression research occurrence lacks indexed context line"
+                )
+
+            occurrences += 1
+            shapes[str(classification["class"])] += 1
+            for name in (
+                "slash",
+                "multiple_slashes",
+                "multiple_bracket_groups",
+                "trailing_editorial_marker",
+                "debracketable",
+            ):
+                if bool(classification[name]):
+                    flags[name] += 1
+
+            if parsed is None:
+                continue
+
+            literal_spans = _candidate_spans(
+                literal_headword_tokens(parsed.debracketed),
+                line_node,
+                index,
+            )
+            literal_cardinality[_candidate_count_bucket(len(literal_spans))] += 1
+
+            candidate_spans: set[tuple[int, ...]] = set()
+            rules_with_matches: set[str] = set()
+            for rule, tokens in headword_candidates(parsed.debracketed):
+                spans = _candidate_spans(tokens, line_node, index)
+                if spans:
+                    rules_with_matches.add(rule)
+                    candidate_spans.update(spans)
+            candidate_cardinality[
+                _candidate_count_bucket(len(candidate_spans))
+            ] += 1
+            for rule in sorted(rules_with_matches):
+                matching_rules[rule] += 1
+
+    return {
+        "occurrences": occurrences,
+        "shape_classes": _counter_payload(shapes),
+        "flags": _counter_payload(flags),
+        "debracketed_literal_span_cardinality": _counter_payload(
+            literal_cardinality
+        ),
+        "debracketed_candidate_span_cardinality": _counter_payload(
+            candidate_cardinality
+        ),
+        "debracketed_matching_rules": _counter_payload(matching_rules),
+    }
+
+
 _CANDIDATE_RESEARCH_PARENTHESES = (
     "ambiguous",
     "core_and_expanded",
