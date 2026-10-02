@@ -12,6 +12,7 @@ import json
 import os
 import sys
 import tempfile
+import unicodedata
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -21,6 +22,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.sources import WORKBOOKS, ensure  # noqa: E402
 from ugarit_context_parsing.alignment import (  # noqa: E402
+    BurnsAlignmentConfidence,
     BurnsAlignmentReason,
     BurnsAnchorKind,
     BurnsAnnotationAlignment,
@@ -90,6 +92,192 @@ def _candidate_count_bucket(count: int) -> str:
     if count == 1:
         return "1"
     return "2+"
+
+
+
+_EDITORIAL_MARKERS = "*†!?"
+_HEADWORD_AUDIT_OUTCOMES = ("ambiguous_span", "matched", "not_found")
+
+
+def _delimiter_balance(value: str, opener: str, closer: str) -> tuple[bool, int, int]:
+    """Return (unbalanced, opener_count, max_depth) for one delimiter pair."""
+
+    depth = 0
+    max_depth = 0
+    openers = 0
+    unbalanced = False
+    for char in value:
+        if char == opener:
+            openers += 1
+            depth += 1
+            max_depth = max(max_depth, depth)
+        elif char == closer:
+            if depth == 0:
+                unbalanced = True
+            else:
+                depth -= 1
+    if depth:
+        unbalanced = True
+    return unbalanced, openers, max_depth
+
+
+def _parenthesis_shape(value: str) -> str:
+    has_parenthesis = "(" in value or ")" in value
+    if not has_parenthesis:
+        return "none"
+
+    unbalanced, openers, max_depth = _delimiter_balance(value, "(", ")")
+    if unbalanced:
+        return "unbalanced"
+    if openers > 1 or max_depth > 1:
+        return "multiple_or_nested"
+
+    text = value.strip()
+    start = text.find("(")
+    end = text.rfind(")")
+    if start == 0 and end == len(text) - 1:
+        return "whole_expression"
+    if start == 0:
+        return "leading"
+    if end == len(text) - 1:
+        return "trailing"
+    return "medial"
+
+
+def classify_headword_expression(headword: str) -> dict[str, object]:
+    """Classify authored headword punctuation without interpreting its semantics."""
+
+    text = unicodedata.normalize("NFC", headword or "")
+    parentheses = "(" in text or ")" in text
+    square_brackets = "[" in text or "]" in text
+    slash = "/" in text
+    trailing_editorial_marker = any(
+        token.endswith(tuple(_EDITORIAL_MARKERS))
+        for token in text.split()
+        if token
+    )
+    unbalanced_parentheses, _, _ = _delimiter_balance(text, "(", ")")
+    unbalanced_square_brackets, _, _ = _delimiter_balance(text, "[", "]")
+
+    if parentheses:
+        exclusive_class = "parentheses"
+    elif square_brackets:
+        exclusive_class = "square_brackets"
+    elif slash:
+        exclusive_class = "slash"
+    elif trailing_editorial_marker:
+        exclusive_class = "marker_only"
+    else:
+        exclusive_class = "clean"
+
+    return {
+        "parentheses": parentheses,
+        "square_brackets": square_brackets,
+        "slash": slash,
+        "trailing_editorial_marker": trailing_editorial_marker,
+        "unbalanced_parentheses": unbalanced_parentheses,
+        "unbalanced_square_brackets": unbalanced_square_brackets,
+        "parenthesis_shape": _parenthesis_shape(text),
+        "exclusive_class": exclusive_class,
+    }
+
+
+def _headword_audit_outcome(occurrence) -> str | None:
+    """Return a lexical-expression outcome only for an exactly resolved line context."""
+
+    if occurrence.context_line_node is None:
+        return None
+    if (
+        occurrence.anchor_kind is BurnsAnchorKind.WORD_SPAN
+        and occurrence.confidence is BurnsAlignmentConfidence.EXACT_LEXICAL
+        and occurrence.reason is BurnsAlignmentReason.NONE
+    ):
+        return "matched"
+    if (
+        occurrence.anchor_kind is BurnsAnchorKind.LINE
+        and occurrence.reason is BurnsAlignmentReason.HEADWORD_NOT_FOUND
+    ):
+        return "not_found"
+    if (
+        occurrence.anchor_kind is BurnsAnchorKind.LINE
+        and occurrence.reason is BurnsAlignmentReason.AMBIGUOUS_HEADWORD_SPAN
+    ):
+        return "ambiguous_span"
+    return None
+
+
+def _headword_audit_bucket(counter: Counter[str]) -> dict[str, int]:
+    return {
+        **{name: counter.get(name, 0) for name in _HEADWORD_AUDIT_OUTCOMES},
+        "occurrences": sum(counter.values()),
+    }
+
+
+def aggregate_headword_expression_stats(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+) -> dict[str, object]:
+    """Cross-tab authored headword shapes against current exact lexical outcomes.
+
+    The payload contains only static shape labels and counts. It intentionally
+    omits Burns strings, locators, ids, source provenance, and CUC line content.
+    """
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in headword-expression audit source")
+
+    outcomes: Counter[str] = Counter()
+    flag_buckets: dict[str, Counter[str]] = defaultdict(Counter)
+    exclusive_buckets: dict[str, Counter[str]] = defaultdict(Counter)
+    parenthesis_buckets: dict[str, Counter[str]] = defaultdict(Counter)
+
+    boolean_flags = (
+        "parentheses",
+        "square_brackets",
+        "slash",
+        "trailing_editorial_marker",
+        "unbalanced_parentheses",
+        "unbalanced_square_brackets",
+    )
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError(
+                "alignment references unknown annotation in headword-expression audit"
+            )
+        shape = classify_headword_expression(annotation.headword)
+        for occurrence in alignment.occurrences:
+            outcome = _headword_audit_outcome(occurrence)
+            if outcome is None:
+                continue
+            outcomes[outcome] += 1
+            exclusive_buckets[str(shape["exclusive_class"])][outcome] += 1
+            for flag in boolean_flags:
+                if bool(shape[flag]):
+                    flag_buckets[flag][outcome] += 1
+            parenthesis_shape = str(shape["parenthesis_shape"])
+            if parenthesis_shape != "none":
+                parenthesis_buckets[parenthesis_shape][outcome] += 1
+
+    return {
+        "eligible_occurrences": sum(outcomes.values()),
+        "outcomes": _counter_payload(outcomes),
+        "exclusive_classes": {
+            key: _headword_audit_bucket(counter)
+            for key, counter in sorted(exclusive_buckets.items())
+        },
+        "flags": {
+            key: _headword_audit_bucket(counter)
+            for key, counter in sorted(flag_buckets.items())
+        },
+        "parenthesis_shapes": {
+            key: _headword_audit_bucket(counter)
+            for key, counter in sorted(parenthesis_buckets.items())
+        },
+    }
 
 
 def aggregate_lexical_gap_stats(
