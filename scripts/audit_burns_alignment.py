@@ -1496,6 +1496,10 @@ def aggregate_token_boundary_research(
     workbook_directions: dict[int, Counter[str]] = defaultdict(Counter)
     worksheet_role_directions: dict[str, Counter[str]] = defaultdict(Counter)
     neighbor_evidence: Counter[str] = Counter()
+    annotation_occurrences: Counter[str] = Counter()
+    signature_annotations: dict[str, set[str]] = defaultdict(set)
+    target_windows_with_empty_g_cons = 0
+    occurrences_with_empty_g_cons = 0
 
     for alignment in alignments:
         annotation = annotations.get(alignment.annotation_id)
@@ -1531,11 +1535,13 @@ def aggregate_token_boundary_research(
                 continue
 
             occurrences += 1
+            annotation_occurrences[annotation.annotation_id] += 1
             span_cardinality[_candidate_count_bucket(len(spans))] += 1
 
             occurrence_directions: set[str] = set()
             occurrence_transitions: set[str] = set()
             source_lengths = ",".join(str(len(token)) for token in tokens)
+            occurrence_has_empty_g_cons = False
 
             for span in spans:
                 target_values = tuple(nfc(index.word_g_cons[node]) for node in span)
@@ -1547,11 +1553,19 @@ def aggregate_token_boundary_research(
                     direction = "resegment"
                 transition = f"{len(tokens)}->{len(target_values)}"
                 target_lengths = ",".join(str(len(value)) for value in target_values)
+                signature = f"{source_lengths}->{target_lengths}"
+                if any(value == "" for value in target_values):
+                    target_windows_with_empty_g_cons += 1
+                    occurrence_has_empty_g_cons = True
 
                 occurrence_directions.add(direction)
                 occurrence_transitions.add(transition)
                 window_directions[direction] += 1
-                length_signatures[f"{source_lengths}->{target_lengths}"] += 1
+                length_signatures[signature] += 1
+                signature_annotations[signature].add(annotation.annotation_id)
+
+            if occurrence_has_empty_g_cons:
+                occurrences_with_empty_g_cons += 1
 
             direction = (
                 next(iter(occurrence_directions))
@@ -1587,6 +1601,16 @@ def aggregate_token_boundary_research(
         "window_directions": _counter_payload(window_directions),
         "token_length_signatures": _counter_payload(length_signatures),
         "neighbor_evidence": _counter_payload(neighbor_evidence),
+        "distinct_annotations": len(annotation_occurrences),
+        "annotation_occurrence_multiplicity": _counter_payload(
+            Counter(annotation_occurrences.values())
+        ),
+        "signature_distinct_annotations": {
+            signature: len(annotation_ids)
+            for signature, annotation_ids in sorted(signature_annotations.items())
+        },
+        "target_windows_with_empty_g_cons": target_windows_with_empty_g_cons,
+        "occurrences_with_empty_g_cons": occurrences_with_empty_g_cons,
         "workbook_directions": {
             str(workbook): _counter_payload(counter)
             for workbook, counter in sorted(workbook_directions.items())
