@@ -14,6 +14,7 @@ import sys
 import tempfile
 import unicodedata
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -38,6 +39,10 @@ from ugarit_context_parsing.annotations import (  # noqa: E402
 )
 from ugarit_context_parsing.cuc_index import ReviewedCucIndex, build_reviewed_cuc_index  # noqa: E402
 from ugarit_context_parsing.headword_expression import (  # noqa: E402
+    SquareBracketMask,
+    literal_headword_tokens,
+    nfc,
+    parse_square_bracket_mask,
     simple_parenthesis_candidate_tokens,
     simple_token_slash_candidate_tokens,
 )
@@ -197,6 +202,182 @@ def classify_headword_expression(headword: str) -> dict[str, object]:
         "exclusive_class": exclusive_class,
     }
 
+
+
+@dataclass(frozen=True)
+class ParenthesisBracketCore:
+    tokens: tuple[str, ...]
+    restored_positions: tuple[tuple[int, ...], ...]
+    brackets_omitted_with_parenthesis: bool
+
+
+def _balanced_square_segment(value: str) -> bool:
+    depth = 0
+    group_chars = 0
+    for char in value:
+        if char == "[":
+            if depth:
+                return False
+            depth = 1
+            group_chars = 0
+        elif char == "]":
+            if not depth or group_chars == 0:
+                return False
+            depth = 0
+        elif depth and not char.isspace() and char not in _EDITORIAL_MARKERS:
+            group_chars += 1
+    return depth == 0
+
+
+def parenthesis_core_with_bracket_mask(
+    headword: str,
+) -> ParenthesisBracketCore | None:
+    """Research one simple parenthesis core while preserving surviving brackets."""
+
+    text = nfc(headword or "")
+    if "/" in text or "[" not in text and "]" not in text:
+        return None
+    unbalanced, openers, max_depth = _delimiter_balance(text, "(", ")")
+    if unbalanced or openers != 1 or max_depth != 1 or text.count(")") != 1:
+        return None
+    start = text.index("(")
+    end = text.index(")", start + 1)
+    if start > 0 and not text[start - 1].isspace():
+        return None
+    if end + 1 < len(text) and not text[end + 1].isspace():
+        return None
+
+    before = text[:start].strip()
+    inside = text[start + 1 : end].strip()
+    after = text[end + 1 :].strip()
+    if not inside:
+        return None
+
+    # A bracket group may not cross the boundary of material that the reviewed
+    # parenthesis-core rule removes.
+    if not all(_balanced_square_segment(part) for part in (before, inside, after)):
+        return None
+
+    core_text = " ".join(part for part in (before, after) if part)
+    if not core_text:
+        return None
+    brackets_in_core = "[" in core_text or "]" in core_text
+    brackets_in_omitted = "[" in inside or "]" in inside
+
+    if brackets_in_core:
+        parsed = parse_square_bracket_mask(core_text)
+        if parsed is None:
+            return None
+        return ParenthesisBracketCore(
+            tokens=parsed.tokens,
+            restored_positions=parsed.restored_positions,
+            brackets_omitted_with_parenthesis=False,
+        )
+
+    if not brackets_in_omitted:
+        return None
+    tokens = literal_headword_tokens(core_text)
+    if not tokens:
+        return None
+    return ParenthesisBracketCore(
+        tokens=tokens,
+        restored_positions=tuple(() for _ in tokens),
+        brackets_omitted_with_parenthesis=True,
+    )
+
+
+def compare_cuc_restoration_mask(
+    *,
+    candidate_tokens: tuple[str, ...],
+    restored_positions: tuple[tuple[int, ...], ...],
+    span: tuple[int, ...],
+    index: ReviewedCucIndex,
+    sign_values: dict[int, str],
+    sign_emen: dict[int, str],
+    sign_cert: dict[int, str],
+    sign_alt: dict[int, str],
+) -> dict[str, object]:
+    """Compare Burns restoration positions with exact CUC sign-level evidence."""
+
+    if len(candidate_tokens) != len(restored_positions) or len(span) != len(candidate_tokens):
+        return {
+            "restoration": "sign_mapping_mismatch",
+            "missing_count": 0,
+            "extra_count": 0,
+            "cert_values": {},
+            "alt_values": {},
+        }
+
+    expected_slots: set[int] = set()
+    all_slots: list[int] = []
+    for token, positions, word in zip(
+        candidate_tokens, restored_positions, span, strict=True
+    ):
+        slots = tuple(index.word_slots.get(word, ()))
+        if len(slots) != len(token):
+            return {
+                "restoration": "sign_mapping_mismatch",
+                "missing_count": 0,
+                "extra_count": 0,
+                "cert_values": {},
+                "alt_values": {},
+            }
+        try:
+            signs = tuple(nfc(sign_values[slot]) for slot in slots)
+        except KeyError:
+            return {
+                "restoration": "sign_mapping_mismatch",
+                "missing_count": 0,
+                "extra_count": 0,
+                "cert_values": {},
+                "alt_values": {},
+            }
+        if "".join(signs) != nfc(token):
+            return {
+                "restoration": "sign_mapping_mismatch",
+                "missing_count": 0,
+                "extra_count": 0,
+                "cert_values": {},
+                "alt_values": {},
+            }
+        if any(position < 0 or position >= len(slots) for position in positions):
+            return {
+                "restoration": "sign_mapping_mismatch",
+                "missing_count": 0,
+                "extra_count": 0,
+                "cert_values": {},
+                "alt_values": {},
+            }
+        expected_slots.update(slots[position] for position in positions)
+        all_slots.extend(slots)
+
+    actual_restored = {
+        slot for slot in all_slots if sign_emen.get(slot) == "restored"
+    }
+    missing = expected_slots - actual_restored
+    extra = actual_restored - expected_slots
+    if missing and extra:
+        restoration = "missing_and_extra"
+    elif missing:
+        restoration = "missing"
+    elif extra:
+        restoration = "extra"
+    else:
+        restoration = "exact"
+
+    cert_counter = Counter(
+        value for slot in all_slots if (value := sign_cert.get(slot))
+    )
+    alt_counter = Counter(
+        value for slot in all_slots if (value := sign_alt.get(slot))
+    )
+    return {
+        "restoration": restoration,
+        "missing_count": len(missing),
+        "extra_count": len(extra),
+        "cert_values": dict(sorted(cert_counter.items())),
+        "alt_values": dict(sorted(alt_counter.items())),
+    }
 
 
 _CANDIDATE_RESEARCH_PARENTHESES = (
