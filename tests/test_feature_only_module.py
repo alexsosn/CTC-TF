@@ -262,6 +262,33 @@ class FeatureOnlyModuleWriterTests(unittest.TestCase):
             self.assertEqual(payload["counts"]["exact_lexical_occurrences"], 5)
 
 
+    def test_writer_rejects_forged_report_identity_and_counts_before_fabric(self):
+        _, _, _, module, report = _fixture()
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+
+            forged_identity = json.loads(json.dumps(report))
+            forged_identity["cuc_compatibility"]["commit"] = "0" * 40
+            with self.assertRaisesRegex(ValueError, "compatibility|fingerprint|CUC"):
+                write_feature_module(
+                    module,
+                    forged_identity,
+                    root / "identity",
+                    fabric_factory=_RefuseFabric,
+                )
+            self.assertFalse((root / "identity").exists())
+
+            forged_counts = json.loads(json.dumps(report))
+            forged_counts["counts"]["exact_lexical_occurrences"] += 1
+            with self.assertRaisesRegex(ValueError, "count|occurrence|report"):
+                write_feature_module(
+                    module,
+                    forged_counts,
+                    root / "counts",
+                    fabric_factory=_RefuseFabric,
+                )
+            self.assertFalse((root / "counts").exists())
+
     def test_refused_tf_save_never_creates_output(self):
         _, _, _, module, report = _fixture()
         with tempfile.TemporaryDirectory() as temp:
