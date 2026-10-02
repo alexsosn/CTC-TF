@@ -82,6 +82,12 @@ class CiProvenanceWorkflowContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         self.assertIn("      - 'src/ugarit_context_parsing/**'", workflow)
 
+    def test_real_source_workflow_tracks_alignment_audit_semantics(self):
+        workflow = (
+            WORKFLOWS / "test-real-burns-source.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("      - 'scripts/audit_burns_alignment.py'", workflow)
+
     def test_release_surface_triggers_all_path_filtered_acceptance_workflows(self):
         acceptance = (
             "test-reviewed-cuc-index.yml",
