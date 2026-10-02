@@ -20,6 +20,10 @@ from .entity_extension import build_entity_extension
 from .module import _compatibility_payload
 from .publication import publish_stage_noreplace
 
+# Temporary compatibility for the legacy entity-publisher safety tests while #82
+# removes the extended-warp public path.
+_publish_stage_noreplace = publish_stage_noreplace
+
 REPORT_FILE = "burns-entity-report.json"
 SCHEMA = "burns-entity-module-v2"
 
