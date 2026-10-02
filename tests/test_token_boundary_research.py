@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from dataclasses import replace
 
 from test_headword_candidate_research import _index, _record
 from scripts.audit_burns_alignment import aggregate_token_boundary_research
@@ -57,6 +58,42 @@ class TokenBoundaryResearchTests(unittest.TestCase):
         )
         self.assertEqual(stats["excluded_expression_syntax"], 1)
         self.assertEqual(stats["eligible_clean_marker_gaps"], 5)
+
+    def test_repeated_occurrences_from_one_annotation_are_not_independent_evidence(self):
+        record = replace(_record(1, "ab cd", 1), references="I.1, 2")
+        source = normalize_workbook_records((record,))
+        index = _index(
+            {
+                1: ("abcd",),
+                2: ("abcd",),
+            }
+        )
+        alignments = align_burns_source(source, index)
+        stats = aggregate_token_boundary_research(
+            source=source,
+            alignments=alignments,
+            index=index,
+        )
+        self.assertEqual(stats["occurrences"], 2)
+        self.assertEqual(stats["distinct_annotations"], 1)
+        self.assertEqual(stats["annotation_occurrence_multiplicity"], {"2": 1})
+        self.assertEqual(
+            stats["signature_distinct_annotations"],
+            {"2,2->4": 1},
+        )
+
+    def test_empty_cuc_g_cons_word_is_explicitly_flagged(self):
+        source = normalize_workbook_records((_record(1, "ab cd", 10),))
+        index = _index({10: ("ab", "", "cd")})
+        alignments = align_burns_source(source, index)
+        stats = aggregate_token_boundary_research(
+            source=source,
+            alignments=alignments,
+            index=index,
+        )
+        self.assertEqual(stats["occurrences"], 1)
+        self.assertEqual(stats["target_windows_with_empty_g_cons"], 1)
+        self.assertEqual(stats["occurrences_with_empty_g_cons"], 1)
 
     def test_payload_contains_no_lexical_strings_ids_locators_or_nodes(self):
         source = normalize_workbook_records((_record(1, "secretlexeme otherlexeme", 10),))
