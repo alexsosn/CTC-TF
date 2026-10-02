@@ -93,7 +93,14 @@ The earlier extended-warp `entity` experiment is retired: there is no
 `entities` CLI alias and no Burns-owned warp. The prior JSON feature module is
 available only through explicit `module-v1` compatibility invocation.
 
-Current pinned real-source evidence: 4,357 exact lexical occurrences, 4,260
-distinct carrier words, 97 carrier words requiring a second lane, and no current
-real source carrier requiring lane 3. The implementation remains dynamic because
-later alignment improvements may increase multiplicity.
+Current pinned real-source evidence after the bounded #78 headword-expression
+rules: 7,308 exact lexical occurrences on 5,924 distinct carrier words, with a
+current maximum lane depth of 6. The implementation remains dynamic because
+later restoration/morphology work may increase multiplicity.
+
+The supported expression rules remain deliberately narrow: one balanced,
+non-nested parenthesized group is omitted before exact matching, and exactly one
+inline slash in one token generates two alternative exact candidates. Distinct
+matching spans remain explicit ambiguity. Square brackets, nested/multiple
+parentheses, parenthesis+slash combinations, standalone/multiple slashes and
+morphological guesses remain fail-closed.
