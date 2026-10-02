@@ -79,9 +79,9 @@ divine = tuple(api.S.search(
     silent="deep",
 ))
 
-# Multiword occurrences in lane 1.
+# Multiword members for lane-1 divine-name occurrences.
 spans = tuple(api.S.search(
-    """s:word burns_span_length_1>1
+    """s:word burns_category_1=divine_name
 m:word
 s -burns_span_1> m""",
     silent="deep",
