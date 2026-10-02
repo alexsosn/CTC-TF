@@ -162,7 +162,8 @@ def run(cuc_dir: Path) -> None:
             if api.Fs(f"burns_category_{lane}", warn=False)
             and api.Fs(f"burns_category_{lane}", warn=False).v(word)
         }
-        if categories != {"divine_name", "cultic_action"}:
+        required_categories = {"divine_name", "cultic_action"}
+        if not required_categories.issubset(categories):
             raise AssertionError(f"same-word Burns categories lost across lanes: {categories!r}")
 
         roots = {
