@@ -486,8 +486,10 @@ def aggregate_headword_candidate_hypothesis_stats(
     parent_outcomes: Counter[str] = Counter()
     parent_unsupported: Counter[str] = Counter()
     parent_shapes: dict[str, Counter[str]] = defaultdict(Counter)
+    parent_candidate_cardinality: dict[str, Counter[str]] = defaultdict(Counter)
     slash_outcomes: Counter[str] = Counter()
     slash_unsupported: Counter[str] = Counter()
+    slash_candidate_cardinality: dict[str, Counter[str]] = defaultdict(Counter)
 
     for alignment in alignments:
         annotation = annotations.get(alignment.annotation_id)
@@ -513,6 +515,12 @@ def aggregate_headword_candidate_hypothesis_stats(
                     candidates = _research_parenthesis_candidates(headword)
                     if not candidates:
                         raise ValueError("supported parenthesis hypothesis produced no candidates")
+                    for label, tokens in candidates:
+                        parent_candidate_cardinality[label][
+                            _candidate_count_bucket(
+                                len(_candidate_spans(tokens, line_node, index))
+                            )
+                        ] += 1
                     outcome = _candidate_hypothesis_outcome(
                         candidates,
                         line_node=line_node,
@@ -529,6 +537,12 @@ def aggregate_headword_candidate_hypothesis_stats(
                     candidates = _research_slash_candidates(headword)
                     if not candidates:
                         raise ValueError("supported slash hypothesis produced no candidates")
+                    for label, tokens in candidates:
+                        slash_candidate_cardinality[label][
+                            _candidate_count_bucket(
+                                len(_candidate_spans(tokens, line_node, index))
+                            )
+                        ] += 1
                     slash_outcomes[
                         _candidate_hypothesis_outcome(
                             candidates,
@@ -542,6 +556,10 @@ def aggregate_headword_candidate_hypothesis_stats(
             "eligible_occurrences": sum(parent_outcomes.values()),
             "outcomes": _counter_payload(parent_outcomes),
             "unsupported": _counter_payload(parent_unsupported),
+            "candidate_span_cardinality": {
+                label: _counter_payload(counter)
+                for label, counter in sorted(parent_candidate_cardinality.items())
+            },
             "position_shapes": {
                 key: _counter_payload(counter)
                 for key, counter in sorted(parent_shapes.items())
@@ -551,6 +569,10 @@ def aggregate_headword_candidate_hypothesis_stats(
             "eligible_occurrences": sum(slash_outcomes.values()),
             "outcomes": _counter_payload(slash_outcomes),
             "unsupported": _counter_payload(slash_unsupported),
+            "candidate_span_cardinality": {
+                label: _counter_payload(counter)
+                for label, counter in sorted(slash_candidate_cardinality.items())
+            },
         },
     }
 
