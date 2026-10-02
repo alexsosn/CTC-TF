@@ -231,7 +231,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "occurrence_reasons": {"/".join(key): value for key, value in sorted(occurrence_reasons.items())},
         "category_dispositions": {"/".join(key): value for key, value in sorted(category_dispositions.items())},
         "occurrence_states": {"/".join(key): count for key, count in sorted(occurrence_counts.items())},
-        "native_entities": selected,
+        "exact_lexical_occurrences": selected,
         "lexical_gap": lexical_gap_stats,
         "feature_only_lanes": feature_only_lane_stats,
         "headword_expression": headword_expression_stats,
