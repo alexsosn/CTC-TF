@@ -9,7 +9,7 @@ from enum import Enum
 from .annotations import BurnsAnnotation, NormalizedBurnsSource
 from .cuc_index import ReviewedCucIndex
 from .headword_expression import (
-    headword_candidate_token_sets,
+    headword_candidates,
     literal_headword_tokens,
     nfc,
 )
@@ -67,6 +67,8 @@ class BurnsAlignmentOccurrence:
     context_line_node: int | None
     candidate_line_nodes: tuple[int, ...] = ()
     candidate_spans: tuple[tuple[int, ...], ...] = ()
+    match_rule: str | None = None
+    candidate_rules: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -149,15 +151,13 @@ def _line_occurrence(
             context_line_node=line_node,
         )
 
-    candidate_tokens = headword_candidate_token_sets(annotation.headword)
-    spans = tuple(
-        dict.fromkeys(
-            span
-            for candidate in candidate_tokens
-            for span in _candidate_spans(candidate, line_node, index)
-        )
+    matches = tuple(
+        (rule, span)
+        for rule, candidate in headword_candidates(annotation.headword)
+        for span in _candidate_spans(candidate, line_node, index)
     )
-    if len(spans) == 1:
+    if len(matches) == 1:
+        match_rule, span = matches[0]
         return BurnsAlignmentOccurrence(
             occurrence_id=occurrence_id,
             target_ordinal=ordinal,
@@ -166,10 +166,11 @@ def _line_occurrence(
             reason=BurnsAlignmentReason.NONE,
             confidence=BurnsAlignmentConfidence.EXACT_LEXICAL,
             anchor_kind=BurnsAnchorKind.WORD_SPAN,
-            anchor_nodes=spans[0],
+            anchor_nodes=span,
             context_line_node=line_node,
+            match_rule=match_rule,
         )
-    if len(spans) > 1:
+    if len(matches) > 1:
         return BurnsAlignmentOccurrence(
             occurrence_id=occurrence_id,
             target_ordinal=ordinal,
@@ -180,7 +181,8 @@ def _line_occurrence(
             anchor_kind=BurnsAnchorKind.LINE,
             anchor_nodes=(line_node,),
             context_line_node=line_node,
-            candidate_spans=spans,
+            candidate_spans=tuple(span for _rule, span in matches),
+            candidate_rules=tuple(rule for rule, _span in matches),
         )
     return BurnsAlignmentOccurrence(
         occurrence_id=occurrence_id,
@@ -372,6 +374,8 @@ def _occurrence_payload(occurrence: BurnsAlignmentOccurrence) -> dict[str, objec
         "context_line_node": occurrence.context_line_node,
         "candidate_line_nodes": list(occurrence.candidate_line_nodes),
         "candidate_spans": [list(span) for span in occurrence.candidate_spans],
+        "match_rule": occurrence.match_rule,
+        "candidate_rules": list(occurrence.candidate_rules),
     }
 
 
