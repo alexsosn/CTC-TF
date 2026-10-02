@@ -474,8 +474,10 @@ def aggregate_headword_candidate_hypothesis_stats(
     alignments: tuple[BurnsAnnotationAlignment, ...],
     index: ReviewedCucIndex,
 ) -> dict[str, object]:
-    """Evaluate bounded expression hypotheses on current lexical misses.
+    """Evaluate bounded expression hypotheses on resolved CUC line contexts.
 
+    The audit is intentionally independent of the current production alignment
+    outcome so its evidence remains comparable before and after matcher changes.
     Output is aggregate-only: static outcome/support labels and integer counts.
     """
 
@@ -501,11 +503,9 @@ def aggregate_headword_candidate_hypothesis_stats(
         shape = classify_headword_expression(headword)
 
         for occurrence in alignment.occurrences:
-            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
-                continue
             line_node = occurrence.context_line_node
             if line_node is None:
-                raise ValueError("HEADWORD_NOT_FOUND occurrence lacks context line")
+                continue
 
             if bool(shape["parentheses"]):
                 reason = _research_parenthesis_unsupported_reason(headword)
