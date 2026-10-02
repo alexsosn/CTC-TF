@@ -79,7 +79,14 @@ def _source(headword: str = "secret-target") -> NormalizedBurnsSource:
     return NormalizedBurnsSource(records=(record,), annotations=(annotation,))
 
 
-def _gap_alignment(*, column: str | None = "I", line: int = 3) -> BurnsAnnotationAlignment:
+def _gap_alignment(
+    *,
+    column: str | None = "I",
+    line: int = 3,
+    annotation_id: str = "burns-annotation-sha256:a1",
+    record_id: str = "burns-record-sha256:r1",
+    context_line_node: int = 200,
+) -> BurnsAnnotationAlignment:
     target = BurnsTarget("KTU 1.14", column, line)
     parsed = ParsedBurnsReference(
         original_ktu="1.14",
@@ -89,19 +96,19 @@ def _gap_alignment(*, column: str | None = "I", line: int = 3) -> BurnsAnnotatio
         targets=(target,),
     )
     occurrence = BurnsAlignmentOccurrence(
-        occurrence_id="burns-occurrence-sha256:o1",
+        occurrence_id=f"burns-occurrence-sha256:o:{annotation_id}:{line}",
         target_ordinal=0,
         target=target,
         disposition=BurnsAlignmentDisposition.ALIGNED,
         reason=BurnsAlignmentReason.HEADWORD_NOT_FOUND,
         confidence=BurnsAlignmentConfidence.EXACT_STRUCTURAL,
         anchor_kind=BurnsAnchorKind.LINE,
-        anchor_nodes=(200,),
-        context_line_node=200,
+        anchor_nodes=(context_line_node,),
+        context_line_node=context_line_node,
     )
     return BurnsAnnotationAlignment(
-        annotation_id="burns-annotation-sha256:a1",
-        record_ids=("burns-record-sha256:r1",),
+        annotation_id=annotation_id,
+        record_ids=(record_id,),
         parsed_reference=parsed,
         disposition=BurnsAlignmentDisposition.ALIGNED,
         reason=BurnsAlignmentReason.NONE,
@@ -181,6 +188,26 @@ class LineAddressDriftAuditTests(unittest.TestCase):
         self.assertEqual(stats["outcomes"], {"unique_neighbor": 1})
         self.assertEqual(stats["matched_neighbor_offsets"], {"+1": 1})
         self.assertEqual(stats["unique_rescue_offsets"], {"+1": 1})
+
+
+    def test_unique_minus_one_rescue(self):
+        source = _source()
+        index = _index(
+            {
+                ("KTU 1.14", "I", 1): ("other",),
+                ("KTU 1.14", "I", 2): ("secret-target",),
+                ("KTU 1.14", "I", 3): ("wrong",),
+                ("KTU 1.14", "I", 4): ("other",),
+            }
+        )
+        stats = aggregate_line_address_drift_stats(
+            source=source,
+            alignments=(_gap_alignment(),),
+            index=index,
+        )
+        self.assertEqual(stats["outcomes"], {"unique_neighbor": 1})
+        self.assertEqual(stats["matched_neighbor_offsets"], {"-1": 1})
+        self.assertEqual(stats["unique_rescue_offsets"], {"-1": 1})
 
     def test_multiple_neighbor_offsets_are_not_a_unique_rescue(self):
         source = _source()
@@ -291,6 +318,64 @@ class LineAddressDriftAuditTests(unittest.TestCase):
         )
         self.assertEqual(stats["occurrences"], 0)
         self.assertEqual(stats["outcomes"], {})
+
+    def test_unique_rescue_run_histogram_splits_on_line_gap(self):
+        base = _source()
+        index = _index(
+            {
+                ("KTU 1.14", "I", 3): ("wrong-3",),
+                ("KTU 1.14", "I", 4): ("wrong-4", "secret-target"),
+                ("KTU 1.14", "I", 5): ("secret-target",),
+                ("KTU 1.14", "I", 6): ("wrong-6",),
+                ("KTU 1.14", "I", 7): ("secret-target",),
+            }
+        )
+
+        records = []
+        annotations = []
+        alignments = []
+        for ordinal, line in enumerate((3, 4, 6), start=1):
+            record_id = f"burns-record-sha256:r{ordinal}"
+            annotation_id = f"burns-annotation-sha256:a{ordinal}"
+            record = replace(
+                base.records[0],
+                record_id=record_id,
+                source_row=ordinal,
+                references=f"I.{line}",
+            )
+            annotation = replace(
+                base.annotations[0],
+                annotation_id=annotation_id,
+                first_source_row=ordinal,
+                references=f"I.{line}",
+                record_ids=(record_id,),
+            )
+            node = index.line_nodes[("KTU 1.14", "I", line)]
+            records.append(record)
+            annotations.append(annotation)
+            alignments.append(
+                _gap_alignment(
+                    line=line,
+                    annotation_id=annotation_id,
+                    record_id=record_id,
+                    context_line_node=node,
+                )
+            )
+
+        source = NormalizedBurnsSource(
+            records=tuple(records),
+            annotations=tuple(annotations),
+        )
+        stats = aggregate_line_address_drift_stats(
+            source=source,
+            alignments=tuple(alignments),
+            index=index,
+        )
+        self.assertEqual(stats["unique_rescue_offsets"], {"+1": 3})
+        self.assertEqual(
+            stats["unique_rescue_run_lengths"],
+            {"+1": {"1": 1, "2": 1}},
+        )
 
     def test_payload_is_source_safe(self):
         source = _source("secret-target")
