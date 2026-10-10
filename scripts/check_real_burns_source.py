@@ -163,6 +163,33 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         alignments=alignments,
         index=index,
     )
+    # #85: run positions, occurrences and independent-annotation evidence
+    # must reconcile even if many references share a cited CUC line.
+    rescues_by_offset = line_address_drift_stats["unique_rescue_offsets"]
+    if sum(int(v) for v in rescues_by_offset.values()) != int(
+        line_address_drift_stats["outcomes"].get("unique_neighbor", 0)
+    ):
+        raise AssertionError("line-drift unique-neighbor occurrence denominator drifted")
+    run_histograms = line_address_drift_stats["unique_rescue_run_lengths"]
+    run_support = line_address_drift_stats["unique_rescue_run_annotation_support"]
+    unique_positions = 0
+    for offset, lengths in run_histograms.items():
+        for length, count in lengths.items():
+            unique_positions += int(length) * int(count)
+            if sum(int(n) for n in run_support[offset][length].values()) != int(count):
+                raise AssertionError("line-drift run support does not partition its runs")
+    if unique_positions != int(line_address_drift_stats["unique_rescue_structural_positions"]):
+        raise AssertionError("line-drift run structural positions do not reconcile")
+    if (
+        sum(int(v) for v in rescues_by_offset.values()) - unique_positions
+        != int(line_address_drift_stats["unique_rescue_repeated_position_occurrences"])
+    ):
+        raise AssertionError("line-drift repeated structural positions do not reconcile")
+    if int(line_address_drift_stats["unique_rescue_distinct_annotations"]) > sum(
+        int(v) for v in rescues_by_offset.values()
+    ):
+        raise AssertionError("line-drift distinct annotation count exceeds occurrences")
+
     residual_clean_gap_research = aggregate_residual_clean_gap_research(
         source=normalized,
         alignments=alignments,
