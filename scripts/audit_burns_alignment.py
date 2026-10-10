@@ -1647,6 +1647,7 @@ def aggregate_containment_research(
 
     occurrences = 0
     ambiguous_containing_candidates = 0
+    ambiguous_token_embeddings = 0
     side_classes: Counter[str] = Counter()
     left_lengths: Counter[str] = Counter()
     right_lengths: Counter[str] = Counter()
@@ -1703,17 +1704,31 @@ def aggregate_containment_research(
                 continue
 
             surface = containing[0]
-            at = surface.index(token)
-            left = surface[:at]
-            right = surface[at + len(token):]
-            if not left and not right:
-                raise AssertionError("unique containing candidate has no extra characters")
-            if left and right:
-                side = "both"
-            elif left:
-                side = "left_only"
+            positions = [
+                at
+                for at in range(len(surface) - len(token) + 1)
+                if surface.startswith(token, at)
+            ]
+            if not positions:
+                raise AssertionError("containing CUC word has no Burns token placement")
+            if len(positions) > 1:
+                # A unique CUC word is not necessarily a unique token placement.
+                # Do not invent prefix/suffix morphology from its first match.
+                ambiguous_token_embeddings += 1
+                left = right = ""
+                side = "ambiguous_embedding"
             else:
-                side = "right_only"
+                at = positions[0]
+                left = surface[:at]
+                right = surface[at + len(token):]
+                if not left and not right:
+                    raise AssertionError("unique containing candidate has no extra characters")
+                if left and right:
+                    side = "both"
+                elif left:
+                    side = "left_only"
+                else:
+                    side = "right_only"
 
             occurrences += 1
             annotation_occurrences[annotation.annotation_id] += 1
@@ -1736,6 +1751,7 @@ def aggregate_containment_research(
     return {
         "occurrences": occurrences,
         "ambiguous_containing_candidates": ambiguous_containing_candidates,
+        "ambiguous_token_embeddings": ambiguous_token_embeddings,
         "side_classes": _counter_payload(side_classes),
         "left_extra_lengths": _counter_payload(left_lengths),
         "right_extra_lengths": _counter_payload(right_lengths),
