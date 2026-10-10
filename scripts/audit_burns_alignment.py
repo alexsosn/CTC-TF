@@ -2103,6 +2103,7 @@ def aggregate_multitoken_residual_research(
     syntax_classes: Counter[str] = Counter()
     classes: Counter[str] = Counter()
     masks: Counter[str] = Counter()
+    exact_hit_order: Counter[str] = Counter()
     unmatched_counts: Counter[str] = Counter()
     local_evidence: Counter[str] = Counter()
     token_counts: Counter[str] = Counter()
@@ -2151,6 +2152,16 @@ def aggregate_multitoken_residual_research(
             )
             mask, missing, remaining = _multitoken_presence_mask(tokens, values)
             matched_count = mask.count("1")
+            matched_tokens = tuple(
+                token for token, present in zip(tokens, mask, strict=True)
+                if present == "1"
+            )
+            if not matched_tokens:
+                order = "no_exact_hits"
+            elif _is_subsequence(matched_tokens, values):
+                order = "in_order"
+            else:
+                order = "out_of_order"
             evidence = "none"
 
             if not missing:
@@ -2178,6 +2189,7 @@ def aggregate_multitoken_residual_research(
             syntax_classes[syntax_class] += 1
             classes[classification] += 1
             masks[mask] += 1
+            exact_hit_order[order] += 1
             unmatched_counts[str(len(missing))] += 1
             if evidence != "none":
                 local_evidence[evidence] += 1
@@ -2194,6 +2206,7 @@ def aggregate_multitoken_residual_research(
         "syntax_classes": _counter_payload(syntax_classes),
         "classes": _counter_payload(classes),
         "presence_masks": _counter_payload(masks),
+        "exact_hit_order": _counter_payload(exact_hit_order),
         "unmatched_token_counts": _counter_payload(unmatched_counts),
         "one_missing_local_evidence": _counter_payload(local_evidence),
         "burns_token_counts": _counter_payload(token_counts),
