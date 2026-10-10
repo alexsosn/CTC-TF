@@ -76,6 +76,24 @@ class ContainmentResearchTests(unittest.TestCase):
             },
         )
 
+    def test_repeated_token_inside_one_cuc_word_is_ambiguous_not_a_left_or_right_affix(self):
+        source = normalize_workbook_records(
+            (_record(1, "aba", 10), _record(2, "aa", 20))
+        )
+        index = _index({
+            10: ("ababa",),  # two overlapping placements, left or right extra
+            20: ("aaa",),    # overlapping repeated-token placements
+        })
+        alignments = align_burns_source(source, index)
+        stats = aggregate_containment_research(
+            source=source, alignments=alignments, index=index
+        )
+        self.assertEqual(stats["occurrences"], 2)
+        self.assertEqual(stats["ambiguous_token_embeddings"], 2)
+        self.assertEqual(stats["side_classes"], {"ambiguous_embedding": 2})
+        self.assertEqual(stats["left_extra_codepoints"], {})
+        self.assertEqual(stats["right_extra_codepoints"], {})
+
     def test_payload_does_not_expose_lexical_strings_ids_locators_or_nodes(self):
         source = normalize_workbook_records((_record(1, "secret", 10),))
         index = _index({10: ("secretx",)})
