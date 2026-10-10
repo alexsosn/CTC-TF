@@ -69,11 +69,13 @@ jobs:
           # Keep the checked-out CUC corpus and Agora host outside the
           # producer plugin-root mounted into Bubblewrap.
           mv .agora "$RUNNER_TEMP/agora-host"
-          mv .cuc "$RUNNER_TEMP/reviewed-cuc"
+          # Agora refuses trusted parent snapshots below output.parent
+          # (here RUNNER_TEMP). Keep reviewed CUC on a disjoint sibling tree.
+          mv .cuc "$GITHUB_WORKSPACE/../reviewed-cuc"
           python scripts/check_agora_burns_parent_binding.py \
             "$RUNNER_TEMP/agora-host" \
             "$RUNNER_TEMP/burns-csv" \
-            "$RUNNER_TEMP/reviewed-cuc/tf/0.2.8" \
+            "$GITHUB_WORKSPACE/../reviewed-cuc/tf/0.2.8" \
             "$RUNNER_TEMP/agora-burns-output"
       # All licensed Workbooks, CSVs and TF artifacts remain runner-local.
 
