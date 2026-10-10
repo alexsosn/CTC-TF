@@ -55,6 +55,38 @@ class EmptyGConsBoundaryResearchTests(unittest.TestCase):
                 sign_values={}, sign_emen={}, sign_cert={}, sign_alt={},
             )
 
+    def test_multisign_empty_word_counts_feature_presence_per_word(self):
+        source, index, alignments = self._fixture()
+        line10 = index.line_nodes[("KTU 1.14", "I", 10)]
+        empty_word = index.line_words[line10][1]
+        slots = dict(index.word_slots)
+        slots[empty_word] = (2, 99)
+        extended = replace(index, word_slots=MappingProxyType(slots))
+        stats = aggregate_empty_g_cons_boundary_research(
+            source=source, alignments=alignments, index=extended,
+            sign_values={2: "sign", 99: "sign"},
+            sign_emen={2: "emendation", 99: "also emended"},
+            sign_cert={}, sign_alt={},
+        )
+        self.assertEqual(stats["all_cuc_empty_words"], 3)
+        self.assertEqual(stats["all_empty_word_sign_slot_counts"], {"1": 2, "2": 1})
+        self.assertEqual(stats["all_empty_word_feature_presence"]["emen"], 1)
+        self.assertEqual(stats["boundary_empty_word_feature_presence"]["emen"], 1)
+
+    def test_duplicate_sign_slots_fail_closed_instead_of_double_counting(self):
+        source, index, alignments = self._fixture()
+        line10 = index.line_nodes[("KTU 1.14", "I", 10)]
+        empty_word = index.line_words[line10][1]
+        slots = dict(index.word_slots)
+        slots[empty_word] = (2, 2)
+        broken = replace(index, word_slots=MappingProxyType(slots))
+        with self.assertRaisesRegex(ValueError, "repeated sign slots"):
+            aggregate_empty_g_cons_boundary_research(
+                source=source, alignments=alignments, index=broken,
+                sign_values={2: "sign"}, sign_emen={2: "emendation"},
+                sign_cert={}, sign_alt={},
+            )
+
     def test_no_lexical_strings_ids_or_locators_in_payload(self):
         source = normalize_workbook_records((_record(1, "secret private", 10),))
         index = _index({10: ("secret", "", "private")})
