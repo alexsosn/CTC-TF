@@ -156,6 +156,17 @@ class AgoraBurnsManifestTests(unittest.TestCase):
                         ])
                 self.assertFalse((output / "burns_headword_1.tf").exists())
 
+    def test_agora_host_parent_is_outside_writable_output_ancestor(self):
+        # Agora intentionally refuses to mount a trusted parent beneath the
+        # writable materializer output parent. $RUNNER_TEMP must not contain
+        # both the trusted CUC corpus and the host's output directory.
+        workflow = (
+            ROOT / ".github/workflows/test-real-burns-source.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn('mv .cuc "$GITHUB_WORKSPACE/../reviewed-cuc"', workflow)
+        self.assertNotIn('mv .cuc "$RUNNER_TEMP/reviewed-cuc"', workflow)
+        self.assertIn('"$GITHUB_WORKSPACE/../reviewed-cuc/tf/0.2.8"', workflow)
+
     def test_real_agora_host_precreated_output_acceptance_is_required_in_ci(self):
         workflow = (
             ROOT / ".github/workflows/test-real-burns-source.yml"
