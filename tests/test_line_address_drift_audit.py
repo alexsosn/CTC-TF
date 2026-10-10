@@ -492,6 +492,38 @@ class LineAddressDriftAuditTests(unittest.TestCase):
             {"+1": {"1": {"2": 1}}},
         )
 
+    def test_run_groups_do_not_join_different_columns(self):
+        base = _source("alpha")
+        other = replace(
+            base.annotations[0],
+            annotation_id="burns-annotation-sha256:a2",
+            headword="beta",
+        )
+        source = replace(base, annotations=(*base.annotations, other))
+        index = _index({
+            ("KTU 1.14", "I", 3): ("wrong",),
+            ("KTU 1.14", "I", 4): ("alpha",),
+            ("KTU 1.14", "II", 3): ("wrong",),
+            ("KTU 1.14", "II", 4): ("beta",),
+        })
+        alignments = (
+            _gap_alignment(annotation_id=base.annotations[0].annotation_id),
+            _gap_alignment(
+                column="II", annotation_id=other.annotation_id,
+                context_line_node=index.line_nodes[("KTU 1.14", "II", 3)],
+            ),
+        )
+        stats = aggregate_line_address_drift_stats(
+            source=source, alignments=alignments, index=index,
+        )
+        self.assertEqual(stats["unique_rescue_offsets"], {"+1": 2})
+        self.assertEqual(stats["unique_rescue_structural_positions"], 2)
+        self.assertEqual(stats["unique_rescue_run_lengths"], {"+1": {"1": 2}})
+        self.assertEqual(
+            stats["unique_rescue_run_annotation_support"],
+            {"+1": {"1": {"1": 2}}},
+        )
+
     def test_repeated_reference_to_same_line_does_not_inflate_independence(self):
         source = _source("alpha")
         index = _index({
