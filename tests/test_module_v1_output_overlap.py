@@ -15,9 +15,9 @@ class ModuleV1CliOverlapTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             source_root = root / "burns-source"
-            cuc_root = root / "cuc"
+            cuc_root = root / "cuc-parent" / "cuc"
             source_root.mkdir()
-            cuc_root.mkdir()
+            cuc_root.mkdir(parents=True)
             (source_root / "sentinel.csv").write_bytes(b"licensed source bytes\n")
             (cuc_root / "sentinel.tf").write_bytes(b"base feature bytes\n")
             source = SimpleNamespace(root=source_root, records=(), files=())
@@ -27,7 +27,7 @@ class ModuleV1CliOverlapTests(unittest.TestCase):
                 ("source_parent", root),
                 ("cuc_same", cuc_root),
                 ("cuc_inside", cuc_root / "out"),
-                ("cuc_parent", root),
+                ("cuc_parent", cuc_root.parent),
             ):
                 with self.subTest(case=label), (
                     patch.object(cli, "_load_source", return_value=source),
