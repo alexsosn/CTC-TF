@@ -83,7 +83,11 @@ def _run_module(args: argparse.Namespace) -> int:
     alignments = align_burns_source(normalized, index)
     module = build_burns_module(normalized, alignments, index)
     report = build_burns_module_report(normalized, alignments, index, module)
-    try:\n        saved = write_burns_module(module, report, args.output)\n    except ValueError as exc:\n        raise SystemExit(f"legacy publication failed: {exc}") from exc\n    if not saved:
+    try:
+        saved = write_burns_module(module, report, args.output)
+    except ValueError as exc:
+        raise SystemExit(f"legacy publication failed: {exc}") from exc
+    if not saved:
         raise SystemExit("Text-Fabric refused the generated Burns module")
 
     print(
@@ -130,7 +134,11 @@ def _run_feature_module(args: argparse.Namespace) -> int:
     alignments = align_burns_source(normalized, index)
     module = build_feature_module(normalized, alignments, index)
     report = build_feature_module_report(normalized, alignments, index, module)
-    try:\n        saved = write_feature_module(module, report, args.output)\n    except ValueError as exc:\n        raise SystemExit(f"module publication failed: {exc}") from exc\n    if not saved:
+    try:
+        saved = write_feature_module(module, report, args.output)
+    except ValueError as exc:
+        raise SystemExit(f"module publication failed: {exc}") from exc
+    if not saved:
         raise SystemExit("Text-Fabric refused the Burns feature-only module")
 
     print(
