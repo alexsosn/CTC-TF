@@ -137,6 +137,34 @@ class MultiTokenResidualResearchTests(unittest.TestCase):
         self.assertEqual(stats["classes"], {"one_missing_unique_edit1": 1})
         self.assertEqual(stats["one_missing_local_evidence"], {"unique_edit1": 1})
 
+    def test_partial_exact_hits_record_order_independently_of_near_match(self):
+        source = normalize_workbook_records((
+            _record(1, "a b c", 10),
+            _record(2, "d e f", 20),
+            _record(3, "g h", 30),
+        ))
+        index = _index({
+            10: ("c", "bx", "a"),  # mask 101 but exact a/c are reversed
+            20: ("d", "x", "f"),   # mask 101 and exact d/f are in order
+            30: ("x", "y"),        # mask 00, no exact-order evidence
+        })
+        alignments = align_burns_source(source, index)
+        stats = aggregate_multitoken_residual_research(
+            source=source, alignments=alignments, index=index
+        )
+        self.assertEqual(stats["occurrences"], 3)
+        self.assertEqual(stats["presence_masks"], {"00": 1, "101": 2})
+        self.assertEqual(
+            stats["exact_hit_order"],
+            {"in_order": 1, "no_exact_hits": 1, "out_of_order": 1},
+        )
+        self.assertEqual(
+            stats["classes"],
+            {"one_missing_unique_containment": 1,
+             "one_missing_unique_edit1": 1,
+             "zero_exact_token_overlap": 1},
+        )
+
     def test_payload_does_not_expose_source_strings_ids_locators_or_nodes(self):
         source = normalize_workbook_records((_record(1, "secret private", 10),))
         index = _index({10: ("secret", "privatex")})
