@@ -30,6 +30,19 @@ class _SymlinkRootDuringSave:
         return ok
 
 
+class _SwapParentDuringSave:
+    def __init__(self, output_parent: Path):
+        self.output_parent = output_parent
+
+    def save(self, **kwargs):
+        real = Fabric(locations=[], modules=[], silent="deep")
+        ok = real.save(**kwargs)
+        moved = self.output_parent.with_name(self.output_parent.name + "-moved")
+        self.output_parent.rename(moved)
+        self.output_parent.symlink_to(moved, target_is_directory=True)
+        return ok
+
+
 class OutputSymlinkPathTests(unittest.TestCase):
     def _alias(self, root: Path) -> tuple[Path, Path]:
         target = root / "real-parent"
@@ -128,6 +141,26 @@ class OutputSymlinkPathTests(unittest.TestCase):
                     self.assertEqual(
                         (target / "sentinel.txt").read_bytes(), b"untouched\n"
                     )
+
+    def test_parent_replaced_by_symlink_during_fabric_save_is_rejected(self):
+        _, _, _, old_module, old_report = _module_fixture()
+        _, _, _, new_module, new_report = _feature_fixture()
+        for writer, module, report in (
+            (write_burns_module, old_module, old_report),
+            (write_feature_module, new_module, new_report),
+        ):
+            with self.subTest(writer=writer.__name__):
+                with tempfile.TemporaryDirectory() as tmp:
+                    parent = Path(tmp) / "legitimate-parent"
+                    parent.mkdir()
+                    output = parent / "module"
+                    with self.assertRaisesRegex(ValueError, "symlink"):
+                        writer(
+                            module, report, output,
+                            fabric_factory=lambda **kw: _SwapParentDuringSave(parent),
+                        )
+                    self.assertTrue(parent.is_symlink())
+                    self.assertFalse(output.exists())
 
     def test_path_with_parent_dotdot_does_not_hide_symlink_alias(self):
         _, _, _, old_module, old_report = _module_fixture()
