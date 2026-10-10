@@ -24,6 +24,7 @@ from scripts.audit_burns_alignment import (
     aggregate_headword_expression_stats,
     aggregate_lexical_gap_stats,
     aggregate_line_address_drift_stats,
+    aggregate_one_edit_research,
     aggregate_residual_clean_gap_research,
     aggregate_token_boundary_research,
 )
@@ -164,6 +165,11 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         alignments=alignments,
         index=index,
     )
+    one_edit_research = aggregate_one_edit_research(
+        source=normalized,
+        alignments=alignments,
+        index=index,
+    )
     token_boundary_research = aggregate_token_boundary_research(
         source=normalized,
         alignments=alignments,
@@ -228,6 +234,15 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         )
     if sum(int(value) for value in residual_clean_gap_research["classes"].values()) != expected_clean_marker_gaps:
         raise AssertionError("residual clean-gap classes do not partition denominator")
+
+    expected_one_edit = int(
+        residual_clean_gap_research["classes"].get("unique_single_token_edit1", 0)
+    )
+    if int(one_edit_research["occurrences"]) != expected_one_edit:
+        raise AssertionError(
+            "one-edit research diverges from #81 unique edit-1 class: "
+            f"actual={one_edit_research['occurrences']!r} expected={expected_one_edit!r}"
+        )
 
     expected_boundary_occurrences = sum(
         int(value)
@@ -391,6 +406,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "editorial_file_fingerprints": editorial_fingerprints,
         "line_address_drift": line_address_drift_stats,
         "residual_clean_gap_research": residual_clean_gap_research,
+        "one_edit_research": one_edit_research,
         "token_boundary_research": token_boundary_research,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
         "tablet_findspot_incomplete": len(report["findspot_audit"]["incomplete"]),
