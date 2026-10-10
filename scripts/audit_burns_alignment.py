@@ -1875,6 +1875,195 @@ def aggregate_one_edit_research(
     }
 
 
+
+def _multitoken_presence_mask(
+    tokens: tuple[str, ...],
+    values: tuple[str, ...],
+) -> tuple[str, tuple[str, ...]]:
+    """Match exact token occurrences with multiplicity, preserving source order.
+
+    This is a presence diagnostic, not a word-to-word alignment. A single CUC
+    word cannot satisfy two repeated Burns tokens.
+    """
+
+    available = Counter(values)
+    mask: list[str] = []
+    missing: list[str] = []
+    for token in tokens:
+        if available[token] > 0:
+            available[token] -= 1
+            mask.append("1")
+        else:
+            mask.append("0")
+            missing.append(token)
+    return "".join(mask), tuple(missing)
+
+
+def _missing_token_local_evidence(
+    token: str,
+    values: tuple[str, ...],
+) -> str:
+    """Diagnose (never align) one absent Burns token against a CUC line."""
+
+    containing = [
+        value for value in values if value != token and token in value
+    ]
+    if len(containing) > 1:
+        return "ambiguous_containment"
+    if len(containing) == 1:
+        return "unique_containment"
+
+    distances = [
+        _levenshtein_distance(token, value)
+        for value in values
+        if value != token
+    ]
+    if not distances or min(distances) != 1:
+        return "none"
+    return "unique_edit1" if distances.count(1) == 1 else "ambiguous_edit1"
+
+
+def aggregate_multitoken_residual_research(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Aggregate #98 multi-token gap shapes; no lexical approximation is made.
+
+    Only clean/marker HEADWORD_NOT_FOUND occurrences with two or more Burns
+    tokens are included. Neighboring exact CUC lines and exact concatenated
+    token-boundary windows take precedence. Output is aggregate-only.
+    """
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in multi-token gap research")
+
+    reverse_lines: dict[int, tuple[str, str, int]] = {}
+    for key, node in index.line_nodes.items():
+        if node in reverse_lines:
+            raise ValueError("CUC line node has multiple structural identities")
+        reverse_lines[node] = key
+
+    occurrences = 0
+    syntax_classes: Counter[str] = Counter()
+    classes: Counter[str] = Counter()
+    masks: Counter[str] = Counter()
+    unmatched_counts: Counter[str] = Counter()
+    local_evidence: Counter[str] = Counter()
+    token_counts: Counter[str] = Counter()
+    line_word_counts: Counter[str] = Counter()
+    annotation_occurrences: Counter[str] = Counter()
+    signature_annotations: dict[str, set[str]] = defaultdict(set)
+    workbook_classes: dict[int, Counter[str]] = defaultdict(Counter)
+    worksheet_role_classes: dict[str, Counter[str]] = defaultdict(Counter)
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("alignment references unknown annotation in multi-token research")
+        syntax_class = str(
+            classify_headword_expression(annotation.headword)["exclusive_class"]
+        )
+        if syntax_class not in {"clean", "marker_only"}:
+            continue
+
+        candidates = headword_candidates(annotation.headword)
+        if len(candidates) != 1:
+            raise ValueError("clean/marker multi-token gap has multiple production candidates")
+        _rule, tokens = candidates[0]
+        if len(tokens) < 2:
+            continue
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            line_node = occurrence.context_line_node
+            if line_node is None or line_node not in index.line_words:
+                raise ValueError("multi-token lexical gap lacks indexed CUC line")
+            if _neighbor_candidate_outcome(
+                annotation=annotation,
+                line_node=line_node,
+                index=index,
+                reverse_lines=reverse_lines,
+            ) != "no_neighbor_match":
+                continue
+            if _token_boundary_spans(tokens, line_node, index):
+                continue
+
+            values = tuple(
+                nfc(index.word_g_cons[word])
+                for word in index.line_words[line_node]
+            )
+            mask, missing = _multitoken_presence_mask(tokens, values)
+            matched_count = mask.count("1")
+            evidence = "none"
+
+            if not missing:
+                if _is_subsequence(tokens, values):
+                    classification = "all_tokens_in_order_noncontiguous"
+                else:
+                    classification = "all_tokens_present_reordered"
+            elif matched_count == 0:
+                classification = "zero_exact_token_overlap"
+            elif len(missing) == 1:
+                evidence = _missing_token_local_evidence(missing[0], values)
+                if evidence == "unique_containment":
+                    classification = "one_missing_unique_containment"
+                elif evidence == "unique_edit1":
+                    classification = "one_missing_unique_edit1"
+                elif evidence.startswith("ambiguous_"):
+                    classification = "one_missing_ambiguous_local"
+                else:
+                    classification = "partial_exact_token_overlap"
+            else:
+                classification = "partial_exact_token_overlap"
+
+            occurrences += 1
+            annotation_occurrences[annotation.annotation_id] += 1
+            syntax_classes[syntax_class] += 1
+            classes[classification] += 1
+            masks[mask] += 1
+            unmatched_counts[str(len(missing))] += 1
+            if evidence != "none":
+                local_evidence[evidence] += 1
+            token_counts[str(len(tokens))] += 1
+            line_word_counts[str(len(values))] += 1
+            signature_annotations[f"{len(tokens)}:{mask}"].add(
+                annotation.annotation_id
+            )
+            workbook_classes[annotation.workbook_number][classification] += 1
+            worksheet_role_classes[annotation.worksheet_role.value][classification] += 1
+
+    return {
+        "occurrences": occurrences,
+        "syntax_classes": _counter_payload(syntax_classes),
+        "classes": _counter_payload(classes),
+        "presence_masks": _counter_payload(masks),
+        "unmatched_token_counts": _counter_payload(unmatched_counts),
+        "one_missing_local_evidence": _counter_payload(local_evidence),
+        "burns_token_counts": _counter_payload(token_counts),
+        "cuc_line_word_counts": _counter_payload(line_word_counts),
+        "distinct_annotations": len(annotation_occurrences),
+        "annotation_occurrence_multiplicity": _counter_payload(
+            Counter(annotation_occurrences.values())
+        ),
+        "signature_distinct_annotations": {
+            key: len(annotation_ids)
+            for key, annotation_ids in sorted(signature_annotations.items())
+        },
+        "workbook_classes": {
+            str(workbook): _counter_payload(counts)
+            for workbook, counts in sorted(workbook_classes.items())
+        },
+        "worksheet_role_classes": {
+            role: _counter_payload(counts)
+            for role, counts in sorted(worksheet_role_classes.items())
+        },
+    }
+
+
 def aggregate_lexical_gap_stats(
     *,
     source: NormalizedBurnsSource,
