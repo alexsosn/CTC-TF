@@ -37,9 +37,8 @@
       },
       "execution": {
         "type": "python-module",
-        "module": "ugarit_context_parsing.cli",
+        "module": "ugarit_context_parsing.agora_adapter",
         "args": [
-          "module",
           "{source}",
           "--input-format",
           "csv",
