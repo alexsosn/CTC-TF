@@ -15,6 +15,7 @@ from .alignment import (
 )
 from .annotations import BurnsAnnotation, BurnsSourceRecord, NormalizedBurnsSource
 from .cuc_index import ReviewedCucIndex, reviewed_cuc_compatibility_payload
+from .publication import reject_symlinked_output_path
 
 MODULE_SCHEMA = "burns-tf-module-v1"
 NODE_ANNOTATION_SCHEMA = "burns-node-annotation-v1"
@@ -759,7 +760,9 @@ def _owned_previous_module_files(output: Path) -> tuple[Path, ...]:
 
 
 def _publish(stage: Path, output: Path) -> None:
+    reject_symlinked_output_path(output)
     output.mkdir(parents=True, exist_ok=True)
+    reject_symlinked_output_path(output)
     # Revalidate after staging: unknown files inserted during Fabric.save
     # must neither be silently removed nor accepted into the live output.
     old_owned = _owned_previous_module_files(output)
@@ -799,7 +802,9 @@ def write_burns_module(
     _validate_module_for_write(module, report)
 
     output = Path(output_dir)
+    reject_symlinked_output_path(output)
     output.parent.mkdir(parents=True, exist_ok=True)
+    reject_symlinked_output_path(output)
     if output.exists() and not output.is_dir():
         raise ValueError(f"Burns module output path is not a directory: {output}")
     # Reject incomplete/foreign output before constructing a Text-Fabric writer.

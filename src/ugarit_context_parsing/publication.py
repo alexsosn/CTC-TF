@@ -7,6 +7,22 @@ import sys
 from pathlib import Path
 
 
+
+def reject_symlinked_output_path(output: Path) -> None:
+    """Reject existing symlinks anywhere in a caller's output path.
+
+    Inspect the supplied spelling rather than resolving its aliases. This
+    guards against benign accidental redirection, not malicious concurrent
+    filesystem mutation between checks and subsequent operating-system calls.
+    """
+    for component in (output, *output.parents):
+        if component.is_symlink():
+            raise ValueError(
+                "Burns output path contains a symlink component; "
+                "use the real non-symlinked directory path"
+            )
+
+
 def publish_stage_noreplace(stage: Path, output: Path) -> None:
     """Atomically publish a staged directory without replacing any destination."""
 
