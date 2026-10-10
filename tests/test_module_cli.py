@@ -37,7 +37,7 @@ class ModuleCliTests(unittest.TestCase):
             ])
 
     def test_csv_v1_compatibility_routes_through_reviewed_pipeline_and_v1_writer(self) -> None:
-        source = SimpleNamespace(files=("01/Worksheet 1.csv",), records=(object(),))
+        source = SimpleNamespace(root=Path("burns-source"), files=("01/Worksheet 1.csv",), records=(object(),))
         normalized = SimpleNamespace(records=(object(),), annotations=(object(), object()))
         index = object()
         alignments = (object(), object())
@@ -74,7 +74,7 @@ class ModuleCliTests(unittest.TestCase):
         writer.assert_called_once_with(module, report, Path("tf/burns-module"))
 
     def test_pdf_v1_compatibility_uses_pdf_loader_and_v1_writer(self) -> None:
-        source = SimpleNamespace(files=("01/Worksheet 1.pdf",), records=(object(),))
+        source = SimpleNamespace(root=Path("burns-source"), files=("01/Worksheet 1.pdf",), records=(object(),))
         normalized = SimpleNamespace(records=(object(),), annotations=(object(),))
         index, alignments, module = object(), (object(),), object()
         report = {"schema": "burns-tf-module-report-v1"}
@@ -109,7 +109,7 @@ class ModuleCliTests(unittest.TestCase):
         writer.assert_called_once_with(module, report, Path("tf/burns-module"))
 
     def test_invalid_cuc_fails_before_v1_publication(self) -> None:
-        source = SimpleNamespace(files=("01/Worksheet 1.csv",), records=(object(),))
+        source = SimpleNamespace(root=Path("burns-source"), files=("01/Worksheet 1.csv",), records=(object(),))
         normalized = SimpleNamespace(records=(object(),), annotations=(object(),))
         writer = Mock()
         with (
