@@ -5,6 +5,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tf.fabric import Fabric
+
 from test_burns_tf_module import _module_fixture
 from test_feature_only_module import _fixture as _feature_fixture
 from ugarit_context_parsing.feature_module import write_feature_module
@@ -14,6 +16,18 @@ from ugarit_context_parsing.module import write_burns_module
 class _NoFabric:
     def __init__(self, **kwargs):
         raise AssertionError("symlink path must be rejected before Fabric")
+
+
+class _SymlinkRootDuringSave:
+    def __init__(self, output: Path, destination: Path):
+        self.output = output
+        self.destination = destination
+
+    def save(self, **kwargs):
+        real = Fabric(locations=[], modules=[], silent="deep")
+        ok = real.save(**kwargs)
+        self.output.symlink_to(self.destination, target_is_directory=True)
+        return ok
 
 
 class OutputSymlinkPathTests(unittest.TestCase):
@@ -85,6 +99,50 @@ class OutputSymlinkPathTests(unittest.TestCase):
                     with self.assertRaisesRegex(ValueError, "symlink"):
                         writer(module, report, alias, fabric_factory=_NoFabric)
                     self.assertTrue(alias.is_symlink())
+
+    def test_symlink_injected_at_output_root_during_save_is_rejected(self):
+        _, _, _, old_module, old_report = _module_fixture()
+        _, _, _, new_module, new_report = _feature_fixture()
+        for writer, module, report in (
+            (write_burns_module, old_module, old_report),
+            (write_feature_module, new_module, new_report),
+        ):
+            with self.subTest(writer=writer.__name__):
+                with tempfile.TemporaryDirectory() as tmp:
+                    root = Path(tmp)
+                    output = root / "pending-output"
+                    target = root / "foreign-target"
+                    target.mkdir()
+                    (target / "sentinel.txt").write_bytes(b"untouched\n")
+                    with self.assertRaisesRegex(ValueError, "symlink"):
+                        writer(
+                            module, report, output,
+                            fabric_factory=lambda **kw: _SymlinkRootDuringSave(
+                                output, target
+                            ),
+                        )
+                    self.assertTrue(output.is_symlink())
+                    self.assertEqual(
+                        sorted(p.name for p in target.iterdir()), ["sentinel.txt"]
+                    )
+                    self.assertEqual(
+                        (target / "sentinel.txt").read_bytes(), b"untouched\n"
+                    )
+
+    def test_path_with_parent_dotdot_does_not_hide_symlink_alias(self):
+        _, _, _, old_module, old_report = _module_fixture()
+        _, _, _, new_module, new_report = _feature_fixture()
+        with tempfile.TemporaryDirectory() as tmp:
+            target, alias = self._alias(Path(tmp))
+            output = alias / ".." / "escaped-output"
+            for writer, module, report in (
+                (write_burns_module, old_module, old_report),
+                (write_feature_module, new_module, new_report),
+            ):
+                with self.subTest(writer=writer.__name__):
+                    with self.assertRaisesRegex(ValueError, "symlink"):
+                        writer(module, report, output, fabric_factory=_NoFabric)
+            self.assertFalse((target.parent / "escaped-output").exists())
 
     def test_honest_new_parent_is_supported_by_both_writers(self):
         _, _, _, old_module, old_report = _module_fixture()
