@@ -11,6 +11,9 @@ on:
       - 'scripts/parse_workbooks_to_csv.py'
       - 'scripts/sources.py'
       - 'src/ugarit_context_parsing/**'
+      - 'agora.materializer.json'
+      - 'tests/test_agora_parent_manifest.py'
+      - 'scripts/check_agora_burns_parent_binding.py'
   workflow_dispatch:
 
 permissions:
@@ -19,7 +22,7 @@ permissions:
 jobs:
   audit-real-workbooks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 60
     steps:
       - name: Check out Burns software
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -29,8 +32,15 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: DT-UCPH/cuc
-          ref: ad69400f5446e1c8217af01659c7c10ab00c015b
+          ref: 0408967b1808c1f22c69e299d302b1e7b5e26354
           path: .cuc
+          persist-credentials: false
+      - name: Check out exact reviewed Agora parent-binding sandbox host
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          repository: alexsosn/Agora
+          ref: 21ae75d313a14e0ec6149ea6e8bc43e66a6b99a1
+          path: .agora
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
@@ -42,4 +52,30 @@ jobs:
         run: python scripts/parse_workbooks_to_csv.py --output "$RUNNER_TEMP/burns-csv"
       - name: Validate real source coverage, feature-only output, and disk-memory cost
         run: python scripts/check_real_burns_source.py "$RUNNER_TEMP/burns-csv" .cuc/tf/0.2.8 "$RUNNER_TEMP/burns-native"
-      # Deliberately do not upload or cache Workbooks, CSVs, or TF derivatives.
+      - name: Install Agora host requirements and Linux network-denial sandbox
+        run: |
+          python -m pip install -r .agora/requirements-dev.txt
+          sudo apt-get update
+          sudo apt-get install -y bubblewrap
+          if [[ -e /proc/sys/kernel/apparmor_restrict_unprivileged_userns ]]; then
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          fi
+          bwrap --unshare-all --ro-bind / / /bin/true
+      - name: Real Agora registered precreated-output Burns producer with read-only CUC parent
+        timeout-minutes: 25
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Keep the checked-out CUC corpus and Agora host outside the
+          # producer plugin-root mounted into Bubblewrap.
+          mv .agora "$RUNNER_TEMP/agora-host"
+          # Agora refuses trusted parent snapshots below output.parent
+          # (here RUNNER_TEMP). Keep reviewed CUC on a disjoint sibling tree.
+          mv .cuc "$GITHUB_WORKSPACE/../reviewed-cuc"
+          python scripts/check_agora_burns_parent_binding.py \
+            "$RUNNER_TEMP/agora-host" \
+            "$RUNNER_TEMP/burns-csv" \
+            "$GITHUB_WORKSPACE/../reviewed-cuc/tf/0.2.8" \
+            "$RUNNER_TEMP/agora-burns-output"
+      # All licensed Workbooks, CSVs and TF artifacts remain runner-local.
+

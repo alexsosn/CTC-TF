@@ -35,7 +35,14 @@ class StandaloneConvertRemovalContractTests(unittest.TestCase):
                 )
 
     def test_legacy_agora_materializer_manifest_is_absent(self):
-        self.assertFalse((ROOT / "agora.materializer.json").exists())
+        manifest = ROOT / "agora.materializer.json"
+        if manifest.exists():
+            import json
+            document = json.loads(manifest.read_text(encoding="utf-8"))
+            self.assertEqual([m["id"] for m in document["materializers"]], ["cuc-burns-csv"])
+            for materializer in document["materializers"]:
+                self.assertEqual(materializer["output"]["composition"]["kind"], "feature-module")
+                self.assertNotIn("convert", materializer["execution"]["args"])
 
     def test_public_docs_do_not_advertise_retained_standalone_product(self):
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

@@ -21,7 +21,8 @@ class ReleaseVersionContractTests(unittest.TestCase):
         self.assertNotIn("standalone `convert` command is retained", notes)
         self.assertNotIn("burns-workbooks-csv-text-fabric", notes)
         self.assertNotIn("burns-workbooks-pdf-text-fabric", notes)
-        self.assertFalse((ROOT / "agora.materializer.json").exists())
+        # A later parent-bound Agora manifest does not restore the old
+        # standalone materializer or alter frozen release notes.
         self.assertIn("No Burns-derived data files are attached", notes)
         self.assertIn("Agora", notes)
 
