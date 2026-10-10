@@ -259,7 +259,10 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         raise AssertionError("containment side classes fail to partition #81 denominator")
 
     multitoken_count = int(multitoken_residual_research["occurrences"])
-    for partition in ("syntax_classes", "classes", "presence_masks", "unmatched_token_counts"):
+    for partition in (
+        "syntax_classes", "classes", "presence_masks", "exact_hit_order",
+        "unmatched_token_counts",
+    ):
         if sum(int(value) for value in multitoken_residual_research[partition].values()) != multitoken_count:
             raise AssertionError(f"multitoken residual {partition} does not partition its denominator")
     if multitoken_count > expected_clean_marker_gaps:
