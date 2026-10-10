@@ -34,9 +34,9 @@ class AgoraBurnsManifestTests(unittest.TestCase):
         })
         self.assertEqual(m["execution"], {
             "type": "python-module",
-            "module": "ugarit_context_parsing.cli",
+            "module": "ugarit_context_parsing.agora_adapter",
             "args": [
-                "module", "{source}", "--input-format", "csv",
+                "{source}", "--input-format", "csv",
                 "--cuc", "{parent}", "--output", "{output}",
             ],
             "network": "deny",
