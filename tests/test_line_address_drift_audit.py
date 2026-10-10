@@ -463,6 +463,42 @@ class LineAddressDriftAuditTests(unittest.TestCase):
             {"+1": {"2": {"2": 1}}},
         )
 
+    def test_four_distinct_annotations_on_three_line_run_are_exact_not_3plus(self):
+        base = _source("alpha")
+        cases = ((1, "alpha", 3), (2, "delta", 3), (3, "beta", 4), (4, "gamma", 5))
+        annotations = []
+        alignments = []
+        index = _index({
+            ("KTU 1.14", "I", 3): ("wrong",),
+            ("KTU 1.14", "I", 4): ("alpha", "delta"),
+            ("KTU 1.14", "I", 5): ("beta",),
+            ("KTU 1.14", "I", 6): ("gamma",),
+        })
+        for ordinal, headword, cited_line in cases:
+            annotation_id = f"burns-annotation-sha256:a{ordinal}"
+            annotations.append(replace(
+                base.annotations[0], annotation_id=annotation_id,
+                headword=headword, references=f"I.{cited_line}",
+            ))
+            alignments.append(_gap_alignment(
+                line=cited_line, annotation_id=annotation_id,
+                context_line_node=index.line_nodes[
+                    ("KTU 1.14", "I", cited_line)
+                ],
+            ))
+        source = replace(base, annotations=tuple(annotations))
+        stats = aggregate_line_address_drift_stats(
+            source=source, alignments=tuple(alignments), index=index,
+        )
+        self.assertEqual(stats["unique_rescue_offsets"], {"+1": 4})
+        self.assertEqual(stats["unique_rescue_structural_positions"], 3)
+        self.assertEqual(stats["unique_rescue_distinct_annotations"], 4)
+        self.assertEqual(stats["unique_rescue_run_lengths"], {"+1": {"3": 1}})
+        self.assertEqual(
+            stats["unique_rescue_run_annotation_support"],
+            {"+1": {"3": {"4": 1}}},
+        )
+
     def test_same_line_independent_annotations_are_not_two_run_positions(self):
         base = _source("alpha")
         other = replace(
