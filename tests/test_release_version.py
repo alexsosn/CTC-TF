@@ -16,6 +16,41 @@ class ReleaseVersionContractTests(unittest.TestCase):
         self.assertIn("no `otype.tf`", notes)
         self.assertNotIn("otype=entity", notes)
 
+    def test_release_notes_describe_actual_agora_parent_bound_adapter_and_frozen_evidence(self):
+        notes = (ROOT / "docs" / "releases" / "v0.3.0.md").read_text(encoding="utf-8")
+        for evidence in (
+            "agora.materializer.json",
+            "cuc-burns-csv",
+            "ugarit_context_parsing.agora_adapter",
+            "0408967b1808c1f22c69e299d302b1e7b5e26354",
+            "45 Workbooks",
+            "5,909",
+            "Bubblewrap",
+            "pre-created empty",
+        ):
+            with self.subTest(evidence=evidence):
+                self.assertIn(evidence, notes)
+        self.assertIn("No Burns-derived data files are attached", notes)
+        self.assertIn("not yet published", notes)
+        self.assertIn("not yet registered", notes)
+        self.assertNotIn("fully managed source+parent materializer execution remains", notes.lower())
+
+    def test_release_manifest_and_project_metadata_agree_without_legacy_conversion(self):
+        import json
+        import tomllib
+
+        package = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        manifest = json.loads((ROOT / "agora.materializer.json").read_text(encoding="utf-8"))
+        self.assertEqual(package["project"]["version"], TARGET_VERSION)
+        self.assertEqual(manifest["plugin"]["version"], TARGET_VERSION)
+        materializer = manifest["materializers"][0]
+        self.assertEqual(materializer["id"], "cuc-burns-csv")
+        self.assertEqual(materializer["execution"]["module"], "ugarit_context_parsing.agora_adapter")
+        self.assertEqual(materializer["parent_input"]["resource"], "cuc")
+        self.assertEqual(materializer["output"]["composition"]["kind"], "feature-module")
+        self.assertNotIn("convert", " ".join(materializer["execution"]["args"]))
+        self.assertEqual(materializer["acquisition"][0]["type"], "user-local")
+
     def test_release_notes_preserve_distribution_boundaries(self):
         notes = (ROOT / "docs" / "releases" / "v0.3.0.md").read_text(encoding="utf-8")
         self.assertNotIn("standalone `convert` command is retained", notes)
