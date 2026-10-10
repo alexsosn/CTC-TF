@@ -37,11 +37,16 @@ class ReleaseVersionContractTests(unittest.TestCase):
 
     def test_release_manifest_and_project_metadata_agree_without_legacy_conversion(self):
         import json
-        import tomllib
+        import re
 
-        package = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+        # Python 3.10 is in the release matrix; stdlib tomllib exists only
+        # from Python 3.11. Scope the version extraction to [project].
+        pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        project_section = pyproject.split("[project]", 1)[1].split("\\n[", 1)[0]
+        version = re.search(r'^version\\s*=\\s*"([^"]+)"', project_section, re.MULTILINE)
+        self.assertIsNotNone(version)
         manifest = json.loads((ROOT / "agora.materializer.json").read_text(encoding="utf-8"))
-        self.assertEqual(package["project"]["version"], TARGET_VERSION)
+        self.assertEqual(version.group(1), TARGET_VERSION)
         self.assertEqual(manifest["plugin"]["version"], TARGET_VERSION)
         materializer = manifest["materializers"][0]
         self.assertEqual(materializer["id"], "cuc-burns-csv")
