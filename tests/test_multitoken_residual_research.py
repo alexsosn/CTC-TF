@@ -165,6 +165,18 @@ class MultiTokenResidualResearchTests(unittest.TestCase):
              "zero_exact_token_overlap": 1},
         )
 
+    def test_one_containing_word_with_multiple_embeddings_is_ambiguous(self):
+        source = normalize_workbook_records((_record(1, "a aba c", 10),))
+        index = _index({10: ("a", "ababa", "c")})
+        alignments = align_burns_source(source, index)
+        stats = aggregate_multitoken_residual_research(
+            source=source, alignments=alignments, index=index
+        )
+        self.assertEqual(stats["occurrences"], 1)
+        self.assertEqual(stats["presence_masks"], {"101": 1})
+        self.assertEqual(stats["classes"], {"one_missing_ambiguous_local": 1})
+        self.assertEqual(stats["one_missing_local_evidence"], {"ambiguous_containment": 1})
+
     def test_payload_does_not_expose_source_strings_ids_locators_or_nodes(self):
         source = normalize_workbook_records((_record(1, "secret private", 10),))
         index = _index({10: ("secret", "privatex")})
