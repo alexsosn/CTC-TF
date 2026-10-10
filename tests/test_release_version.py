@@ -21,7 +21,8 @@ class ReleaseVersionContractTests(unittest.TestCase):
         self.assertNotIn("standalone `convert` command is retained", notes)
         self.assertNotIn("burns-workbooks-csv-text-fabric", notes)
         self.assertNotIn("burns-workbooks-pdf-text-fabric", notes)
-        # The frozen v0.3.0 release remains feature-only; a later parent-bound\n        # Agora manifest is allowed only when its source and output contracts\n        # are separately verified by test_agora_parent_manifest.py.\n        self.assertNotIn("burns-workbooks-csv-text-fabric", notes)
+        # A later parent-bound Agora manifest does not restore the old
+        # standalone materializer or alter frozen release notes.
         self.assertIn("No Burns-derived data files are attached", notes)
         self.assertIn("Agora", notes)
 
