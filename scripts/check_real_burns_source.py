@@ -19,6 +19,7 @@ from scripts.audit_burns_alignment import (
     aggregate_alignment_stats,
     aggregate_bracket_restoration_research,
     aggregate_complex_headword_expression_research,
+    aggregate_empty_g_cons_boundary_research,
     aggregate_containment_research,
     aggregate_feature_only_lane_stats,
     aggregate_headword_candidate_research,
@@ -187,6 +188,15 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         alignments=alignments,
         index=index,
     )
+    empty_g_cons_boundary_research = aggregate_empty_g_cons_boundary_research(
+        source=normalized,
+        alignments=alignments,
+        index=index,
+        sign_values=sign_values,
+        sign_emen=sign_emen,
+        sign_cert=sign_cert,
+        sign_alt=sign_alt,
+    )
     feature_only_lane_stats = aggregate_feature_only_lane_stats(
         source=normalized,
         alignments=alignments,
@@ -300,6 +310,16 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         )
     if int(token_boundary_research["eligible_clean_marker_gaps"]) != expected_clean_marker_gaps:
         raise AssertionError("token-boundary research clean/marker denominator drifted")
+    if (
+        int(empty_g_cons_boundary_research["occurrences_with_empty_g_cons"])
+        != int(token_boundary_research["occurrences_with_empty_g_cons"])
+    ):
+        raise AssertionError("empty-g_cons research occurrence denominator drifted")
+    if (
+        int(empty_g_cons_boundary_research["target_windows_with_empty_g_cons"])
+        != int(token_boundary_research["target_windows_with_empty_g_cons"])
+    ):
+        raise AssertionError("empty-g_cons research window denominator drifted")
 
     if headword_expression_stats["outcomes"] != {
         key: value for key, value in expected_headword_outcomes.items() if value
@@ -453,6 +473,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "containment_research": containment_research,
         "one_edit_research": one_edit_research,
         "token_boundary_research": token_boundary_research,
+        "empty_g_cons_boundary_research": empty_g_cons_boundary_research,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
         "tablet_findspot_incomplete": len(report["findspot_audit"]["incomplete"]),
         "unmapped_findspot_records": len(report["findspot_audit"]["unmapped_record_ids"]),
