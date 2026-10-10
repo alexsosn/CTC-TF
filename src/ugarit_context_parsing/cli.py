@@ -70,6 +70,10 @@ def _run_module(args: argparse.Namespace) -> int:
     except SourceValidationError as exc:
         raise SystemExit(f"source validation failed: {exc}") from exc
 
+    # The explicit compatibility writer may replace an existing owned module,
+    # but must never publish inside (or above) its source or reviewed CUC trees.
+    _reject_module_overlap(source.root, args.cuc, args.output)
+
     try:
         normalized = normalize_workbook_records(source.records)
     except BurnsNormalizationError as exc:

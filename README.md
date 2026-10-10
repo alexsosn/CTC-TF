@@ -114,6 +114,8 @@ ugarit-context-parsing module-v1 output \
 
 `module-v1` retains the previous `burns_annotations.tf`, `burns_annotation_ids.tf`, `burns_semantic_statuses.tf`, `burns_worksheet_roles.tf`, `burns_sections.tf`, `burns_headwords.tf` and `burns-module-report.json` schema, including its existing output behavior for compatibility. Treat v1 and the corrected lane schema as separate module versions; materialize them into separate directories and load only the one your consumer expects. To roll back, restore the original base + retained v1 output.
 
+Like the primary `module` command, `module-v1` refuses an output directory equal to, nested under, or containing the user-local Burns source or reviewed CUC input tree. Keep the input trees and legacy output separate; the explicit compatibility flag does not authorize writing derived files into either input.
+
 ### Agora status
 
 Agora PR `alexsosn/Agora#175` is merged and registers `cuc-burns` as a `feature-module` with parent `cuc`, exact parent-version compatibility, and `local-module` acquisition. Agora no longer registers or installs the standalone Burns row-slot materializers. Materialize this repository's `module` output locally, then let Agora compose it with the reviewed CUC parent.
