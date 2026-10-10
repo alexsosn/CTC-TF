@@ -1879,24 +1879,26 @@ def aggregate_one_edit_research(
 def _multitoken_presence_mask(
     tokens: tuple[str, ...],
     values: tuple[str, ...],
-) -> tuple[str, tuple[str, ...]]:
-    """Match exact token occurrences with multiplicity, preserving source order.
+) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
+    """Match each exact Burns token to one CUC word, ignoring lexical order.
 
-    This is a presence diagnostic, not a word-to-word alignment. A single CUC
-    word cannot satisfy two repeated Burns tokens.
+    Consumed exact words are removed from near-match diagnostics. This is only
+    a structural probe, not a new candidate alignment.
     """
 
-    available = Counter(values)
+    remaining = list(values)
     mask: list[str] = []
     missing: list[str] = []
     for token in tokens:
-        if available[token] > 0:
-            available[token] -= 1
-            mask.append("1")
-        else:
+        try:
+            position = remaining.index(token)
+        except ValueError:
             mask.append("0")
             missing.append(token)
-    return "".join(mask), tuple(missing)
+        else:
+            mask.append("1")
+            remaining.pop(position)
+    return "".join(mask), tuple(missing), tuple(remaining)
 
 
 def _missing_token_local_evidence(
@@ -1996,7 +1998,7 @@ def aggregate_multitoken_residual_research(
                 nfc(index.word_g_cons[word])
                 for word in index.line_words[line_node]
             )
-            mask, missing = _multitoken_presence_mask(tokens, values)
+            mask, missing, remaining = _multitoken_presence_mask(tokens, values)
             matched_count = mask.count("1")
             evidence = "none"
 
@@ -2008,7 +2010,7 @@ def aggregate_multitoken_residual_research(
             elif matched_count == 0:
                 classification = "zero_exact_token_overlap"
             elif len(missing) == 1:
-                evidence = _missing_token_local_evidence(missing[0], values)
+                evidence = _missing_token_local_evidence(missing[0], remaining)
                 if evidence == "unique_containment":
                     classification = "one_missing_unique_containment"
                 elif evidence == "unique_edit1":
