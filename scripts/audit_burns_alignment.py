@@ -1108,7 +1108,12 @@ def aggregate_line_address_drift_stats(
     matched_offsets: Counter[str] = Counter()
     unique_offsets: Counter[str] = Counter()
     syntax_buckets: dict[str, Counter[str]] = defaultdict(Counter)
-    unique_rescue_lines: dict[tuple[str, str, int], list[int]] = defaultdict(list)
+    # Keep identifiers in memory only. Public output reduces them to counts.
+    unique_rescue_lines: dict[
+        tuple[str, str, int], dict[int, set[str]]
+    ] = defaultdict(lambda: defaultdict(set))
+    unique_rescue_position_occurrences: Counter[tuple[str, str, int, int]] = Counter()
+    unique_rescue_annotations: set[str] = set()
 
     for alignment in alignments:
         annotation = annotations.get(alignment.annotation_id)
@@ -1157,7 +1162,13 @@ def aggregate_line_address_drift_stats(
                     outcome = "unique_neighbor"
                     label = _offset_label(offset)
                     unique_offsets[label] += 1
-                    unique_rescue_lines[(tablet, column, offset)].append(line)
+                    unique_rescue_lines[(tablet, column, offset)][line].add(
+                        annotation.annotation_id
+                    )
+                    unique_rescue_position_occurrences[
+                        (tablet, column, offset, line)
+                    ] += 1
+                    unique_rescue_annotations.add(annotation.annotation_id)
                 else:
                     outcome = "ambiguous_neighbor_span"
 
@@ -1165,20 +1176,33 @@ def aggregate_line_address_drift_stats(
             syntax_buckets[syntax_class][outcome] += 1
 
     run_histograms: dict[str, Counter[int]] = defaultdict(Counter)
-    for (_, _, offset), lines in unique_rescue_lines.items():
-        ordered = sorted(set(lines))
+    run_support: dict[str, dict[int, Counter[str]]] = defaultdict(
+        lambda: defaultdict(Counter)
+    )
+    for (_, _, offset), line_annotations in unique_rescue_lines.items():
+        ordered = sorted(line_annotations)
         if not ordered:
             continue
-        run_length = 1
-        previous = ordered[0]
+        run = [ordered[0]]
         for line in ordered[1:]:
-            if line == previous + 1:
-                run_length += 1
+            if line == run[-1] + 1:
+                run.append(line)
             else:
-                run_histograms[_offset_label(offset)][run_length] += 1
-                run_length = 1
-            previous = line
-        run_histograms[_offset_label(offset)][run_length] += 1
+                label = _offset_label(offset)
+                independent = set().union(
+                    *(line_annotations[position] for position in run)
+                )
+                support_bucket = str(len(independent)) if len(independent) < 3 else "3+"
+                run_histograms[label][len(run)] += 1
+                run_support[label][len(run)][support_bucket] += 1
+                run = [line]
+        label = _offset_label(offset)
+        independent = set().union(
+            *(line_annotations[position] for position in run)
+        )
+        support_bucket = str(len(independent)) if len(independent) < 3 else "3+"
+        run_histograms[label][len(run)] += 1
+        run_support[label][len(run)][support_bucket] += 1
 
     return {
         "occurrences": occurrences,
@@ -1189,6 +1213,20 @@ def aggregate_line_address_drift_stats(
         "unique_rescue_run_lengths": {
             label: _counter_payload(counter)
             for label, counter in sorted(run_histograms.items())
+        },
+        "unique_rescue_distinct_annotations": len(unique_rescue_annotations),
+        "unique_rescue_structural_positions": len(
+            unique_rescue_position_occurrences
+        ),
+        "unique_rescue_repeated_position_occurrences": sum(
+            count - 1 for count in unique_rescue_position_occurrences.values()
+        ),
+        "unique_rescue_run_annotation_support": {
+            label: {
+                str(length): _counter_payload(support)
+                for length, support in sorted(lengths.items())
+            }
+            for label, lengths in sorted(run_support.items())
         },
         "syntax_classes": {
             key: _line_drift_bucket(counter)
