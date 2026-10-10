@@ -4,7 +4,10 @@ import json
 import unittest
 from dataclasses import replace
 
-from scripts.audit_burns_alignment import aggregate_multitoken_residual_research
+from scripts.audit_burns_alignment import (
+    aggregate_multitoken_residual_research,
+    aggregate_residual_clean_gap_research,
+)
 from test_headword_candidate_research import _index, _record
 from ugarit_context_parsing.alignment import align_burns_source
 from ugarit_context_parsing.annotations import normalize_workbook_records
@@ -58,6 +61,14 @@ class MultiTokenResidualResearchTests(unittest.TestCase):
         )
 
         self.assertEqual(stats["occurrences"], 8)
+        baseline = aggregate_residual_clean_gap_research(
+            source=source, alignments=alignments, index=index
+        )
+        self.assertEqual(baseline["multitoken_eligible_occurrences"], 8)
+        self.assertEqual(
+            baseline["multitoken_eligible_occurrences"],
+            stats["occurrences"],
+        )
         self.assertEqual(
             stats["syntax_classes"],
             {"clean": 7, "marker_only": 1},
