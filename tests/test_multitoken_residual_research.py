@@ -115,6 +115,28 @@ class MultiTokenResidualResearchTests(unittest.TestCase):
             {"ambiguous_containment": 1},
         )
 
+    def test_repeated_exact_tokens_do_not_reuse_the_same_cuc_word(self):
+        source = normalize_workbook_records((_record(1, "a a c", 10),))
+        index = _index({10: ("a", "bx", "c")})
+        alignments = align_burns_source(source, index)
+        stats = aggregate_multitoken_residual_research(
+            source=source, alignments=alignments, index=index
+        )
+        self.assertEqual(stats["occurrences"], 1)
+        self.assertEqual(stats["presence_masks"], {"101": 1})
+        self.assertEqual(stats["unmatched_token_counts"], {"1": 1})
+        self.assertEqual(stats["classes"], {"partial_exact_token_overlap": 1})
+
+    def test_exact_cuc_words_are_not_counted_as_edit_candidates_for_missing_tokens(self):
+        source = normalize_workbook_records((_record(1, "d e f", 10),))
+        index = _index({10: ("d", "x", "f")})
+        alignments = align_burns_source(source, index)
+        stats = aggregate_multitoken_residual_research(
+            source=source, alignments=alignments, index=index
+        )
+        self.assertEqual(stats["classes"], {"one_missing_unique_edit1": 1})
+        self.assertEqual(stats["one_missing_local_evidence"], {"unique_edit1": 1})
+
     def test_payload_does_not_expose_source_strings_ids_locators_or_nodes(self):
         source = normalize_workbook_records((_record(1, "secret private", 10),))
         index = _index({10: ("secret", "privatex")})
