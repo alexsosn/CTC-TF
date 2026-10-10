@@ -1875,6 +1875,158 @@ def aggregate_one_edit_research(
     }
 
 
+def aggregate_containment_research(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Measure #81 unique single-token containment without aligning by substring.
+
+    Data are aggregated by structural shapes and code points only; no source
+    strings, identifiers or CUC node numbers are included in the result.
+    """
+
+    annotations = {item.annotation_id: item for item in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in containment research")
+
+    reverse_lines: dict[int, tuple[str, str, int]] = {}
+    for key, node in index.line_nodes.items():
+        if node in reverse_lines:
+            raise ValueError("CUC line node has multiple structural identities")
+        reverse_lines[node] = key
+
+    occurrences = 0
+    ambiguous_containing_candidates = 0
+    ambiguous_token_embeddings = 0
+    side_classes: Counter[str] = Counter()
+    left_lengths: Counter[str] = Counter()
+    right_lengths: Counter[str] = Counter()
+    left_codepoints: Counter[str] = Counter()
+    right_codepoints: Counter[str] = Counter()
+    annotations_per_codepoint: dict[str, set[str]] = defaultdict(set)
+    annotation_occurrences: Counter[str] = Counter()
+    workbook_sides: dict[int, Counter[str]] = defaultdict(Counter)
+    worksheet_role_sides: dict[str, Counter[str]] = defaultdict(Counter)
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("alignment references unknown annotation in containment research")
+        syntax_class = str(
+            classify_headword_expression(annotation.headword)["exclusive_class"]
+        )
+        if syntax_class not in {"clean", "marker_only"}:
+            continue
+        candidates = headword_candidates(annotation.headword)
+        if len(candidates) != 1:
+            raise ValueError("clean/marker containment has multiple production candidates")
+        _rule, tokens = candidates[0]
+        if len(tokens) != 1:
+            continue
+        token = tokens[0]
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            line_node = occurrence.context_line_node
+            if line_node is None or line_node not in index.line_words:
+                raise ValueError("containment gap lacks indexed CUC line")
+            if _neighbor_candidate_outcome(
+                annotation=annotation,
+                line_node=line_node,
+                index=index,
+                reverse_lines=reverse_lines,
+            ) != "no_neighbor_match":
+                continue
+            if _token_boundary_spans(tokens, line_node, index):
+                continue
+
+            values = tuple(
+                nfc(index.word_g_cons[word]) for word in index.line_words[line_node]
+            )
+            containing = [
+                value for value in values if value != token and token in value
+            ]
+            if len(containing) > 1:
+                ambiguous_containing_candidates += 1
+                continue
+            if len(containing) != 1:
+                continue
+
+            surface = containing[0]
+            positions = [
+                at
+                for at in range(len(surface) - len(token) + 1)
+                if surface.startswith(token, at)
+            ]
+            if not positions:
+                raise AssertionError("containing CUC word has no Burns token placement")
+            if len(positions) > 1:
+                # A unique CUC word is not necessarily a unique token placement.
+                # Do not invent prefix/suffix morphology from its first match.
+                ambiguous_token_embeddings += 1
+                left = right = ""
+                side = "ambiguous_embedding"
+            else:
+                at = positions[0]
+                left = surface[:at]
+                right = surface[at + len(token):]
+                if not left and not right:
+                    raise AssertionError("unique containing candidate has no extra characters")
+                if left and right:
+                    side = "both"
+                elif left:
+                    side = "left_only"
+                else:
+                    side = "right_only"
+
+            occurrences += 1
+            annotation_occurrences[annotation.annotation_id] += 1
+            side_classes[side] += 1
+            workbook_sides[annotation.workbook_number][side] += 1
+            worksheet_role_sides[annotation.worksheet_role.value][side] += 1
+            if left:
+                left_lengths[str(len(left))] += 1
+                for ch in left:
+                    label = f"U+{ord(ch):04X}"
+                    left_codepoints[label] += 1
+                    annotations_per_codepoint[f"left:{label}"].add(annotation.annotation_id)
+            if right:
+                right_lengths[str(len(right))] += 1
+                for ch in right:
+                    label = f"U+{ord(ch):04X}"
+                    right_codepoints[label] += 1
+                    annotations_per_codepoint[f"right:{label}"].add(annotation.annotation_id)
+
+    return {
+        "occurrences": occurrences,
+        "ambiguous_containing_candidates": ambiguous_containing_candidates,
+        "ambiguous_token_embeddings": ambiguous_token_embeddings,
+        "side_classes": _counter_payload(side_classes),
+        "left_extra_lengths": _counter_payload(left_lengths),
+        "right_extra_lengths": _counter_payload(right_lengths),
+        "left_extra_codepoints": _counter_payload(left_codepoints),
+        "right_extra_codepoints": _counter_payload(right_codepoints),
+        "distinct_annotations": len(annotation_occurrences),
+        "annotation_occurrence_multiplicity": _counter_payload(
+            Counter(annotation_occurrences.values())
+        ),
+        "extra_codepoint_distinct_annotations": {
+            key: len(ids) for key, ids in sorted(annotations_per_codepoint.items())
+        },
+        "workbook_sides": {
+            str(key): _counter_payload(value)
+            for key, value in sorted(workbook_sides.items())
+        },
+        "worksheet_role_sides": {
+            key: _counter_payload(value)
+            for key, value in sorted(worksheet_role_sides.items())
+        },
+    }
+
+
 def aggregate_lexical_gap_stats(
     *,
     source: NormalizedBurnsSource,
