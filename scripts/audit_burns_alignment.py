@@ -1192,7 +1192,7 @@ def aggregate_line_address_drift_stats(
                 independent = set().union(
                     *(line_annotations[position] for position in run)
                 )
-                support_bucket = str(len(independent)) if len(independent) < 3 else "3+"
+                support_bucket = str(len(independent))
                 run_histograms[label][len(run)] += 1
                 run_support[label][len(run)][support_bucket] += 1
                 run = [line]
@@ -1200,7 +1200,7 @@ def aggregate_line_address_drift_stats(
         independent = set().union(
             *(line_annotations[position] for position in run)
         )
-        support_bucket = str(len(independent)) if len(independent) < 3 else "3+"
+        support_bucket = str(len(independent))
         run_histograms[label][len(run)] += 1
         run_support[label][len(run)][support_bucket] += 1
 
