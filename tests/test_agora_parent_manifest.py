@@ -53,5 +53,116 @@ class AgoraBurnsManifestTests(unittest.TestCase):
         )
 
 
+    def test_agora_adapter_fills_precreated_empty_staging_output_only(self):
+        # Actual Agora _create_staging_output creates the final {output}
+        # directory *before* invoking a third-party producer.
+        import tempfile
+        from unittest import mock
+        from ugarit_context_parsing import agora_adapter
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            source = root / "workbooks"
+            parent = root / "cuc"
+            source.mkdir()
+            parent.mkdir()
+            output = root / "already-created-by-agora"
+            output.mkdir()
+
+            def native(args):
+                self.assertEqual(args[:2], ["module", str(source)])
+                self.assertEqual(args[args.index("--cuc") + 1], str(parent))
+                nested = Path(args[args.index("--output") + 1])
+                self.assertFalse(nested.exists(), "native writer needs an absent path")
+                self.assertEqual(nested.parent, output)
+                nested.mkdir()
+                (nested / "burns_headword_1.tf").write_text("feature")
+                (nested / "burns-feature-module-report.json").write_text("{}")
+                return 0
+
+            with mock.patch.object(agora_adapter, "native_main", side_effect=native) as invoke:
+                self.assertEqual(
+                    agora_adapter.main([
+                        str(source), "--input-format", "csv",
+                        "--cuc", str(parent), "--output", str(output),
+                    ]),
+                    0,
+                )
+            invoke.assert_called_once()
+            self.assertEqual(
+                {p.name for p in output.iterdir()},
+                {"burns_headword_1.tf", "burns-feature-module-report.json"},
+            )
+
+    def test_agora_adapter_fails_closed_on_absent_occupied_or_symlinked_output(self):
+        import tempfile
+        from unittest import mock
+        from ugarit_context_parsing import agora_adapter
+
+        for variant in ("absent", "occupied", "symlink"):
+            with self.subTest(variant=variant), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source, parent = root / "workbooks", root / "cuc"
+                source.mkdir()
+                parent.mkdir()
+                output = root / "publish"
+                if variant == "occupied":
+                    output.mkdir()
+                    (output / "foreign.tf").write_text("do not clobber")
+                if variant == "symlink":
+                    outside = root / "outside"
+                    outside.mkdir()
+                    output.symlink_to(outside, target_is_directory=True)
+                with mock.patch.object(agora_adapter, "native_main") as invoke:
+                    with self.assertRaises((ValueError, SystemExit)):
+                        agora_adapter.main([
+                            str(source), "--input-format", "csv",
+                            "--cuc", str(parent), "--output", str(output),
+                        ])
+                    invoke.assert_not_called()
+                if variant == "occupied":
+                    self.assertEqual((output / "foreign.tf").read_text(), "do not clobber")
+
+    def test_agora_adapter_refuses_warp_and_symlink_smuggling(self):
+        import tempfile
+        from unittest import mock
+        from ugarit_context_parsing import agora_adapter
+
+        for bad in ("otype.tf", "oslots.tf", "otext.tf", "malicious-link"):
+            with self.subTest(bad=bad), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                source, parent = root / "workbooks", root / "cuc"
+                source.mkdir()
+                parent.mkdir()
+                output = root / "staging"
+                output.mkdir()
+
+                def native(args):
+                    nested = Path(args[args.index("--output") + 1])
+                    nested.mkdir()
+                    (nested / "burns_headword_1.tf").write_text("ok")
+                    (nested / "burns-feature-module-report.json").write_text("{}")
+                    if bad == "malicious-link":
+                        (nested / bad).symlink_to(root)
+                    else:
+                        (nested / bad).write_text("forbidden")
+                    return 0
+
+                with mock.patch.object(agora_adapter, "native_main", side_effect=native):
+                    with self.assertRaises((ValueError, SystemExit)):
+                        agora_adapter.main([
+                            str(source), "--input-format", "csv",
+                            "--cuc", str(parent), "--output", str(output),
+                        ])
+                self.assertFalse((output / "burns_headword_1.tf").exists())
+
+    def test_manifest_executes_agora_adapter_not_absent_path_cli(self):
+        manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
+        args = manifest["materializers"][0]["execution"]
+        self.assertEqual(args["module"], "ugarit_context_parsing.agora_adapter")
+        self.assertEqual(args["args"][0], "{source}")
+
+
+
 if __name__ == "__main__":
     unittest.main()
