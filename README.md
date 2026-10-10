@@ -21,6 +21,38 @@ The parsers can download source material if absent. For offline input use `--no-
 
 ## Feature-only module over reviewed CUC
 
+### Local quickstart: reviewed CUC
+
+From the root of this software checkout, with the licensed Burns Workbooks
+already extracted into **user-local** CSV files under `output/` (see *Source and
+extraction* above), run the following commands. Choose an **absent**
+`CUC_DIR` and `BURNS_MODULE` path:
+
+```bash
+python -m pip install .
+CUC_DIR="$HOME/data/cuc-reviewed"
+CUC_TF="$CUC_DIR/tf/0.2.8"
+BURNS_CSV="$PWD/output"
+BURNS_MODULE="$HOME/data/burns-feature-module"
+test ! -e "$CUC_DIR"
+mkdir -p "$(dirname "$CUC_DIR")"
+git init "$CUC_DIR"
+git -C "$CUC_DIR" remote add origin https://github.com/DT-UCPH/cuc.git
+git -C "$CUC_DIR" fetch --depth=1 origin ad69400f5446e1c8217af01659c7c10ab00c015b
+git -C "$CUC_DIR" checkout --detach FETCH_HEAD
+test -f "$CUC_TF/otype.tf"
+test ! -e "$BURNS_MODULE"
+ugarit-context-parsing module "$BURNS_CSV" --input-format csv --cuc "$CUC_TF" --output "$BURNS_MODULE"
+```
+
+The CUC download is the **explicit Git operation above**, not a converter
+side effect: `ugarit-context-parsing module` does not download CUC, cannot
+substitute another CUC version, and does not redistribute the parent corpus.
+Burns's licensed source and derived CSVs remain user-local. Agora's
+`cuc-burns` registration uses local-module acquisition; Agora does **not**
+yet offer fully managed creation of this feature module using its parent CUC
+and user-local Burns source. Keep the two sources and their licenses distinct.
+
 ```bash
 python -m pip install .
 ugarit-context-parsing module output \
