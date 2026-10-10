@@ -42,8 +42,8 @@ class ReleaseVersionContractTests(unittest.TestCase):
         # Python 3.10 is in the release matrix; stdlib tomllib exists only
         # from Python 3.11. Scope the version extraction to [project].
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
-        project_section = pyproject.split("[project]", 1)[1].split("\\n[", 1)[0]
-        version = re.search(r'^version\\s*=\\s*"([^"]+)"', project_section, re.MULTILINE)
+        project_section = pyproject.split("[project]", 1)[1].split("\n[", 1)[0]
+        version = re.search(r'^version\s*=\s*"([^"]+)"', project_section, re.MULTILINE)
         self.assertIsNotNone(version)
         manifest = json.loads((ROOT / "agora.materializer.json").read_text(encoding="utf-8"))
         self.assertEqual(version.group(1), TARGET_VERSION)
