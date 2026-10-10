@@ -16,6 +16,7 @@ import unicodedata
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Mapping
 
 ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
@@ -1630,6 +1631,139 @@ def aggregate_token_boundary_research(
         },
     }
 
+
+
+
+def aggregate_empty_g_cons_boundary_research(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+    sign_values: Mapping[int, str],
+    sign_emen: Mapping[int, str],
+    sign_cert: Mapping[int, str],
+    sign_alt: Mapping[int, str],
+) -> dict[str, object]:
+    """Examine CUC zero-consonant word extents in exact-boundary diagnostics.
+
+    Presence of a sign/editorial feature is only a structural observation, not
+    proof that an empty CUC word represents an ignorable lexical token.
+    Return counts and generic buckets only, never actual features or node IDs.
+    """
+
+    annotation_by_id = {a.annotation_id: a for a in source.annotations}
+    if len(annotation_by_id) != len(source.annotations):
+        raise ValueError("duplicate annotation id in empty-g_cons boundary research")
+
+    field_maps: dict[str, Mapping[int, str]] = {
+        "sign": sign_values,
+        "emen": sign_emen,
+        "cert": sign_cert,
+        "alt": sign_alt,
+    }
+    all_empty_words = {
+        word
+        for word, value in index.word_g_cons.items()
+        if nfc(value) == ""
+    }
+
+    # Real reviewed CUC word->slot extent must be available. An empty extent
+    # is not a license to guess a zero-length sign or ignore the word.
+    def require_slots(word: int) -> tuple[int, ...]:
+        slots = index.word_slots.get(word)
+        if not slots:
+            raise ValueError("empty CUC g_cons word is missing sign extent")
+        if len(slots) != len(set(slots)):
+            raise ValueError("empty CUC g_cons word has repeated sign slots")
+        return slots
+
+    def feature_presence(words: set[int]) -> dict[str, int]:
+        counts: Counter[str] = Counter()
+        for word in words:
+            slots = require_slots(word)
+            for label, mapping in field_maps.items():
+                if any(bool(mapping.get(slot)) for slot in slots):
+                    counts[label] += 1
+        return {key: counts[key] for key in sorted(field_maps)}
+
+    all_slot_lengths: Counter[str] = Counter(
+        str(len(require_slots(word))) for word in all_empty_words
+    )
+    all_presence = feature_presence(all_empty_words)
+
+    occurrences_with_empty = 0
+    windows_with_empty = 0
+    window_empty_count: Counter[str] = Counter()
+    empty_positions: Counter[str] = Counter()
+    boundary_empty_words: set[int] = set()
+    annotation_ids: set[str] = set()
+
+    for alignment in alignments:
+        annotation = annotation_by_id.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("unknown annotation in empty-g_cons boundary research")
+        expression_class = str(
+            classify_headword_expression(annotation.headword)["exclusive_class"]
+        )
+        if expression_class not in {"clean", "marker_only"}:
+            continue
+        candidates = headword_candidates(annotation.headword)
+        if len(candidates) != 1:
+            raise ValueError("clean/marker boundary expression has multiple candidates")
+        _rule, tokens = candidates[0]
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            if occurrence.context_line_node not in index.line_words:
+                raise ValueError("empty-g_cons boundary occurrence lacks indexed CUC line")
+
+            spans = _token_boundary_spans(tokens, occurrence.context_line_node, index)
+            occurrence_has_empty = False
+            for span in spans:
+                empty_nodes = [
+                    (position, word)
+                    for position, word in enumerate(span)
+                    if word in all_empty_words
+                ]
+                if not empty_nodes:
+                    continue
+
+                windows_with_empty += 1
+                occurrence_has_empty = True
+                window_empty_count[str(len(empty_nodes))] += 1
+                for position, word in empty_nodes:
+                    require_slots(word)
+                    boundary_empty_words.add(word)
+                    if len(span) == 1:
+                        bucket = "only"
+                    elif position == 0:
+                        bucket = "first"
+                    elif position == len(span) - 1:
+                        bucket = "last"
+                    else:
+                        bucket = "middle"
+                    empty_positions[bucket] += 1
+
+            if occurrence_has_empty:
+                occurrences_with_empty += 1
+                annotation_ids.add(annotation.annotation_id)
+
+    return {
+        "all_cuc_empty_words": len(all_empty_words),
+        "all_empty_word_sign_slot_counts": _counter_payload(all_slot_lengths),
+        "all_empty_word_feature_presence": all_presence,
+        "occurrences_with_empty_g_cons": occurrences_with_empty,
+        "target_windows_with_empty_g_cons": windows_with_empty,
+        "distinct_burns_annotations": len(annotation_ids),
+        "boundary_unique_cuc_empty_words": len(boundary_empty_words),
+        "boundary_empty_word_sign_slot_counts": _counter_payload(Counter(
+            str(len(require_slots(word))) for word in boundary_empty_words
+        )),
+        "boundary_empty_word_feature_presence": feature_presence(boundary_empty_words),
+        "empty_word_window_positions": _counter_payload(empty_positions),
+        "window_empty_word_counts": _counter_payload(window_empty_count),
+    }
 
 
 def _position_bucket(index: int, length: int) -> str:
