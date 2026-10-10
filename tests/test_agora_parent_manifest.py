@@ -156,6 +156,25 @@ class AgoraBurnsManifestTests(unittest.TestCase):
                         ])
                 self.assertFalse((output / "burns_headword_1.tf").exists())
 
+    def test_real_agora_host_precreated_output_acceptance_is_required_in_ci(self):
+        workflow = (
+            ROOT / ".github/workflows/test-real-burns-source.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("repository: alexsosn/Agora", workflow)
+        self.assertIn("0408967b1808c1f22c69e299d302b1e7b5e26354", workflow)
+        self.assertIn("bubblewrap", workflow)
+        self.assertIn("check_agora_burns_parent_binding.py", workflow)
+        verifier = ROOT / "scripts/check_agora_burns_parent_binding.py"
+        self.assertTrue(verifier.is_file(), "real Agora host acceptance script missing")
+        code = verifier.read_text(encoding="utf-8")
+        for marker in (
+            "ParentBinding(", "materialize(", "sandbox=\"required\"",
+            "burns_headword_1.tf", "otype.tf", "oslots.tf", "otext.tf",
+            "source_revision", "maxNode", "maxSlot",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, code)
+
     def test_manifest_executes_agora_adapter_not_absent_path_cli(self):
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         args = manifest["materializers"][0]["execution"]
