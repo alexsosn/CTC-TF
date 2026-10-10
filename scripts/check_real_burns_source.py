@@ -19,6 +19,7 @@ from scripts.audit_burns_alignment import (
     aggregate_alignment_stats,
     aggregate_bracket_restoration_research,
     aggregate_complex_headword_expression_research,
+    aggregate_containment_research,
     aggregate_feature_only_lane_stats,
     aggregate_headword_candidate_research,
     aggregate_headword_expression_stats,
@@ -165,6 +166,11 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         alignments=alignments,
         index=index,
     )
+    containment_research = aggregate_containment_research(
+        source=normalized,
+        alignments=alignments,
+        index=index,
+    )
     one_edit_research = aggregate_one_edit_research(
         source=normalized,
         alignments=alignments,
@@ -234,6 +240,17 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         )
     if sum(int(value) for value in residual_clean_gap_research["classes"].values()) != expected_clean_marker_gaps:
         raise AssertionError("residual clean-gap classes do not partition denominator")
+
+    expected_containment = int(
+        residual_clean_gap_research["classes"].get("unique_single_token_containment", 0)
+    )
+    if int(containment_research["occurrences"]) != expected_containment:
+        raise AssertionError(
+            "containment research diverges from #81 unique containment class: "
+            f"actual={containment_research['occurrences']!r} expected={expected_containment!r}"
+        )
+    if sum(int(v) for v in containment_research["side_classes"].values()) != expected_containment:
+        raise AssertionError("containment side classes fail to partition #81 denominator")
 
     expected_one_edit = int(
         residual_clean_gap_research["classes"].get("unique_single_token_edit1", 0)
@@ -406,6 +423,7 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         "editorial_file_fingerprints": editorial_fingerprints,
         "line_address_drift": line_address_drift_stats,
         "residual_clean_gap_research": residual_clean_gap_research,
+        "containment_research": containment_research,
         "one_edit_research": one_edit_research,
         "token_boundary_research": token_boundary_research,
         "tablet_findspot_conflicts": len(report["findspot_audit"]["conflicts"]),
