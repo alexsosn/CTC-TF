@@ -61,10 +61,14 @@ class EmptyGConsBoundaryResearchTests(unittest.TestCase):
         alignments = align_burns_source(source, index)
         payload = json.dumps(aggregate_empty_g_cons_boundary_research(
             source=source, alignments=alignments, index=index,
-            sign_values={}, sign_emen={}, sign_cert={}, sign_alt={},
+            sign_values={2: "private-sign-value"},
+            sign_emen={2: "private-emendation"},
+            sign_cert={2: "private-certainty"},
+            sign_alt={2: "private-alternative"},
         ), sort_keys=True)
         for forbidden in (
-            "secret", "private", "KTU 1.14", "I.10", "500",
+            "secret", "private", "private-sign-value", "private-emendation",
+            "private-certainty", "private-alternative", "KTU 1.14", "I.10", "500",
             source.records[0].record_id, source.annotations[0].annotation_id,
         ):
             self.assertNotIn(forbidden, payload)
