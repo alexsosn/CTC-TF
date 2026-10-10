@@ -99,7 +99,7 @@ Lane count is derived from the supplied exact alignments rather than hard-coded.
 
 The local `burns-feature-module-report.json` stores source/alignment provenance, lane/span identities, CUC compatibility, and findspot audit information. Generated Burns-derived data remain user-local under the source terms.
 
-The `module` command requires an **absent output path** and rejects output overlapping the source or CUC directory. It stages the complete feature module and publishes with an exclusive no-replace operation. The experimental extended-warp `entities` CLI from the earlier #68/#69 design has been retired.
+The `module` command requires an **absent output path** and rejects output overlapping the source or CUC directory. It stages the complete feature module and publishes with an exclusive no-replace operation. Both `module` and `module-v1` reject a symlinked output directory **or any existing symlink component in its parent path**, including dangling links. Use a real non-symlinked path to the destination; on systems with symlinked temporary directories, this may require the underlying physical path. This safety check does not guarantee protection against hostile concurrent directory replacement. The experimental extended-warp `entities` CLI from the earlier #68/#69 design has been retired.
 
 ### Explicit v1 compatibility and rollback
 
