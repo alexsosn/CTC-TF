@@ -29,18 +29,23 @@ class ModuleV1CliOverlapTests(unittest.TestCase):
                 ("cuc_inside", cuc_root / "out"),
                 ("cuc_parent", cuc_root.parent),
             ):
-                with self.subTest(case=label), (
-                    patch.object(cli, "_load_source", return_value=source),
-                    patch.object(cli, "normalize_workbook_records",
-                                 side_effect=AssertionError("normalization must not run")),
-                    patch.object(cli, "build_reviewed_cuc_index",
-                                 side_effect=AssertionError("index must not load")),
-                    self.assertRaisesRegex(SystemExit, "overlaps.*directory"),
-                ):
-                    cli.main([
-                        "module-v1", str(source_root), "--input-format", "csv",
-                        "--cuc", str(cuc_root), "--output", str(output),
-                    ])
+                with self.subTest(case=label):
+                    with (
+                        patch.object(cli, "_load_source", return_value=source),
+                        patch.object(
+                            cli, "normalize_workbook_records",
+                            side_effect=AssertionError("normalization must not run"),
+                        ),
+                        patch.object(
+                            cli, "build_reviewed_cuc_index",
+                            side_effect=AssertionError("index must not load"),
+                        ),
+                        self.assertRaisesRegex(SystemExit, "overlaps.*directory"),
+                    ):
+                        cli.main([
+                            "module-v1", str(source_root), "--input-format", "csv",
+                            "--cuc", str(cuc_root), "--output", str(output),
+                        ])
             self.assertEqual(
                 (source_root / "sentinel.csv").read_bytes(),
                 b"licensed source bytes\n",
