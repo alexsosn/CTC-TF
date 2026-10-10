@@ -2064,6 +2064,13 @@ def _missing_token_local_evidence(
     if len(containing) > 1:
         return "ambiguous_containment"
     if len(containing) == 1:
+        surface = containing[0]
+        embeddings = sum(
+            surface.startswith(token, offset)
+            for offset in range(len(surface) - len(token) + 1)
+        )
+        if embeddings != 1:
+            return "ambiguous_containment"
         return "unique_containment"
 
     distances = [
