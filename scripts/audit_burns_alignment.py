@@ -1329,6 +1329,7 @@ def aggregate_residual_clean_gap_research(
     occurrences = 0
     syntax_classes: Counter[str] = Counter()
     classes: Counter[str] = Counter()
+    multitoken_eligible_classes: Counter[str] = Counter()
     neighbor_evidence: Counter[str] = Counter()
     boundary_cardinality: Counter[str] = Counter()
     containment_operations: Counter[str] = Counter()
@@ -1442,6 +1443,12 @@ def aggregate_residual_clean_gap_research(
                 classification = "other"
 
             classes[classification] += 1
+            if (
+                len(tokens) > 1
+                and neighbor == "no_neighbor_match"
+                and not boundary_spans
+            ):
+                multitoken_eligible_classes[classification] += 1
             workbook_classes[annotation.workbook_number][classification] += 1
             worksheet_role_classes[annotation.worksheet_role.value][classification] += 1
 
@@ -1449,6 +1456,8 @@ def aggregate_residual_clean_gap_research(
         "occurrences": occurrences,
         "syntax_classes": _counter_payload(syntax_classes),
         "classes": _counter_payload(classes),
+        "multitoken_eligible_occurrences": sum(multitoken_eligible_classes.values()),
+        "multitoken_eligible_classes": _counter_payload(multitoken_eligible_classes),
         "neighbor_evidence": _counter_payload(neighbor_evidence),
         "token_boundary_span_cardinality": _counter_payload(boundary_cardinality),
         "single_token_unique_containment_operations": _counter_payload(
