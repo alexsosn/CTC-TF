@@ -1,69 +1,94 @@
+"""Keep reviewed-CUC acquisition and the module CLI copy-paste coherent.
+
+Only inspects README/source metadata; never downloads CUC or licensed Burns data.
+"""
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 import unittest
 
+from ugarit_context_parsing.cuc_index import (
+    REVIEWED_CUC_COMMIT,
+    REVIEWED_CUC_REPOSITORY,
+    REVIEWED_CUC_VERSION,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
-CUC_COMMIT = "ad69400f5446e1c8217af01659c7c10ab00c015b"
-CUC_REMOTE = "https://github.com/DT-UCPH/cuc.git"
+README = ROOT / "README.md"
+SECTION_HEADING = "## Feature-only module over reviewed CUC\n"
+QUICKSTART_HEADING = "### Quickstart with the exact reviewed CUC"
 
 
 def _materialization_section() -> str:
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    marker = "## Materializing a CUC-aligned Burns feature module\n"
-    if marker not in readme:
-        raise AssertionError("README has no CUC module materialization section")
-    return readme.split(marker, 1)[1].split("\n## ", 1)[0]
+    readme = README.read_text(encoding="utf-8")
+    if SECTION_HEADING not in readme:
+        raise AssertionError("README lacks current feature-only CUC module section")
+    return readme.split(SECTION_HEADING, 1)[1].split("\n## ", 1)[0]
 
 
-def _normalized(text: str) -> str:
-    return re.sub(r"\s+", " ", text).strip()
+def _quickstart_script() -> str:
+    section = _materialization_section()
+    match = re.search(
+        rf"(?ms)^{re.escape(QUICKSTART_HEADING)}\\s*$"
+        r".*?^`{3}bash\s*$\n(.*?)^`{3}\s*$",
+        section,
+    )
+    if match is None:
+        raise AssertionError("README lacks runnable exact-CUC quickstart bash block")
+    return match.group(1)
+
+
+def _normalized(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip()
 
 
 class ReviewedCucQuickstartDocumentationTests(unittest.TestCase):
-    def test_quickstart_pins_exact_reviewed_cuc_without_following_main(self):
+    def test_quickstart_pins_canonical_cuc_checkout_not_moving_main(self):
         section = _materialization_section()
-        normalized = _normalized(section)
+        script = _quickstart_script()
+        normalized = _normalized(script)
+        remote = f"https://github.com/{REVIEWED_CUC_REPOSITORY}.git"
 
-        self.assertIn("python -m pip install .", normalized)
-        self.assertIn(CUC_REMOTE, section)
-        self.assertIn(CUC_COMMIT, section)
+        self.assertIn("python -m pip install .", script)
+        self.assertIn(f"git clone --filter=blob:none --no-checkout {remote} cuc", normalized)
         self.assertIn(
-            f"git clone --filter=blob:none --no-checkout {CUC_REMOTE} cuc",
+            f"git -C cuc checkout --detach {REVIEWED_CUC_COMMIT}",
             normalized,
         )
-        self.assertIn(
-            f"git -C cuc checkout --detach {CUC_COMMIT}",
-            normalized,
-        )
-
-    def test_quickstart_does_not_depend_on_raw_sha_fetch_policy(self):
-        section = _materialization_section()
-        normalized = _normalized(section)
-
-        self.assertNotIn(f"fetch --depth 1 origin {CUC_COMMIT}", normalized)
+        self.assertIn(f"git -C cuc rev-parse HEAD", script)
+        self.assertIn(REVIEWED_CUC_COMMIT, section)
+        self.assertIn(f"cuc/tf/{REVIEWED_CUC_VERSION}", script)
+        self.assertNotIn("git clone --depth", normalized)
+        self.assertNotIn(f"fetch --depth 1 origin {REVIEWED_CUC_COMMIT}", normalized)
         self.assertNotIn("checkout --detach FETCH_HEAD", normalized)
 
-    def test_first_runnable_module_path_uses_checked_out_reviewed_cuc(self):
-        section = _materialization_section()
-        normalized = _normalized(section)
-
+    def test_actual_cli_and_absent_output_are_copy_paste_coherent(self):
+        script = _quickstart_script()
+        normalized = _normalized(script)
         self.assertIn("ugarit-context-parsing module output", normalized)
         self.assertIn("--input-format csv", normalized)
         self.assertIn("--cuc cuc/tf/0.2.8", normalized)
         self.assertIn("--output tf/burns-module", normalized)
+        self.assertIn("test ! -e tf/burns-module", normalized)
+        syntax = subprocess.run(
+            ["bash", "-n"], input=script, capture_output=True, text=True, check=False,
+        )
+        self.assertEqual(syntax.returncode, 0, syntax.stderr)
 
-    def test_network_and_agora_boundaries_remain_explicit(self):
-        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    def test_converter_source_and_agora_boundaries_remain_explicit(self):
+        readme = README.read_text(encoding="utf-8")
         section = _materialization_section().casefold()
         agora = readme.split("### Agora status\n", 1)[1].split("\n### ", 1)[0].casefold()
 
         self.assertIn("does not download cuc", section)
-        self.assertTrue("user" in section and "acqui" in section)
-        self.assertTrue("deferred" in agora or "not planned" in agora)
-        self.assertNotIn("parent-aware module is registered", agora)
+        self.assertIn("user-local", section)
+        self.assertIn("cuc-burns", agora)
+        self.assertIn("local-module", agora)
+        self.assertIn("fully managed execution", agora)
+        self.assertIn("remains tracked", agora)
+        self.assertNotIn("standalone row-slot materializers are registered", agora)
 
 
 if __name__ == "__main__":
