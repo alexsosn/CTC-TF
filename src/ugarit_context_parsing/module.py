@@ -759,6 +759,14 @@ def _owned_previous_module_files(output: Path) -> tuple[Path, ...]:
 
 
 def _publish(stage: Path, output: Path) -> None:
+    # Independently re-check staged data immediately before installation; a
+    # Fabric adapter must not smuggle external file links into the live module.
+    for name in sorted(_EXPECTED_TF_FILES | {REPORT_FILE}):
+        candidate = stage / name
+        if candidate.is_symlink() or not candidate.is_file():
+            raise RuntimeError(
+                f"Text-Fabric Burns module stage has symlink or non-regular file: {name}"
+            )
     output.mkdir(parents=True, exist_ok=True)
     # Revalidate after staging: unknown files inserted during Fabric.save
     # must neither be silently removed nor accepted into the live output.
@@ -822,9 +830,17 @@ def write_burns_module(
         if not ok:
             return False
 
-        staged_tf = frozenset(
-            path.name for path in stage.glob("*.tf") if path.is_file()
+        staged_tf_paths = tuple(stage.glob("*.tf"))
+        invalid_staged_tf = sorted(
+            path.name for path in staged_tf_paths
+            if path.is_symlink() or not path.is_file()
         )
+        if invalid_staged_tf:
+            raise RuntimeError(
+                "Text-Fabric Burns module stage contains symlink or non-regular "
+                "feature file: " + ", ".join(invalid_staged_tf)
+            )
+        staged_tf = frozenset(path.name for path in staged_tf_paths)
         if staged_tf != _EXPECTED_TF_FILES:
             missing = sorted(_EXPECTED_TF_FILES - staged_tf)
             extra = sorted(staged_tf - _EXPECTED_TF_FILES)
@@ -838,9 +854,15 @@ def write_burns_module(
                 + "; ".join(details)
             )
 
-        (stage / REPORT_FILE).write_text(
-            _canonical_json(report) + "\n",
-            encoding="utf-8",
-        )
+        # Exclusive creation refuses an injected staged report, including a
+        # symlink to user-local data. Plain write_text would follow that link.
+        try:
+            with (stage / REPORT_FILE).open("x", encoding="utf-8") as handle:
+                handle.write(_canonical_json(report) + "\n")
+        except FileExistsError as exc:
+            raise RuntimeError(
+                "Text-Fabric Burns module stage report already exists; "
+                "refusing overwrite or symlink"
+            ) from exc
         _publish(stage, output)
     return True
