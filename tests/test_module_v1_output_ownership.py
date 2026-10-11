@@ -164,5 +164,36 @@ class ModuleV1OwnershipTests(unittest.TestCase):
             self.assertFalse(any(path.is_symlink() for path in output.iterdir()))
 
 
+    def test_staged_report_symlink_must_not_overwrite_foreign_file(self):
+        """A staged report link must be refused before write_text follows it."""
+        _, _, _, module, report = _module_fixture()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "existing-module"
+            self.assertTrue(write_burns_module(module, report, output))
+            before = _snapshot(output)
+            foreign = root / "private-report"
+            original = b"PRIVATE-REPORT-SENTINEL\\n"
+            foreign.write_bytes(original)
+
+            class _SymlinkReportFabric:
+                def save(self, **kwargs):
+                    stage = Path(kwargs["location"])
+                    stage.mkdir(parents=True, exist_ok=True)
+                    for name in EXPECTED_FILES:
+                        (stage / name).write_bytes(b"synthetic-stage-feature\\n")
+                    (stage / REPORT_FILE).symlink_to(foreign)
+                    return True
+
+            with self.assertRaisesRegex(RuntimeError, "report|symlink|non-regular"):
+                write_burns_module(
+                    module, report, output,
+                    fabric_factory=lambda **kwargs: _SymlinkReportFabric(),
+                )
+            self.assertEqual(foreign.read_bytes(), original)
+            self.assertEqual(_snapshot(output), before)
+            self.assertFalse(any(path.is_symlink() for path in output.iterdir()))
+
+
 if __name__ == "__main__":
     unittest.main()
