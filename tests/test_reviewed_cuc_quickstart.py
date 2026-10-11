@@ -77,6 +77,20 @@ class ReviewedCucQuickstartDocumentationTests(unittest.TestCase):
         )
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
 
+    def test_quickstart_does_not_create_unignored_corpora_inside_software_repo(self):
+        script = _quickstart_script()
+        normalized = _normalized(script)
+        self.assertIn('CUC_DIR="$HOME/data/cuc-reviewed"', script)
+        self.assertIn('BURNS_MODULE="$HOME/data/burns-feature-module"', script)
+        self.assertIn('git clone --filter=blob:none --no-checkout', script)
+        self.assertIn('"$CUC_DIR"', script)
+        self.assertIn('--cuc "$CUC_TF"', normalized)
+        self.assertIn('--output "$BURNS_MODULE"', normalized)
+        self.assertNotIn(f"https://github.com/{REVIEWED_CUC_REPOSITORY}.git cuc", normalized)
+        self.assertNotIn("--output tf/burns-module", normalized)
+        self.assertIn("set -eu", script)
+        self.assertIn("test ! -e \"$BURNS_MODULE\"", script)
+
     def test_converter_source_and_agora_boundaries_remain_explicit(self):
         readme = README.read_text(encoding="utf-8")
         section = _materialization_section().casefold()
