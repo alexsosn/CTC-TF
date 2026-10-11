@@ -227,10 +227,33 @@ class CiProvenanceValidatorTests(unittest.TestCase):
                 parents=(BASE,),
             )
 
+    def test_manual_workflow_dispatch_attests_exact_checkout(self):
+        evidence = validate_provenance(
+            event_name="workflow_dispatch",
+            event={"inputs": {"release_confirmation": "synthetic"}},
+            github_sha=HEAD,
+            checked_out_sha=HEAD,
+            parents=(BASE,),
+        )
+        self.assertEqual(
+            evidence,
+            {"mode": "workflow_dispatch", "tested_sha": HEAD},
+        )
+
+    def test_manual_workflow_dispatch_rejects_checkout_mismatch(self):
+        with self.assertRaisesRegex(ValueError, "does not match GITHUB_SHA"):
+            validate_provenance(
+                event_name="workflow_dispatch",
+                event={},
+                github_sha=HEAD,
+                checked_out_sha=OTHER,
+                parents=(BASE,),
+            )
+
     def test_rejects_unsupported_event(self):
         with self.assertRaisesRegex(ValueError, "unsupported GitHub event"):
             validate_provenance(
-                event_name="workflow_dispatch",
+                event_name="schedule",
                 event={},
                 github_sha=HEAD,
                 checked_out_sha=HEAD,
