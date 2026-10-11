@@ -201,7 +201,7 @@ class ReviewedReleasePublisherTests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         for forbidden in ("  push:", "  pull_request:", "  schedule:", "upload-artifact"):
             self.assertNotIn(forbidden, workflow)
-        for required in ("contents: write", "refs/heads/master",
+        for required in ("contents: write", "actions: read", "refs/heads/master",
                          "release_confirmation", "--publish", "GH_TOKEN:",
                          "persist-credentials: false"):
             self.assertIn(required, workflow)
