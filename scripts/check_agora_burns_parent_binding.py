@@ -13,7 +13,7 @@ import sys
 
 from tf.fabric import Fabric
 
-CUC_RELEASE = "0408967b1808c1f22c69e299d302b1e7b5e26354"
+CUC_RELEASE = "ad69400f5446e1c8217af01659c7c10ab00c015b"
 WARP = ("otype.tf", "oslots.tf", "otext.tf")
 
 

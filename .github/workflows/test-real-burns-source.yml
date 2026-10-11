@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           repository: DT-UCPH/cuc
-          ref: 0408967b1808c1f22c69e299d302b1e7b5e26354
+          ref: ad69400f5446e1c8217af01659c7c10ab00c015b
           path: .cuc
           persist-credentials: false
       - name: Check out exact reviewed Agora parent-binding sandbox host

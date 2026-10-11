@@ -172,7 +172,7 @@ class AgoraBurnsManifestTests(unittest.TestCase):
             ROOT / ".github/workflows/test-real-burns-source.yml"
         ).read_text(encoding="utf-8")
         self.assertIn("repository: alexsosn/Agora", workflow)
-        self.assertIn("0408967b1808c1f22c69e299d302b1e7b5e26354", workflow)
+        self.assertIn("ad69400f5446e1c8217af01659c7c10ab00c015b", workflow)
         self.assertIn("bubblewrap", workflow)
         self.assertIn("check_agora_burns_parent_binding.py", workflow)
         verifier = ROOT / "scripts/check_agora_burns_parent_binding.py"
