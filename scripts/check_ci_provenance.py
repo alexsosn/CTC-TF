@@ -176,6 +176,11 @@ def validate_provenance(
                 f"expected {expected!r}, got {normalized_parents!r}"
             )
         advanced = normalized_parents[0] != base_sha
+        if advanced and advanced_base_verifier is None:
+            raise ValueError(
+                "pull_request merge parents do not match event base/head "
+                "and advanced base ancestry was not verified"
+            )
         if advanced:
             number = pull_request.get("number")
             if (
