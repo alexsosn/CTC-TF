@@ -2420,6 +2420,22 @@ def aggregate_multitoken_residual_research(
         "exact_hit_order": _counter_payload(exact_hit_order),
         "unmatched_token_counts": _counter_payload(unmatched_counts),
         "one_missing_local_evidence": _counter_payload(local_evidence),
+        # Group totals are not additive at the annotation level: one authored
+        # Burns annotation can cite two lines yielding different candidate
+        # classes. Publish a union count without exposing annotation IDs.
+        "one_missing_hypothesis_union": {
+            "occurrences": sum(
+                sum(counts.values()) for counts in one_missing_annotations.values()
+            ),
+            "distinct_annotations": len(
+                set(one_missing_annotations["unique_containment"])
+                | set(one_missing_annotations["unique_edit1"])
+            ),
+            "annotations_in_both_classes": len(
+                set(one_missing_annotations["unique_containment"])
+                & set(one_missing_annotations["unique_edit1"])
+            ),
+        },
         "one_missing_hypotheses": {
             kind: {
                 "occurrences": sum(annotation_counts.values()),
