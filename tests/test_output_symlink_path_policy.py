@@ -224,5 +224,37 @@ class OutputSymlinkPathTests(unittest.TestCase):
             ))
 
 
+    def test_legacy_writer_rejects_entire_stage_root_symlink(self):
+        """Legacy publication may not move external TF files from linked stage."""
+        _, _, _, module, report = _module_fixture()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            foreign = root / "foreign-private-v1-tree"
+            foreign.mkdir()
+            output = root / "would-be-public-v1"
+
+            class _ReplaceV1StageRootWithSymlink:
+                def save(self, **kwargs):
+                    stage = Path(kwargs["location"])
+                    for name in kwargs["nodeFeatures"]:
+                        (foreign / (name + ".tf")).write_bytes(b"FOREIGN-PRIVATE-V1\\n")
+                    stage.rmdir()
+                    stage.symlink_to(foreign, target_is_directory=True)
+                    return True
+
+            with self.assertRaisesRegex(RuntimeError, "stage|symlink"):
+                write_burns_module(
+                    module, report, output,
+                    fabric_factory=lambda **kw: _ReplaceV1StageRootWithSymlink(),
+                )
+            self.assertFalse(output.exists() or output.is_symlink())
+            self.assertFalse((foreign / "burns-module-report.json").exists())
+            self.assertTrue(tuple(foreign.iterdir()))
+            self.assertTrue(all(
+                entry.read_bytes() == b"FOREIGN-PRIVATE-V1\\n"
+                for entry in foreign.iterdir()
+            ))
+
+
 if __name__ == "__main__":
     unittest.main()
