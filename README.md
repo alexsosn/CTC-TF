@@ -161,7 +161,8 @@ ugarit-context-parsing module-v1 output \
 ### Agora status
 
 Agora #175 supports `cuc-burns` **local-module** consumption of the
-feature-only Burns overlay on existing CUC nodes. The old standalone
+feature-only Burns `feature-module` overlay attached to parent `cuc` on
+existing CUC nodes. The old standalone
 Burns row-slot materializers remain removed. Independently, merged Agora
 PRs #238 and #240 add an **opt-in**, catalog-managed producer workflow:
 `cuc-burns-csv` runs from user-local licensed Workbooks CSVs against the
