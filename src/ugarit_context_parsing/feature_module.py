@@ -448,6 +448,11 @@ def write_feature_module(
         if not saved:
             return False
 
+        # A custom Fabric implementation could replace the staging directory
+        # itself with a link; validating only its child files is insufficient.
+        if stage.is_symlink() or not stage.is_dir():
+            raise RuntimeError("Burns feature-module stage root is symlinked or non-regular")
+
         entries = tuple(stage.iterdir())
         staged = {
             path.name
@@ -466,12 +471,24 @@ def write_feature_module(
                 f"extra={sorted(staged - expected)}, invalid={invalid}"
             )
 
-        (stage / REPORT_FILE).write_text(report_text, encoding="utf-8")
+        # Refuse a staged report installed after inventory inspection. Exclusive
+        # creation does not follow an already existing report symlink.
+        try:
+            with (stage / REPORT_FILE).open("x", encoding="utf-8") as handle:
+                handle.write(report_text)
+        except FileExistsError as exc:
+            raise RuntimeError("Burns feature-module staged report already exists") from exc
+        if stage.is_symlink() or not stage.is_dir():
+            raise RuntimeError("Burns feature-module stage root is symlinked or non-regular")
         reject_symlinked_output_path(output)
         if output.exists() or output.is_symlink():
             raise ValueError(f"Burns feature-module output appeared during staging: {output}")
         publish_stage_noreplace(stage, output)
         return True
     finally:
-        if stage.exists():
+        # Never rmtree a stage root that has become a symlink (even a dangling
+        # one); unlink the alias without traversing or deleting foreign data.
+        if stage.is_symlink() or (stage.exists() and not stage.is_dir()):
+            stage.unlink()
+        elif stage.exists():
             shutil.rmtree(stage)
