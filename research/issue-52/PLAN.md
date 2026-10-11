@@ -64,3 +64,27 @@ Perform a logically independent adversarial review challenging:
 Do **not** merge before GitHub Release `v0.3.0` exists and resolves to exact commit `4994a45c53a73c09a4939731bc56af585b3ba30a`.
 
 Once that release exists, refresh base if necessary, rerun exact-head CI if the base changed, then merge with expected-head protection after the independent review remains valid.
+
+## 2026-10-11 current-master reconciliation amendment
+
+The original PR HEAD was based on the now-obsolete pre-release README, whose
+heading was `## Materializing a CUC-aligned Burns feature module`. Current
+master `81cc9a6c4a233bbc06b5349515a5a466497d274d` has a different
+`## Feature-only module over reviewed CUC` section, removes standalone
+conversion, and documents Agora #175 local-module composition and #135's
+unfinished managed resolver. A blind README merge would resurrect deleted
+product claims and lose provenance guarantees. The actual CUC pin is unchanged.
+
+- Review-derived RED: update the quickstart docs contract to locate the
+  **current** heading, assert a normal blob-filtered Git clone, explicit
+  detached `REVIEWED_CUC_COMMIT`, actual `module` CLI flags, and explicit
+  local-source/Agora boundaries; assert `bash -n` syntax and no raw-SHA shallow
+  fetch. Preserve the RED commit before merging master.
+- GREEN: merge `master` into this draft branch with *master's* current README
+  as base, inserting only the reviewed quickstart. Preserve all new release,
+  Agora host, node/warp and licensing documentation unmodified.
+- Exact-head all-six CI, real Workbooks/CUC/Agora and Context-Fabric;
+  logically independent skeptical review. Maintain **draft/unmerged** until
+  the GitHub tag+Release `v0.3.0` is really published, pinned to independently
+  reviewed final release SHA `81cc9a6c4a233bbc06b5349515a5a466497d274d`
+  (or a subsequently reviewed newer release candidate).
