@@ -19,3 +19,11 @@ Existing `docs/releases/v0.3.0.md` predates this manifest and falsely says a sou
 ## Explicit bounds
 
 The real host smoke runs the reviewed `host.materialize` with the manifest and a validated parent input. It does **not** demonstrate complete Agora automatic installer, source approval or shared-module cache orchestrator; upstream manifest availability is a prerequisite rather than the full post-1.0 user-experience gate #135.
+
+## Review-derived revision alignment (after #125)
+
+The research above describes the **historical** first Agora host acceptance run before the reviewed-CUC SHA alignment. PR #125 was subsequently merged on 2026-10-11 at `322bfa0e96900f2888c102375da77f655b697bcd`, correcting the host's CUC checkout and trusted parent receipt to the same canonical revision enforced by `REVIEWED_CUC_COMMIT=ad69400f5446e1c8217af01659c7c10ab00c015b`. GitHub compare shows the intervening older→reviewed CUC commits affect README/logo only, but exact Git source identity is still a release invariant.
+
+Review-derived RED `665f02b0ca47b55a71b9d3d1465e43fd3adb6c71` updated the release-note regression to require the actual canonical reviewed CUC SHA and reject the obsolete SHA. The earlier PR was merge-conflicted with #125; Git Data API merge `35a3b52aea4eecbda6fbfbf0a9e13e9a12ceeadd` resolved onto master while deliberately retaining the RED, and actual GitHub Actions Python 3.10 job `114429964719` failed specifically because old release notes still named the obsolete SHA.
+
+The real verified canonical parent is attested in host run `38124841439`, job `114426956833`: 45 licensed Workbooks, 69 native Burns feature files, 5,909 lane-1 CUC word carriers, original 146,017 slots and 182,016 nodes, unchanged CUC warp, `bubblewrap` sandbox, trusted parent revision `ad69400f...`. The later GREEN release notes must cite **that** run, not present the earlier run as current. Changes must remain source-safe and docs/test-only, with no corpus bytes or new TF nodes. Recheck every exact-head workflow and perform fresh independent adversarial review before merge; publishing a GitHub Release/tag is still a separate #16 gate.
