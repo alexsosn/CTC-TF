@@ -6,3 +6,13 @@
 4. Run exact final HEAD: Python 3.10/3.12/3.13, real licensed Burns Workbooks under actual pinned Agora Bubblewrap, reviewed CUC, Context-Fabric and Appendix concordance. CI runs must finish; cite actual job logs for real-source evidence.
 5. Independently adversarially review final code, tests and CI, including symlink/no-follow assumptions and remaining race/sandbox bounds; GitHub review COMMENT rather than self-APPROVE.
 6. Leave PR draft **unmerged** until GitHub Release `v0.3.0` exists at the reviewed baseline and post-release semantic-version strategy is determined. Do not change frozen v0.3.0 release notes.
+
+## CI coverage refinement (source inspection)
+
+`.github/workflows/test-context-fabric-burns-module.yml` currently does **not**
+include `src/ugarit_context_parsing/feature_module.py` in its PR path filter,
+although the consumer tests exercise the native feature-only module. Thus a
+publication-only change can pass the local/real Workbooks gates without invoking
+this consumer acceptance. Extend that trigger narrowly and add a source-safe
+test asserting coverage; do not expand to unrelated Appendix/index workflows.
+This is a CI verification fix, not an alteration of TF data or consumer behavior.
