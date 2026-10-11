@@ -23,3 +23,9 @@ The work is prepared as stacked PR on top of #62 to avoid competing edits to `mo
 ## Review gate
 
 Synthetic symlink fixtures + exact-head Python/real-CUC/consumer CI and independently skeptical review. Reject symlinked owned feature/report files remains the #62 ownership check; source/output overlap remains #56.
+
+## Independently identified stage-root substitution
+
+A separate inspection of the **primary** feature-only writer on the stacked branch finds another symlink trust boundary not covered by its output-path checks: `write_feature_module` creates an internal staging directory, calls injectable `Fabric.save`, then checks **only the staged children**. If the stage directory itself is renamed away and replaced by a directory symlink containing ordinary files with the expected feature names, `stage.iterdir()` and `(stage / REPORT_FILE).write_text` follow that alias. `publish_stage_noreplace` can then publish the *symlink itself* as the feature-module output. The public output can point to foreign data, violating the feature-only producer's self-contained no-symlinks guarantee. Ordinary Text-Fabric is not known to perform this replacement; the test models a compromised/incorrect injected producer.
+
+This is distinct from attacker-controlled output-root symlinks and from expected-file symlinks already reviewed in #118. The source-safe regression must replace the private **stage root** during `Fabric.save` and require rejection before report write or publish, leaving the external directory unchanged. Cleanup must unlink a stage symlink without traversing the target and must never delete foreign data. Concurrency between final checks and OS syscalls remains outside this cooperative validation boundary.
