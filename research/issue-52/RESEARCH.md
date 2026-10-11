@@ -112,3 +112,14 @@ locations outside the checkout and make the Bash block abort on any failed
 clone/checkout/fingerprint preflight. Preserve user-local input `output/`
 from the previously documented extraction step. A synthetic docs-only RED
 must catch the old in-repository paths before GREEN.
+
+## 2026-10-11 post-Agora integration availability correction
+
+The original README claim that Agora cannot execute a parent-bound Burns materializer is obsolete; actual upstream Agora code and docs were checked:
+
+- Agora PR #238 merged as `977007363a1b446e9e786cd465ee16574f2ce8f7`. `registry/materializers.yaml` pins `cuc-burns` to immutable `CTC-TF@f58b162197ad8f113b7cd6fc0088ae5dd39a096d`, `cuc-burns-csv`, v0.3.0; it requires `install_trust: explicit-code-execution` and disables GitHub release tracking.
+- Agora PR #240 merged as `3ccf58d60bbdd62d1fad7ef6c66ac726eee0ed43`. Public `scripts.agora_compose_feature_module` CLI and `wiki/guides/cuc-burns-managed.md` document `python scripts/agora_install_materializer.py fetch cuc-burns`, separate explicit `install cuc-burns --approve-code-execution`, then `python -m scripts.agora_compose_feature_module --module cuc-burns --source /absolute/path/to/burns-csv`. This uses managed reviewed CUC, OS sandbox, local Workbooks and does not automatically run on discovery.
+- Actual Agora CI workflow `ctc-burns-registered-e2e.yml` exercises the approved producer, all 45 Workbooks, Text-Fabric composition and public Context-Fabric MCP query. Open umbrella #135 does not mean the scoped CLI is missing.
+- CTC-TF GitHub release/tag `v0.3.0` remains absent. Agora's producer registry pin is an immutable, reviewed but **unreleased** CTC commit, and release tracking is disabled.
+
+Documentation should now distinguish the native user-provided CUC quickstart and the optional Agora catalog-managed CLI. Link Agora's guide rather than duplicating commands. No claim of automatic licensed Workbooks acquisition, Windows sandbox, extra TF nodes or released producer version.
