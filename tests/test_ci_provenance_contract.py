@@ -375,6 +375,25 @@ class AdvancedBaseProvenanceTests(unittest.TestCase):
             self.assertIn(f"{ADVANCED_BASE}...{OTHER}", urls[2])
             self.assertNotIn("synthetic-readonly-token", "".join(urls))
 
+        # The target must be a branch pointing directly at a commit.
+        # A malformed ref payload lacking its object type is NOT proof.
+        malformed = [
+            compare(BASE),
+            {"object": {"sha": OTHER}},
+            compare(ADVANCED_BASE),
+        ]
+        with patch(
+            "scripts.check_ci_provenance.urllib.request.urlopen",
+            side_effect=[FakeResponse(payload) for payload in malformed],
+        ):
+            self.assertFalse(verify_advanced_pr_base(
+                repository="alexsosn/CTC-TF",
+                base_ref="master",
+                event_base_sha=BASE,
+                actual_base_sha=ADVANCED_BASE,
+                token="synthetic-readonly-token",
+            ))
+
         for bad_response in (
             compare(BASE, "behind", behind=2),
             compare(BASE, "diverged", behind=1),
