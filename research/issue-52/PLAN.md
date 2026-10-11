@@ -88,3 +88,18 @@ product claims and lose provenance guarantees. The actual CUC pin is unchanged.
   the GitHub tag+Release `v0.3.0` is really published, pinned to independently
   reviewed final release SHA `81cc9a6c4a233bbc06b5349515a5a466497d274d`
   (or a subsequently reviewed newer release candidate).
+
+## Review-derived security/ergonomics subloop after first current-master GREEN
+
+- **RED**: tests reject `git clone ... cuc` and `--output tf/burns-module`
+  inside the source checkout because actual `.gitignore` does not exclude
+  either. Require explicit out-of-repository `CUC_DIR` and `BURNS_MODULE`
+  paths, and a fail-fast bash subshell so later conversion cannot proceed if
+  checkout or revision identity checks fail. Preserve the failing CI before
+  changing README or older tests.
+- **GREEN**: retain the partial Git clone, exact detached SHA, native module
+  interface and licenses, but use `$HOME/data/cuc-reviewed` and
+  `$HOME/data/burns-feature-module`. Run from Burns software checkout,
+  using local `output/` CSVs; no implicit downloads by materializer.
+- **Review**: inspect real Git commands and case of existing output paths;
+  no Git staging of CUC/Burns. Keep PR draft until first stable Release exists.
