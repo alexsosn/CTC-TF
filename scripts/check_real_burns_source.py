@@ -348,6 +348,29 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
         if not 0 <= annotations <= count:
             raise AssertionError(f"one-missing {kind} independent evidence exceeds occurrences")
 
+    union = multitoken_residual_research["one_missing_hypothesis_union"]
+    per_class = hypotheses
+    combined_occurrences = sum(
+        int(entry["occurrences"]) for entry in per_class.values()
+    )
+    combined_annotations = sum(
+        int(entry["distinct_annotations"]) for entry in per_class.values()
+    )
+    cross_class = int(union["annotations_in_both_classes"])
+    if int(union["occurrences"]) != combined_occurrences:
+        raise AssertionError("one-missing combined occurrence denominator drifted")
+    if int(union["distinct_annotations"]) != combined_annotations - cross_class:
+        raise AssertionError("one-missing independent union double-counts annotations")
+    if not 0 <= cross_class <= min(
+        (int(entry["distinct_annotations"]) for entry in per_class.values()),
+        default=0,
+    ):
+        raise AssertionError("one-missing cross-class overlap is impossible")
+    if int(union["distinct_annotations"]) > int(
+        multitoken_residual_research["distinct_annotations"]
+    ):
+        raise AssertionError("one-missing independent union exceeds all residual annotations")
+
     expected_one_edit = int(
         residual_clean_gap_research["classes"].get("unique_single_token_edit1", 0)
     )
