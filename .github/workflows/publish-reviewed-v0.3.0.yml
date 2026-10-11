@@ -31,6 +31,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      - name: Verify exact checkout and dispatch revision
+        run: python scripts/check_ci_provenance.py
       - name: Verify immutable release evidence then publish exact tag and Release
         env:
           GH_TOKEN: ${{ github.token }}
