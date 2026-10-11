@@ -33,6 +33,8 @@ jobs:
           persist-credentials: false
       - name: Verify exact checkout and dispatch revision
         run: python scripts/check_ci_provenance.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Verify immutable release evidence then publish exact tag and Release
         env:
           GH_TOKEN: ${{ github.token }}
