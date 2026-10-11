@@ -103,3 +103,10 @@ product claims and lose provenance guarantees. The actual CUC pin is unchanged.
   using local `output/` CSVs; no implicit downloads by materializer.
 - **Review**: inspect real Git commands and case of existing output paths;
   no Git staging of CUC/Burns. Keep PR draft until first stable Release exists.
+
+## Review-derived RED/GREEN — current Agora producer availability
+
+1. RED on existing #53 test: require README's `### Agora status` to mention the *merged, optional* `agora_compose_feature_module` CLI, link the upstream `wiki/guides/cuc-burns-managed.md`, require explicit installation approval, read-only parent and OS sandbox, and state that release tracking is disabled. Reject obsolete "fully managed execution ... remains tracked" claim. Preserve RED independently, verify real CI fails for the intended reason.
+2. GREEN docs-only: update the quickstart boundary and `### Agora status` using the actual Agora guide and registry; avoid promising automatic discovery/source fetching. Retain precise native CLI, local-only rights and review pins.
+3. Run exact-head Python 3.10/3.12/3.13 and any path-triggered integration CI; do not claim workflows not triggered.
+4. Final logically-independent skeptical review of actual CTC README against merged Agora code/guide, GitHub CI evidence, release status and data licensing. Leave this issue's post-release PR draft/unmerged until an independently reviewed GitHub tag **and** Release exist.
