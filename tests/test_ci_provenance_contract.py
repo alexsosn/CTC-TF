@@ -354,7 +354,7 @@ class AdvancedBaseProvenanceTests(unittest.TestCase):
 
         responses = [
             compare(BASE),
-            {"object": {"sha": OTHER}},
+            {"object": {"sha": OTHER, "type": "commit"}},
             compare(ADVANCED_BASE),
         ]
         with patch(
