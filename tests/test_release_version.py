@@ -34,8 +34,10 @@ class ReleaseVersionContractTests(unittest.TestCase):
                 self.assertIn(evidence, notes)
         self.assertIn("No Burns-derived data files are attached", notes)
         self.assertNotIn("0408967b1808c1f22c69e299d302b1e7b5e26354", notes)
-        self.assertIn("not yet published", notes)
-        self.assertIn("not yet registered", notes)
+        self.assertIn("separate distribution actions", notes)
+        self.assertIn("does not by itself register", notes)
+        self.assertNotIn("not yet published", notes)
+        self.assertNotIn("not yet registered", notes)
         self.assertNotIn("fully managed source+parent materializer execution remains", notes.lower())
 
     def test_release_manifest_and_project_metadata_agree_without_legacy_conversion(self):
