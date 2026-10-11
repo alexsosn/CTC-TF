@@ -39,8 +39,10 @@ class AgoraStatusDocumentationContractTests(unittest.TestCase):
             "#238", "#240", "opt-in", "cuc-burns-csv",
             "python -m scripts.agora_compose_feature_module",
             "--module cuc-burns", "--source /absolute/path/to/burns-csv",
-            "install cuc-burns --approve-code-execution",
+            "python scripts/agora_install_materializer.py fetch cuc-burns",
+            "python scripts/agora_install_materializer.py install cuc-burns --approve-code-execution",
             "read-only cuc 0.2.8 parent", "required os sandbox",
+            "network-denied",
             "cuc-burns-managed.md",
         ):
             with self.subTest(phrase=phrase):
