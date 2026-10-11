@@ -122,7 +122,7 @@ def verify_advanced_pr_base(
         token,
     )
     current_obj = current_ref.get("object")
-    if not isinstance(current_obj, dict) or current_obj.get("type") not in (None, "commit"):
+    if not isinstance(current_obj, dict) or current_obj.get("type") != "commit":
         return False
     current_tip = _require_sha(current_obj.get("sha"), "live GitHub base ref")
     after = _github_json(
