@@ -153,6 +153,27 @@ class MultiTokenResidualResearchTests(unittest.TestCase):
             },
         })
 
+    def test_one_annotation_with_both_candidate_classes_is_not_double_counted(self):
+        # Two independent CUC citations belong to the *same* Burns
+        # annotation, although their missing-token diagnostics differ.
+        record = replace(_record(1, "a b c", 10), references="I.10, 20")
+        source = normalize_workbook_records((record,))
+        index = _index({10: ("a", "bx", "c"), 20: ("a", "x", "c")})
+        stats = aggregate_multitoken_residual_research(
+            source=source,
+            alignments=align_burns_source(source, index),
+            index=index,
+        )
+        self.assertEqual(stats["classes"], {
+            "one_missing_unique_containment": 1,
+            "one_missing_unique_edit1": 1,
+        })
+        self.assertEqual(stats["one_missing_hypothesis_union"], {
+            "occurrences": 2,
+            "distinct_annotations": 1,
+            "annotations_in_both_classes": 1,
+        })
+
     def test_multiple_local_candidates_remain_ambiguous_diagnostic(self):
         source = normalize_workbook_records((_record(1, "a b c", 10),))
         index = _index({10: ("a", "bx", "by", "c")})
