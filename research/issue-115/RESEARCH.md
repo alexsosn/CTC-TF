@@ -21,3 +21,7 @@ These figures are about diagnostic candidates, not confirmed inflection, transla
 ## Review requirements
 
 Independently verify that repeated references from one annotation are not counted as distinct evidence, that order is computed from nonreused exact CUC matches, that categories reconcile with existing 23/39 counts, and that no source-derived string enters the aggregate. Run the actual private licensed-Workbooks acceptance to obtain and validate aggregate numbers; preserve a synthetic failing regression before implementation. Keep PR draft/unmerged until the frozen v0.3.0 release is published.
+
+## Independent review-derived cross-class union correction
+
+Even the two per-class independent annotation counts cannot safely be added: one Burns annotation can cite distinct CUC lines whose remaining token receives *different* unique candidate classes. A new synthetic source-safe regression (commit `c9c0b17`) creates one annotation with two citations (one containment and one edit1) and requires `occurrences=2`, `distinct_annotations=1`, `annotations_in_both_classes=1` for their union. The production diagnostic now reports the union's cardinality and overlap (integers only), not annotation IDs; the real Workbooks acceptance reconciles both classes with union counts. This is still hypothesis accounting, **not** attested morphology or permission for fuzzy matching.
