@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "plugin": {
+    "id": "cuc-burns",
+    "name": "Burns contextual feature module for reviewed CUC",
+    "version": "0.3.0",
+    "repository": "alexsosn/CTC-TF"
+  },
+  "materializers": [
+    {
+      "id": "cuc-burns-csv",
+      "description": "Produce a feature-only Burns Text-Fabric module on the existing reviewed CUC 0.2.8 word nodes from user-local licensed Workbooks CSV files.",
+      "acquisition": [
+        {
+          "type": "user-local",
+          "path_type": "directory",
+          "prompt": "Select a local directory of licensed Burns Workbooks CSV files; no redistribution"
+        }
+      ],
+      "input": {
+        "type": "directory",
+        "required_globs": [
+          "*/*.csv"
+        ],
+        "allow_symlinks": false
+      },
+      "parent_input": {
+        "resource": "cuc",
+        "parent_versions": [
+          "0.2.8"
+        ],
+        "required_paths": [
+          "otype.tf",
+          "oslots.tf",
+          "otext.tf"
+        ]
+      },
+      "execution": {
+        "type": "python-module",
+        "module": "ugarit_context_parsing.agora_adapter",
+        "args": [
+          "{source}",
+          "--input-format",
+          "csv",
+          "--cuc",
+          "{parent}",
+          "--output",
+          "{output}"
+        ],
+        "network": "deny"
+      },
+      "output": {
+        "format": "text-fabric",
+        "required_paths": [
+          "burns-feature-module-report.json"
+        ],
+        "composition": {
+          "kind": "feature-module",
+          "parent": "cuc",
+          "compatibility": {
+            "parent_versions": [
+              "0.2.8"
+            ]
+          }
+        }
+      }
+    }
+  ]
+}
