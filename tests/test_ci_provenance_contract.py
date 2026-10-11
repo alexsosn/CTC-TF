@@ -417,12 +417,14 @@ class AdvancedBaseProvenanceTests(unittest.TestCase):
             if "python scripts/check_ci_provenance.py" not in text:
                 continue
             with self.subTest(workflow=path.name):
+                # Inspect the provenance *step*, not the whole workflow:
+                # actual release publication legitimately needs a write token.
+                step = text.split("run: python scripts/check_ci_provenance.py", 1)[1]
+                step = step.split("\n      - ", 1)[0]
                 if path.name == "publish-reviewed-v0.3.0.yml":
-                    # workflow_dispatch/push never needs PR ancestry network proof;
-                    # publisher's token has contents:write and must not be exposed.
-                    self.assertNotIn("GH_TOKEN:", text)
+                    self.assertNotIn("GH_TOKEN:", step)
                 else:
-                    self.assertIn("GH_TOKEN: ${{ github.token }}", text)
+                    self.assertIn("GH_TOKEN: ${{ github.token }}", step)
 
 
 if __name__ == "__main__":
