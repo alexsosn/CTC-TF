@@ -67,6 +67,18 @@ class PrimaryFeatureModuleReportTests(unittest.TestCase):
             self.assertEqual(foreign.read_bytes(), sentinel)
             self.assertFalse(output.exists(), "refused publication must not create output")
 
+    def test_context_fabric_gate_watches_primary_feature_writer(self):
+        workflow = (
+            Path(__file__).resolve().parents[1]
+            / ".github/workflows/test-context-fabric-burns-module.yml"
+        ).read_text(encoding="utf-8")
+        pr_filters = workflow.split("pull_request:", 1)[1].split("permissions:", 1)[0]
+        self.assertIn(
+            "'src/ugarit_context_parsing/feature_module.py'",
+            pr_filters,
+            "writer changes must trigger the downstream Context-Fabric contract",
+        )
+
     def test_normal_report_still_publishes_as_regular_file(self):
         _, _, _, module, report = _fixture()
         with tempfile.TemporaryDirectory() as temporary:
