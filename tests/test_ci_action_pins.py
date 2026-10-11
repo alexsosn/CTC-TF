@@ -53,7 +53,9 @@ class CiActionPinTests(unittest.TestCase):
         )
         # Inventory after removing the two standalone-converter contract jobs.
         # Count changes must be reviewed together with workflow additions/removals.
-        expected = Counter({CHECKOUT: 13, SETUP_PYTHON: 6})
+        # #117 adds one immutable Agora checkout for real sandboxed Burns
+        # integration. That extra checkout has the same reviewed pinned action.
+        expected = Counter({CHECKOUT: 14, SETUP_PYTHON: 6})
         self.assertEqual(actual, expected)
 
 

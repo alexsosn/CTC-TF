@@ -12,7 +12,7 @@ from unittest.mock import patch
 from tf.fabric import Fabric
 
 from test_burns_tf_module import _index, _record, _write_synthetic_base
-from ugarit_context_parsing import cli
+from ugarit_context_parsing import cli, agora_adapter
 from ugarit_context_parsing.feature_module import REPORT_FILE, SCHEMA
 
 
@@ -90,6 +90,69 @@ class ModuleV2EndToEndTests(unittest.TestCase):
                     "module", str(source_root), "--input-format", "csv",
                     "--cuc", str(base), "--output", str(output),
                 ])
+
+
+    def test_agora_precreated_empty_output_loads_real_native_feature_weft(self):
+        """Real Fabric.save + real feature-only CUC node preservation.
+
+        Agora creates the output *before* invoking the producer. The native
+        public CLI still requires an absent path; its Agora adapter must bridge
+        both contracts without copying/replacing the source CUC warp.
+        """
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            base = root / "cuc"
+            _write_synthetic_base(base)
+            source_root = root / "workbooks"
+            source_root.mkdir()
+            source = SimpleNamespace(
+                root=source_root,
+                files=("01 Synthetic/Worksheet 1.csv",),
+                records=(_record(1, headword="bʿl", references="I.2"),),
+            )
+            output = root / "agora-precreated-output"
+            output.mkdir()
+            with (
+                patch.object(cli, "_load_source", return_value=source),
+                patch.object(cli, "build_reviewed_cuc_index", return_value=_index()),
+            ):
+                self.assertEqual(
+                    agora_adapter.main([
+                        str(source_root), "--input-format", "csv",
+                        "--cuc", str(base), "--output", str(output),
+                    ]),
+                    0,
+                )
+
+            names = {path.name for path in output.iterdir()}
+            self.assertIn("burns_headword_1.tf", names)
+            self.assertIn("burns-feature-module-report.json", names)
+            self.assertFalse({"otype.tf", "oslots.tf", "otext.tf"} & names)
+            self.assertEqual(
+                len([p for p in output.iterdir() if p.is_dir()]),
+                0,
+                "adapter must not leave nested producer staging artifacts",
+            )
+            original = Fabric(
+                locations=[str(base)], modules=[""], silent="deep"
+            ).loadAll(silent="deep")
+            combined = Fabric(
+                locations=[str(base), str(output)], modules=[""], silent="deep"
+            ).loadAll(silent="deep")
+            self.assertIsNotNone(original)
+            self.assertIsNotNone(combined)
+            assert original is not None and combined is not None
+            self.assertEqual(combined.F.otype.maxSlot, original.F.otype.maxSlot)
+            self.assertEqual(combined.F.otype.maxNode, original.F.otype.maxNode)
+            self.assertEqual(
+                tuple(combined.S.search(
+                    "word burns_headword_1=bʿl burns_category_1=divine_name",
+                    silent="deep",
+                )),
+                ((8,),),
+            )
+            self.assertEqual(combined.F.burns_span_length_1.v(8), 1)
+
 
 
 if __name__ == "__main__":
