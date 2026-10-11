@@ -190,5 +190,39 @@ class OutputSymlinkPathTests(unittest.TestCase):
             self.assertTrue((new / "burns-feature-module-report.json").is_file())
 
 
+    def test_feature_writer_rejects_entire_stage_root_symlink(self):
+        """A regular-looking feature inventory must not hide a linked stage."""
+        _, _, _, module, report = _feature_fixture()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            foreign = root / "foreign-private-feature-tree"
+            foreign.mkdir()
+            output = root / "would-be-public-module"
+
+            class _ReplaceStageRootWithSymlink:
+                def save(self, **kwargs):
+                    stage = Path(kwargs["location"])
+                    for name in (*kwargs["nodeFeatures"], *kwargs["edgeFeatures"]):
+                        (foreign / (name + ".tf")).write_bytes(b"FOREIGN-PRIVATE-FEATURE\\n")
+                    stage.rmdir()
+                    stage.symlink_to(foreign, target_is_directory=True)
+                    return True
+
+            # The injected producer controls only stage contents. It must
+            # not be allowed to publish a link to unrelated local files.
+            with self.assertRaisesRegex(RuntimeError, "stage|symlink"):
+                write_feature_module(
+                    module, report, output,
+                    fabric_factory=lambda **kw: _ReplaceStageRootWithSymlink(),
+                )
+            self.assertFalse(output.exists() or output.is_symlink())
+            self.assertFalse((foreign / "burns-feature-module-report.json").exists())
+            self.assertTrue(tuple(foreign.iterdir()))
+            self.assertTrue(all(
+                entry.read_bytes() == b"FOREIGN-PRIVATE-FEATURE\\n"
+                for entry in foreign.iterdir()
+            ))
+
+
 if __name__ == "__main__":
     unittest.main()
