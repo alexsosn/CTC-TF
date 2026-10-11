@@ -166,9 +166,9 @@ existing CUC nodes. The old standalone
 Burns row-slot materializers remain removed. Independently, merged Agora
 PRs #238 and #240 add an **opt-in**, catalog-managed producer workflow:
 `cuc-burns-csv` runs from user-local licensed Workbooks CSVs against the
-separately managed, read-only CUC 0.2.8 parent in a required,
-network-denied OS sandbox (Bubblewrap on Linux or `sandbox-exec` on macOS;
-Windows fails closed).
+separately managed, read-only CUC 0.2.8 parent in a required OS sandbox,
+with network-denied producer execution (Bubblewrap on Linux or `sandbox-exec`
+on macOS; Windows fails closed).
 The registered, approved public CLI is
 `python -m scripts.agora_compose_feature_module --module cuc-burns --source /absolute/path/to/burns-csv`.
 From a local Agora checkout, inspect the immutable producer with
