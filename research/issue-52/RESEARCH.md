@@ -97,3 +97,18 @@ release candidate is `81cc9a6c4a233bbc06b5349515a5a466497d274d`, not the early S
 The merged README must inherit master wording and insert only the reviewed
 Git partial-clone+detached-checkout recipe. The exact CUC commit and immutable
 TF fingerprints are unchanged. This remains post-release documentation.
+
+## Independent post-rebase adversarial finding: repository contamination
+
+Review against actual current-master `.gitignore` (not just initial design)
+shows only `output/**/*.csv` and PDF sources are ignored. It does **not**
+exclude a nested `cuc/` Git worktree or a generated `tf/burns-module/`.
+The current quickstart instructs cloning the entire external CUC tree and
+writing restricted Burns-derived feature files inside this software checkout,
+making accidental staging/commit of CUC or licensed derived data possible.
+This is a real reproducibility/distribution risk independent of the core
+module's own safety. Rework the quickstart to use explicit `$HOME/data/...`
+locations outside the checkout and make the Bash block abort on any failed
+clone/checkout/fingerprint preflight. Preserve user-local input `output/`
+from the previously documented extraction step. A synthetic docs-only RED
+must catch the old in-repository paths before GREEN.
