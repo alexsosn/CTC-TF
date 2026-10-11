@@ -59,6 +59,11 @@ the Workbooks' licensing restrictions. Agora currently supports `cuc-burns`
 local Burns CSVs with an Agora-bound, read-only CUC parent **remains tracked**
 in Agora #135, not generally available.
 
+### Alternative: an existing reviewed CUC checkout
+
+If you already have the exact fingerprint-compatible CUC TF directory elsewhere,
+pass its path directly instead of cloning a second copy:
+
 ```bash
 python -m pip install .
 ugarit-context-parsing module output \
