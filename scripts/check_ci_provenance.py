@@ -90,12 +90,14 @@ def validate_provenance(
             "tested_sha": checked_out_sha,
         }
 
-    if event_name == "push":
-        if parents:
-            for index, parent in enumerate(parents, start=1):
-                _require_sha(parent, f"push parent {index}")
+    if event_name in ("push", "workflow_dispatch"):
+        # Manual, repository-owned release workflows check out the dispatch
+        # commit, not a synthetic PR merge. The release publisher separately
+        # validates the master ref and exact reviewed merge tree/CI.
+        for index, parent in enumerate(parents, start=1):
+            _require_sha(parent, f"{event_name} parent {index}")
         return {
-            "mode": "push",
+            "mode": event_name,
             "tested_sha": checked_out_sha,
         }
 
