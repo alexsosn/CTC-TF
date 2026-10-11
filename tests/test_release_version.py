@@ -2,6 +2,8 @@ from importlib import metadata
 from pathlib import Path
 import unittest
 
+from ugarit_context_parsing.cuc_index import REVIEWED_CUC_COMMIT
+
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_VERSION = "0.3.0"
@@ -22,7 +24,7 @@ class ReleaseVersionContractTests(unittest.TestCase):
             "agora.materializer.json",
             "cuc-burns-csv",
             "ugarit_context_parsing.agora_adapter",
-            "0408967b1808c1f22c69e299d302b1e7b5e26354",
+            REVIEWED_CUC_COMMIT,
             "45 Workbooks",
             "5,909",
             "Bubblewrap",
@@ -31,6 +33,7 @@ class ReleaseVersionContractTests(unittest.TestCase):
             with self.subTest(evidence=evidence):
                 self.assertIn(evidence, notes)
         self.assertIn("No Burns-derived data files are attached", notes)
+        self.assertNotIn("0408967b1808c1f22c69e299d302b1e7b5e26354", notes)
         self.assertIn("not yet published", notes)
         self.assertIn("not yet registered", notes)
         self.assertNotIn("fully managed source+parent materializer execution remains", notes.lower())
