@@ -31,7 +31,7 @@ def _materialization_section() -> str:
 def _quickstart_script() -> str:
     section = _materialization_section()
     match = re.search(
-        rf"(?ms)^{re.escape(QUICKSTART_HEADING)}\\s*$"
+        rf"(?ms)^{re.escape(QUICKSTART_HEADING)}\s*$"
         r".*?^`{3}bash\s*$\n(.*?)^`{3}\s*$",
         section,
     )
@@ -83,6 +83,7 @@ class ReviewedCucQuickstartDocumentationTests(unittest.TestCase):
         agora = readme.split("### Agora status\n", 1)[1].split("\n### ", 1)[0].casefold()
 
         self.assertIn("does not download cuc", section)
+        self.assertNotIn("## materializing a cuc-aligned burns feature module", section)
         self.assertIn("user-local", section)
         self.assertIn("cuc-burns", agora)
         self.assertIn("local-module", agora)

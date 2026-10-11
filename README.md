@@ -1,278 +1,162 @@
-# ugarit-context-parsing
+# CTC-TF / ugarit-context-parsing
 
-Structured extraction of the cultic-vocabulary **Workbooks** into per-worksheet
-CSV files and of the thesis **Appendix** into a KTU findspot table, with the
-Ugaritic transliteration repaired to standard Unicode. The installable package
-also materializes the Workbooks as a **CUC-aligned Text-Fabric feature module**
-for local use and Context-Fabric/cfabric-mcp composition.
+Local extraction and Text-Fabric materialization of Duncan Coe Burns's cultic-vocabulary **Workbooks**. The workbooks yield per-worksheet CSV files; the thesis Appendix has a separate KTU findspot table. The primary Text-Fabric product is a **feature-only module over the existing Copenhagen Ugaritic Corpus (CUC) warp**: Burns adds queryable node/edge features on existing CUC words/tablets, never new nodes and never replacement `otype.tf`/`oslots.tf`. No generated Burns corpus is distributed here.
 
-## Source
+## Source and extraction
 
-The worksheet PDFs, the Appendix and the thesis volumes are from:
+Burns, Duncan Coe (2003), *Contents, texts and contexts: a contextualist approach to the Ugaritic texts and their cultic vocabulary*, PhD thesis, University of Sheffield: <https://etheses.whiterose.ac.uk/id/eprint/15038/>.
 
-> Burns, Duncan Coe (2003). *Contents, texts and contexts: a contextualist
-> approach to the Ugaritic texts and their cultic vocabulary.* PhD thesis,
-> University of Sheffield.
-> <https://etheses.whiterose.ac.uk/id/eprint/15038/>
-
-## Contents
-
-- [`scripts/parse_workbooks_to_csv.py`](scripts/parse_workbooks_to_csv.py) — the
-  Workbooks parser (45 worksheets → one CSV each).
-- [`scripts/parse_appendix_to_csv.py`](scripts/parse_appendix_to_csv.py) — the
-  Appendix parser (thesis pp. 506–582 → `output/appendix.csv`), a findspot table
-  of every KTU text: excavation number, genre, locus, room, point, depth, and
-  the TEO/SAU page references.
-- [`scripts/sources.py`](scripts/sources.py) — downloads and unpacks the two
-  source deposits, verifying a pinned SHA-256 on each.
-- [`src/ugarit_context_parsing/`](src/ugarit_context_parsing/) — the installable
-  Workbooks CSV/PDF → CUC feature-module materializer and its legacy standalone
-  compatibility converter.
-- [`agora.materializer.json`](agora.materializer.json) — the current Agora v1
-  declarations for the legacy single-input materializers; see the Agora section
-  below for the parent-resource limitation.
-- [`CONTEXTUALIST_APPROACH.md`](CONTEXTUALIST_APPROACH.md) — an overview of the
-  dissertation's contextualist method, the significance of its annotation
-  scheme, and the role of the parser.
-- [`output/`](output/) — the local generation target for the ignored CSVs, one
-  per source worksheet plus `appendix.csv`. [`output/README.md`](output/README.md)
-  documents the column schema, the legacy-font → Unicode transliteration repair
-  (verified 99.7 % against the KTU concordance and the DULAT dictionary), and
-  the editorial corrections.
-
-## Extracting the source tables
+- `scripts/parse_workbooks_to_csv.py` extracts 45 worksheets to CSV.
+- `scripts/parse_appendix_to_csv.py` extracts the separate KTU catalogue to `output/appendix.csv` (requires Poppler `pdftotext`).
+- `scripts/sources.py` downloads the two source deposits and checks pinned SHA-256 fingerprints.
+- `output/README.md` documents the extraction columns, transcription repair and corrections.
+- `CONTEXTUALIST_APPROACH.md` explains Burns's method and interpretation of the labels.
 
 ```bash
 uv run --no-project scripts/parse_workbooks_to_csv.py
-```
-
-```bash
 uv run --no-project scripts/parse_appendix_to_csv.py
 ```
 
-Each parser downloads and unpacks whatever source it needs before parsing, so
-both run from a bare checkout with nothing else in place. Pass `--no-download`
-to fail instead of fetching, or `--input` to point at your own copy. To fetch
-both sources without parsing:
+The parsers can download source material if absent. For offline input use `--no-download` or `--input`. Large `Workbooks/`, `Appendix.pdf`, thesis volumes, CSVs, and generated TF outputs are excluded from git. Materialization itself has no source-download fallback.
 
-```bash
-uv run --no-project scripts/sources.py
-```
-
-The source files (`Workbooks/`, `Appendix.pdf`, thesis volumes) are large and
-are not tracked in git. Downloads are checked against a pinned SHA-256 and moved
-into place only once that check passes, so an interrupted or altered download
-never leaves a half-written input behind.
-
-The Appendix parser needs poppler's `pdftotext` on `PATH` (`brew install
-poppler`); it has no Python dependencies.
-
-## Materializing a CUC-aligned Burns feature module
-
-Install the project in a Python 3.10+ environment:
-
-```bash
-python -m pip install .
-```
-
-The primary product is a feature-only Burns annotation module layered on the
-exact reviewed Copenhagen Ugaritic Corpus (CUC) Text-Fabric base. The current
-compatibility contract is:
-
-- repository: `DT-UCPH/cuc`
-- commit: `ad69400f5446e1c8217af01659c7c10ab00c015b`
-- Text-Fabric directory/version: `tf/0.2.8`
-
-The CLI verifies the required CUC files by size and SHA-256 before indexing or
-writing a module. It does not download CUC automatically.
+## Feature-only module over reviewed CUC
 
 ### Quickstart with the exact reviewed CUC
 
-CUC acquisition is an explicit user action outside the converter. Clone without
-historical blob contents, then check out the reviewed commit directly rather
-than using whichever commit upstream `main` points to later:
+From this software checkout, after extracting licensed Burns Workbooks CSVs
+into the user-local `output/` directory, explicitly obtain the exact reviewed
+CUC commit. This is a **user-initiated Git download**, not a converter side
+effect. Use fresh `cuc` and `tf/burns-module` paths:
 
 ```bash
+python -m pip install .
 git clone --filter=blob:none --no-checkout https://github.com/DT-UCPH/cuc.git cuc
 git -C cuc checkout --detach ad69400f5446e1c8217af01659c7c10ab00c015b
-git -C cuc rev-parse HEAD
-```
-
-The last command should print
-`ad69400f5446e1c8217af01659c7c10ab00c015b`. Then materialize generated
-Workbook CSVs against that exact base:
-
-```bash
+test "$(git -C cuc rev-parse HEAD)" = "ad69400f5446e1c8217af01659c7c10ab00c015b"
+test -f cuc/tf/0.2.8/otype.tf
+test ! -e tf/burns-module
 ugarit-context-parsing module output \
   --input-format csv \
   --cuc cuc/tf/0.2.8 \
   --output tf/burns-module
 ```
 
-The converter itself does not acquire or update CUC. If the checkout is wrong,
-incomplete, or modified, the reviewed file and structural fingerprint checks
-fail before a Burns module is published.
-
-### CUC compatibility fingerprint
-
-Burns treats the reviewed CUC base as an exact structural dependency, not as a
-loose `0.2.x` compatibility range. Alignment uses the CUC `tablet`, `column`,
-`line`, and `g_cons` features together with the Text-Fabric warp/navigation
-structure. The reviewed base has 146017 `sign`, 27770 `word`, 7616 `line`, 334
-`column`, and 279 `tablet` nodes, with `tablet,column,line` as both the section
-types and section features.
-
-Every generated Burns feature header keeps the repository/commit/version and
-required-files manifest digest and also records a compact deterministic form of
-that structural fingerprint. `burns-module-report.json` carries the expanded
-fingerprint, including the exact required-file sizes and SHA-256 values used by
-the verifier. No local path, machine, platform, or timestamp is part of the
-compatibility identity.
-
-Updating Burns to a different CUC commit therefore requires a deliberate
-compatibility review: record the candidate fingerprint, prove the old
-fingerprint rejects it, rerun the reviewed-CUC alignment/module integration and
-Context-Fabric composition checks, and verify that existing CUC node identities
-are not silently remapped. Changing only the advertised CUC version is not a
-compatibility update.
-
-### From generated CSV
-
-The normal parser output may contain both one-level Workbook CSV files and the
-root-level `appendix.csv`. The Workbooks loader deliberately reads only
-`*/*.csv`, so the Appendix table is not mixed into the Burns annotations.
+The converter itself **does not download CUC** or redistribute it; its file
+fingerprints independently reject a wrong or altered checkout. The Burns CSVs
+remain **user-local** and subject to the Workbooks' licensing restrictions.
+Agora currently supports `cuc-burns` **local-module** consumption; fully
+managed installation and execution from local Burns CSVs with an Agora-bound,
+read-only CUC parent **remains tracked** in Agora #135, not generally available.
 
 ```bash
+python -m pip install .
 ugarit-context-parsing module output \
   --input-format csv \
-  --cuc cuc/tf/0.2.8 \
-  --output tf/burns-module
+  --cuc /path/to/cuc/tf/0.2.8 \
+  --output /new/path/burns-module
 ```
 
-### Directly from the Workbook PDFs
-
-PDF mode uses the existing `parse_workbooks_to_csv.py` parsing implementation;
-it does not maintain a second interpretation of the source layout and it never
-downloads data during materialization.
+PDF input uses the same normalization/alignment path:
 
 ```bash
 ugarit-context-parsing module Workbooks \
   --input-format pdf \
-  --cuc cuc/tf/0.2.8 \
-  --output tf/burns-module
+  --cuc /path/to/cuc/tf/0.2.8 \
+  --output /another/new/path/burns-module
 ```
 
-Both source paths feed the same normalization, CUC verification/indexing,
-alignment, module-building, reporting, and publishing pipeline. Input symlinks
-are rejected rather than followed or silently skipped.
+The exact reviewed dependency is `DT-UCPH/cuc@ad69400f5446e1c8217af01659c7c10ab00c015b`, `tf/0.2.8`. Required CUC files are fingerprinted before materialization. CUC is not copied, downloaded, or redistributed by the module command.
 
-### Feature-module output
+The generated directory is a real Text-Fabric **module/weft**. It contains Burns node/edge features and a local report, but **no `otype.tf`, `oslots.tf`, or replacement `otext.tf`**. Loading the module therefore leaves the CUC slot/node universe and warp unchanged:
 
-A successful module contains exactly these six Text-Fabric node features plus a
-deterministic `burns-module-report.json`:
+```python
+from tf.fabric import Fabric
 
-- `burns_annotations.tf` — authoritative lossless Burns annotation payloads
-  attached to selected CUC nodes;
-- `burns_annotation_ids.tf` — annotation-ID projection;
-- `burns_semantic_statuses.tf` — contextual/cultic interpretation-status
-  projection;
-- `burns_worksheet_roles.tf` — source worksheet-role projection;
-- `burns_sections.tf` — Burns section projection;
-- `burns_headwords.tf` — Burns headword projection.
+api = Fabric(
+    locations=["/path/to/cuc/tf/0.2.8", "/new/path/burns-module"],
+    modules=[""],
+    silent="deep",
+).loadAll(silent="deep")
+assert api is not None
+```
 
-The module does **not** emit `otype.tf`, `oslots.tf`, `otext.tf`, or copies of
-CUC diplomatic features such as `g_cons.tf`, `tablet.tf`, `column.tf`, or
-`line.tf`. CUC owns the node graph; Burns contributes annotations to those
-existing nodes. Unresolved, ambiguous, partial, out-of-CUC, and non-textual
-source annotations remain accounted for in the module report rather than being
-silently promoted to guessed anchors.
+### Exact lexical occurrences: deterministic lanes
 
-With a Context-Fabric/cfabric-mcp version that supports ordered locations, load
-the CUC base first and the Burns module second as one logical corpus. The module
-writer and integration tests require CUC slot/node counts and navigation to
-remain unchanged.
+Burns occurrences that have an exact lexical CUC word span are stored on the **first existing CUC word** of that span. Multiple independent Burns occurrences starting at the same word use deterministic lane-numbered feature families:
 
-### Deprecated standalone row-slot converter
+- `burns_occurrence_id_N`
+- `burns_annotation_id_N`
+- `burns_headword_N`
+- `burns_match_rule_N` (`literal`, `parenthesis_core`, `parenthesis_core_opaque_group`, `slash_left`, or `slash_right`)
+- `burns_root_N` when supplied
+- `burns_category_N`
+- `burns_semantic_status_N`
+- `burns_worksheet_role_N`
+- `burns_section_N`
+- `burns_span_length_N`
+- edge `burns_span_N` from the carrier to subsequent CUC words in a multiword span.
 
-The older standalone Burns graph remains temporarily available for compatibility:
+The carrier itself is the implicit first span member. A one-word occurrence has `burns_span_length_N=1` and no outgoing span edge. This avoids both invented annotation nodes and the false claim that a multiword phrase label is a lexical property of every member token.
+
+Example queries:
+
+```python
+# One specific lane.
+divine = tuple(api.S.search(
+    "word burns_category_1=divine_name",
+    silent="deep",
+))
+
+# Multiword members for lane-1 divine-name occurrences.
+spans = tuple(api.S.search(
+    """s:word burns_category_1=divine_name
+m:word
+s -burns_span_1> m""",
+    silent="deep",
+))
+```
+
+Lane count is derived from the supplied exact alignments rather than hard-coded. On the current pinned real-source audit, 7,402 exact lexical occurrences occupy 5,909 start words. Lane-depth distribution is 4,837 starts at depth 1, 724 at depth 2, 303 at depth 3, 30 at depth 4, 2 at depth 5, and 13 at depth 6. Consumers must inspect the feature inventory/report rather than hard-code a maximum.
+
+`burns_headword_N` is the source headword label, **not** a verified lemma. `burns_match_rule_N` records which exact candidate rule produced the published span, so non-literal recovery remains queryable provenance rather than an invisible normalization. The matcher now interprets narrowly evidenced headword-expression classes: one balanced non-nested parenthesized group contributes the exact **core with that group omitted**; one token-internal slash contributes exact left/right alternatives; and bracket/slash markup that lies wholly inside an already-omitted parenthesized group may remain opaque because none of its characters enter the lexical anchor. This raises the pinned real-source exact count from 4,357 to 7,402. Another 1,841 resolved-line occurrences still have no exact lexical span, and 276 have multiple exact candidate spans; those remain in the local alignment report and are **not** emitted as lexical features on line/tablet nodes. Square brackets that survive into the lexical core are still not stripped: the current real data supplied no supported exact case that would justify a restoration-aware `emen` rule.
+
+### Tablet-scoped excavation observations
+
+`burns_locus`, `burns_room`, `burns_point`, `burns_depth`, and `burns_disputed` may appear on an existing CUC `tablet` node only when all applicable Workbook observations consistently support that value. Conflicts/incomplete evidence remain in the local report. No fragment, line, word, or annotation node is invented for findspot data.
+
+The local `burns-feature-module-report.json` stores source/alignment provenance, lane/span identities, CUC compatibility, and findspot audit information. Generated Burns-derived data remain user-local under the source terms.
+
+The `module` command requires an **absent output path** and rejects output overlapping the source or CUC directory. It stages the complete feature module and publishes with an exclusive no-replace operation. The experimental extended-warp `entities` CLI from the earlier #68/#69 design has been retired.
+
+### Explicit v1 compatibility and rollback
+
+The old **six JSON-valued features** are no longer the primary `module` output. Reproduce them only by requesting the explicit compatibility command:
 
 ```bash
-ugarit-context-parsing convert output \
+ugarit-context-parsing module-v1 output \
   --input-format csv \
-  --output tf/burns-workbooks
+  --cuc /path/to/cuc/tf/0.2.8 \
+  --output /path/to/legacy-burns-module
 ```
 
-```bash
-ugarit-context-parsing convert Workbooks \
-  --input-format pdf \
-  --output tf/burns-workbooks
-```
-
-`convert` is deprecated and prints an explicit diagnostic directing users to
-`module`. It still produces the historical standalone graph: `record` slots,
-`worksheet` / `section` / `entry` section nodes, all Workbook columns as
-features, `otype.tf`, `oslots.tf`, `otext.tf`, and `conversion-report.json`.
-Its removal/version boundary is tracked separately so existing scripts are not
-silently broken by this migration.
-
-The legacy corpus' narrow CUC interoperability fields (`cuc_tablet` and
-`language`) do not make it a CUC extension: it does not contain CUC diplomatic
-`sign`, `word`, `line`, or `column` structure.
+`module-v1` retains the previous `burns_annotations.tf`, `burns_annotation_ids.tf`, `burns_semantic_statuses.tf`, `burns_worksheet_roles.tf`, `burns_sections.tf`, `burns_headwords.tf` and `burns-module-report.json` schema, including its existing output behavior for compatibility. Treat v1 and the corrected lane schema as separate module versions; materialize them into separate directories and load only the one your consumer expects. To roll back, restore the original base + retained v1 output.
 
 ### Agora status
 
-`agora.materializer.json` currently retains the two legacy user-local,
-network-denied single-input materializers:
+Agora PR `alexsosn/Agora#175` is merged and registers `cuc-burns` as a `feature-module` with parent `cuc`, exact parent-version compatibility, and `local-module` acquisition. Agora no longer registers or installs the standalone Burns row-slot materializers. Materialize this repository's `module` output locally, then let Agora compose it with the reviewed CUC parent.
 
-- `burns-workbooks-csv-text-fabric`
-- `burns-workbooks-pdf-text-fabric`
-
-This is the currently supported Agora registration, not the local module's
-architecture. The public `module` CLI already materializes the reviewed
-CUC-aligned Burns feature module, and Context-Fabric/cfabric-mcp can load that
-module together with the exact CUC base as separate ordered locations.
-
-Registering that module as an Agora materializer would require two independent
-runtime inputs: the user-local Burns source and an exact acquired CUC parent
-resource. The parent-resource execution capability tracked in
-`alexsosn/Agora#135` was **closed as not planned / deferred from the current
-Agora scope**. Therefore the Burns migration tracker #29 is blocked on a future
-Agora scope/capability change rather than on missing local converter support.
-
-This repository does **not** advertise a fake one-input Agora module
-materializer, copy CUC into Burns output, or enable an implicit network
-fallback. The public `module` CLI is the truthful local materialization path.
+Fully managed execution from user-local Burns source plus an Agora-managed read-only CUC parent remains tracked in open `alexsosn/Agora#135`. Until that orchestration exists, this repository does not advertise a fake one-input materializer, copy CUC into Burns output, or enable a network fallback during materialization.
 
 ### Appendix scope
 
-`output/appendix.csv` has a different 11-column KTU catalogue schema. It is
-explicitly excluded from the Workbooks materializer; Appendix → TF needs its own
-graph/materializer design rather than being coerced into either the Burns
-annotation module or the legacy row model.
+`output/appendix.csv` is a separate 11-column KTU catalogue, not a tenth lexical workbook, and is not silently mixed into the lexical module. The aggregate concordance audit finds 40 reviewed-CUC-mapped tablets with multiple RS numbers; all mapped Appendix findspot conflicts/incompleteness occur inside that set. A cross-source check found no disagreement between Appendix and the 823 tablet-field values the Workbooks policy would publish. No fragment nodes are created because reviewed CUC 0.2.8 supplies no fragment/RS identity mapping.
 
 ## License and attribution
 
 ### Software license
 
-The software source code in this repository is licensed under the **MIT License**.
-See [`LICENSE`](LICENSE). This MIT license applies to the repository software;
-it does not relicense the Burns source material, generated Burns-derived data,
-or the external CUC corpus.
+The repository software is licensed under the **MIT License** (`LICENSE`). It does not relicense Burns's source material, generated Burns-derived data, or CUC.
 
 ### Burns source material and generated artifacts
 
-The source Workbooks and thesis are © Duncan Coe Burns (2003) and are made
-available under a **Creative Commons Attribution-NonCommercial-NoDerivs 2.5**
-licence (CC BY-NC-ND 2.5).
-
-The CSV files generated under `output/`, and Text-Fabric artifacts generated
-from them or directly from the PDFs, are **derived reformatting** of that
-material. Because the source licence is **NoDerivatives**, they are intentionally
-kept local and are not committed or redistributed by this repository. Do not
-redistribute generated CSV/TF artifacts without permission from the copyright
-holder. Users can obtain the licensed source files from the link above and run
-the parsers/materializer for their own use.
-
-The reviewed Copenhagen Ugaritic Corpus (CUC) base is an external dependency
-and is not redistributed by this repository; its upstream license remains
-separate from both this software license and the Burns source terms.
+Burns's thesis/Workbooks are © Duncan Coe Burns (2003), available under **CC BY-NC-ND 2.5**. Generated CSV and TF are derived reformatting of those works. The NoDerivatives term is why the generated artifacts are deliberately local and excluded from git. **Do not redistribute** generated CSV/TF artifacts without permission from the copyright holder; obtain the licensed source independently and run the parser locally. The reviewed CUC base retains its own upstream license and is not bundled.

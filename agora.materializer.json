@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
   "plugin": {
-    "id": "ugarit-context-parsing",
-    "name": "Ugarit Context Parsing",
+    "id": "cuc-burns",
+    "name": "Burns contextual feature module for reviewed CUC",
     "version": "0.3.0",
-    "repository": "alexsosn/ugarit-context-parsing"
+    "repository": "alexsosn/CTC-TF"
   },
   "materializers": [
     {
-      "id": "burns-workbooks-csv-text-fabric",
-      "description": "Convert local Burns Workbooks CSV files into a CUC-aligned Text-Fabric contextual corpus.",
+      "id": "cuc-burns-csv",
+      "description": "Produce a feature-only Burns Text-Fabric module on the existing reviewed CUC 0.2.8 word nodes from user-local licensed Workbooks CSV files.",
       "acquisition": [
         {
           "type": "user-local",
           "path_type": "directory",
-          "prompt": "Select the directory containing generated Burns Workbook CSV files"
+          "prompt": "Select a local directory of licensed Burns Workbooks CSV files; no redistribution"
         }
       ],
       "input": {
@@ -24,14 +24,26 @@
         ],
         "allow_symlinks": false
       },
+      "parent_input": {
+        "resource": "cuc",
+        "parent_versions": [
+          "0.2.8"
+        ],
+        "required_paths": [
+          "otype.tf",
+          "oslots.tf",
+          "otext.tf"
+        ]
+      },
       "execution": {
         "type": "python-module",
-        "module": "ugarit_context_parsing.cli",
+        "module": "ugarit_context_parsing.agora_adapter",
         "args": [
-          "convert",
           "{source}",
           "--input-format",
           "csv",
+          "--cuc",
+          "{parent}",
           "--output",
           "{output}"
         ],
@@ -40,51 +52,17 @@
       "output": {
         "format": "text-fabric",
         "required_paths": [
-          "otype.tf",
-          "oslots.tf",
-          "otext.tf",
-          "conversion-report.json"
-        ]
-      }
-    },
-    {
-      "id": "burns-workbooks-pdf-text-fabric",
-      "description": "Parse local Burns Workbook PDFs and convert the extracted contextual rows into the same CUC-aligned Text-Fabric corpus.",
-      "acquisition": [
-        {
-          "type": "user-local",
-          "path_type": "directory",
-          "prompt": "Select the directory containing the Burns Workbook PDF subdirectories"
+          "burns-feature-module-report.json"
+        ],
+        "composition": {
+          "kind": "feature-module",
+          "parent": "cuc",
+          "compatibility": {
+            "parent_versions": [
+              "0.2.8"
+            ]
+          }
         }
-      ],
-      "input": {
-        "type": "directory",
-        "required_globs": [
-          "*/*.pdf"
-        ],
-        "allow_symlinks": false
-      },
-      "execution": {
-        "type": "python-module",
-        "module": "ugarit_context_parsing.cli",
-        "args": [
-          "convert",
-          "{source}",
-          "--input-format",
-          "pdf",
-          "--output",
-          "{output}"
-        ],
-        "network": "deny"
-      },
-      "output": {
-        "format": "text-fabric",
-        "required_paths": [
-          "otype.tf",
-          "oslots.tf",
-          "otext.tf",
-          "conversion-report.json"
-        ]
       }
     }
   ]

@@ -83,3 +83,17 @@ This issue does not change packaging or claim a release that does not yet exist.
 ## Merge ordering
 
 Prepare and review this documentation change independently, but do not merge it before the frozen `v0.3.0` release candidate is actually published. This avoids moving `master` while the first release still needs to be created at exact SHA `4994a45c53a73c09a4939731bc56af585b3ba30a`.
+
+## 2026-10-11 current-master research correction
+
+The preceding sections record the historically accurate pre-v0.3.0 work;
+several old statements are now superseded. Actual master `81cc9a6c4a233bbc06b5349515a5a466497d274d`
+renamed the module section to `## Feature-only module over reviewed CUC`,
+removed the standalone row-slot materializer, and now advertises Agora #175's
+`cuc-burns` **local-module** consumption (NOT legacy one-source producer
+registration). Agora #135 still tracks full trusted-parent source orchestration.
+The GitHub Release/tag v0.3.0 remains unpublished, and the currently reviewed
+release candidate is `81cc9a6c4a233bbc06b5349515a5a466497d274d`, not the early SHA `4994a45c`.
+The merged README must inherit master wording and insert only the reviewed
+Git partial-clone+detached-checkout recipe. The exact CUC commit and immutable
+TF fingerprints are unchanged. This remains post-release documentation.

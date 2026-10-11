@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Mapping
@@ -108,6 +108,9 @@ class CucStructuralSnapshot:
     columns: tuple[CucColumnRow, ...]
     lines: tuple[CucLineRow, ...]
     word_g_cons: tuple[tuple[int, str], ...]
+    # Optional for pure synthetic index fixtures. The public reviewed-CUC
+    # loader always supplies the exact sign extent of every word.
+    word_slots: tuple[tuple[int, tuple[int, ...]], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -119,6 +122,12 @@ class ReviewedCucIndex:
     bare_line_candidates: Mapping[tuple[str, int], tuple[int, ...]]
     line_words: Mapping[int, tuple[int, ...]]
     word_g_cons: Mapping[int, str]
+    # Exact word->sign extents from the independently loaded reviewed base.
+    # Legacy/pure index fixtures may omit this, but native warp extension must
+    # reject such an index rather than guessing identity from labels alone.
+    word_slots: Mapping[int, tuple[int, ...]] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
 
 
 def reviewed_cuc_compatibility_payload() -> dict[str, object]:
@@ -278,6 +287,23 @@ def _build_index_from_snapshot(
             raise CucCompatibilityError(f"duplicate g_cons word node: {node}")
         word_g_cons[node] = value
 
+    word_slots: dict[int, tuple[int, ...]] = {}
+    for node, raw_slots in sorted(snapshot.word_slots):
+        if node in word_slots:
+            raise CucCompatibilityError(f"duplicate word oslots node: {node}")
+        if node not in word_g_cons:
+            raise CucCompatibilityError(f"word oslots references unknown word node: {node}")
+        slots = tuple(int(slot) for slot in raw_slots)
+        if not slots:
+            raise CucCompatibilityError(f"word {node} has empty oslots extent")
+        if slots != tuple(sorted(slots)) or len(slots) != len(set(slots)):
+            raise CucCompatibilityError(f"word {node} has non-canonical oslots extent")
+        if any(slot < 1 or slot > counts.get("sign", 0) for slot in slots):
+            raise CucCompatibilityError(f"word {node} has out-of-range oslots extent")
+        word_slots[node] = slots
+    if word_slots and set(word_slots) != set(word_g_cons):
+        raise CucCompatibilityError("CUC word oslots inventory does not match word count")
+
     line_nodes: dict[tuple[str, str, int], int] = {}
     line_node_ids: set[int] = set()
     line_words: dict[int, tuple[int, ...]] = {}
@@ -319,6 +345,7 @@ def _build_index_from_snapshot(
         bare_line_candidates=_mapping_proxy(bare_line_candidates),
         line_words=_mapping_proxy(line_words),
         word_g_cons=_mapping_proxy(word_g_cons),
+        word_slots=_mapping_proxy(word_slots),
     )
 
 
@@ -357,6 +384,7 @@ def _snapshot_from_tf(
     # otext.tf because T.sectionFeatures exposes loaded feature-value maps in
     # Text-Fabric 13.1 rather than the metadata-name tuple.
     F = api.F  # type: ignore[attr-defined]
+    E = api.E  # type: ignore[attr-defined]
     T = api.T  # type: ignore[attr-defined]
     L = api.L  # type: ignore[attr-defined]
 
@@ -412,6 +440,13 @@ def _snapshot_from_tf(
         (int(node), "" if F.g_cons.v(node) is None else str(F.g_cons.v(node)))
         for node in F.otype.s("word")
     )
+    word_slots = tuple(
+        (
+            int(node),
+            tuple(sorted(int(slot) for slot in E.oslots.s(node))),
+        )
+        for node in F.otype.s("word")
+    )
 
     return CucStructuralSnapshot(
         counts=counts,
@@ -421,6 +456,7 @@ def _snapshot_from_tf(
         columns=tuple(columns),
         lines=tuple(lines),
         word_g_cons=word_g_cons,
+        word_slots=word_slots,
     )
 
 

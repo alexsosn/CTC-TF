@@ -51,10 +51,11 @@ class CiActionPinTests(unittest.TestCase):
             for path in paths
             for ref in _action_refs(path.read_text(encoding="utf-8"))
         )
-        # The dedicated Context-Fabric Burns module contract contributes three
-        # immutable checkout refs (producer, CUC, consumer) and one setup-python
-        # ref to the previously reviewed 7/4 repository totals.
-        expected = Counter({CHECKOUT: 10, SETUP_PYTHON: 5})
+        # Inventory after removing the two standalone-converter contract jobs.
+        # Count changes must be reviewed together with workflow additions/removals.
+        # #117 adds one immutable Agora checkout for real sandboxed Burns
+        # integration. That extra checkout has the same reviewed pinned action.
+        expected = Counter({CHECKOUT: 14, SETUP_PYTHON: 6})
         self.assertEqual(actual, expected)
 
 

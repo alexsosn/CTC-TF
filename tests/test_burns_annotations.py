@@ -16,11 +16,9 @@ from ugarit_context_parsing.annotations import (
     BurnsSourceRecord,
     normalize_workbook_records,
 )
-from ugarit_context_parsing.graph import build_tf_data
 from ugarit_context_parsing.source import (
     WORKBOOK_FIELDS,
     WorkbookRecord,
-    WorkbookSource,
     load_csv_directory,
 )
 
@@ -388,20 +386,6 @@ class ArchitectureIsolationTests(unittest.TestCase):
         snapshot = record
         _normalize(record)
         self.assertEqual(record, snapshot)
-
-    def test_normalization_does_not_change_current_standalone_graph(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            source = WorkbookSource(
-                root=Path(tmp),
-                records=(_record(),),
-                files=(f"{WORKBOOK_I}/Worksheet 1.csv",),
-                tree_sha256="synthetic-tree",
-            )
-            before = build_tf_data(source)
-            _normalize(*source.records)
-            after = build_tf_data(source)
-
-        self.assertEqual(before, after)
 
 
 if __name__ == "__main__":

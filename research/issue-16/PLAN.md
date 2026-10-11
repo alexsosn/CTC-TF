@@ -91,3 +91,124 @@ Run Agora registry validation and release-discovery checks before merge. This fo
 ## Completion
 
 Close #16 only after the upstream release is published and the reviewed Agora registry update is merged or, if repository permissions prevent that follow-up, explicitly document the remaining external blocker without misrepresenting release publication status.
+
+
+## 2026-09-30 revised plan — native-v2 v0.3.0 re-freeze
+
+The original release candidate at `4994a45...` is abandoned, not published.
+PR #69 merged #68's native-v2 correction into master as `f4ad420b...`.
+The remaining release work is a new research → plan → release-note RED → GREEN
+cycle followed by exact-head CI/review.
+
+### Phase 7 — release-note RED
+
+Before editing `docs/releases/v0.3.0.md`, extend the release contract tests to
+require that the v0.3.0 notes:
+
+1. identify the primary `module` output as native-v2 entity nodes / extended
+   CUC warp rather than a feature-only JSON module;
+2. document explicit `module-v1` compatibility;
+3. preserve the deprecated standalone `convert` / current legacy Agora
+   boundary;
+4. state that no Burns-derived artifacts are attached/distributed;
+5. avoid the stale primary-product claim `feature-only Text-Fabric module`.
+
+Expected RED: version identity remains green at 0.3.0, while the stale release
+notes fail the new product-surface assertions.
+
+### Phase 8 — release-note GREEN
+
+Update `docs/releases/v0.3.0.md` only as needed to describe the reviewed
+native-v2 release accurately:
+
+- native entity nodes and scalar query features;
+- exact reviewed CUC dependency and complete-warp extension semantics;
+- real-source lexical/reference coverage boundaries;
+- conservative tablet findspots and Appendix/fragment limitation;
+- explicit v1 compatibility and standalone-convert migration path;
+- Context-Fabric/cfabric-mcp evidence;
+- current Agora parent-resource limitation;
+- MIT software vs Burns/CUC data-license boundaries.
+
+Do not attach or commit generated Burns-derived data.
+
+### Phase 9 — release-prep PR and frozen exact-head gates
+
+Open a release-prep PR from the native-v2 master. On one exact head require:
+
+- Tests / Python 3.10, 3.12, 3.13 + installed-package;
+- Agora contract;
+- generic Context-Fabric contract;
+- reviewed-CUC index contract;
+- reviewed-CUC native Burns + cfabric-mcp smoke;
+- Context-Fabric Burns module contract;
+- real pinned Workbooks acceptance;
+- Appendix/CUC/Workbooks concordance audit.
+
+Perform a logically independent adversarial release review on that same SHA.
+Any material finding gets a review-derived RED before correction.
+
+### Phase 10 — merge and exact master release gate
+
+Merge the release-prep PR with expected-head protection. The resulting master
+commit, not `4994a45...`, becomes the sole candidate for `v0.3.0`.
+
+Verify push-triggered workflows on the exact master SHA and independently inspect
+the final tree for:
+
+- package/manifest version = 0.3.0;
+- release notes match native-v2 reality;
+- MIT software licensing remains distinct from Burns/CUC data;
+- no Burns-derived CSV/PDF/TF artifacts were added;
+- exact reviewed-CUC identity is unchanged;
+- Agora wording remains truthful.
+
+### Phase 11 — publication and stale-stack refresh
+
+Publish non-draft, non-prerelease `v0.3.0` at that exact reviewed master SHA,
+with no manually attached Burns-derived artifacts. Verify tag/release identity.
+
+Then refresh every post-release PR that still names `4994a45...` as its gate.
+Rebase/retest them against the actual released master and repeat exact-head
+independent review when conflict resolution or public routing changes behavior.
+
+
+### Phase 9a — enforce release-surface acceptance triggers
+
+Observed on release-note GREEN `2aa8e963...`: only the always-on Tests workflow
+scheduled. The five expensive acceptance workflows use path filters that do not
+currently include release-only files.
+
+Before freezing the release head:
+
+1. RED a workflow contract requiring each path-filtered acceptance workflow to
+   include both `docs/releases/**` and `tests/test_release_version.py`.
+2. GREEN only those `pull_request.paths` lists.
+3. Keep unrelated documentation from triggering the expensive gates.
+4. Use the resulting release-prep head itself to prove that all six workflows
+   schedule and pass.
+
+The five path-filtered acceptance workflows are:
+
+- `test-reviewed-cuc-index.yml`;
+- `test-reviewed-cuc-burns-entities.yml`;
+- `test-context-fabric-burns-module.yml`;
+- `test-real-burns-source.yml`;
+- `test-appendix-cuc-concordance.yml`.
+
+## 2026-10-03 final pre-release plan supersession
+
+The active release plan is now based on the feature-only product restored by #82 plus the standalone-removal contract in #70. This section supersedes earlier phases where they conflict.
+
+Before publishing `v0.3.0`:
+
+1. Land #70 after its fresh current-master RED, exact-head full CI, and independent adversarial review.
+2. Freeze a new master release candidate only after #70 is merged.
+3. Verify package version `0.3.0`, feature-only release notes, software/data licensing boundaries, and absence of Burns-derived assets.
+4. Require the current workflow set on the exact candidate: Python matrix; reviewed-CUC index; reviewed-CUC Burns feature-module/cfabric-mcp; Context-Fabric Burns module contract; real Workbooks acceptance; Appendix concordance, plus the current lexical research gates where they are wired into those workflows.
+5. Do **not** require or recreate `agora.materializer.json`, the old one-source materializer IDs, generic row-slot Context-Fabric smoke, or standalone determinism tests.
+6. Confirm Agora documentation matches merged Agora#175 (`cuc-burns` parented feature-module / local-module) and leaves managed source+parent execution to Agora#135.
+7. Perform a fresh logically independent adversarial release review on the exact master SHA.
+8. Only then publish non-draft, non-prerelease `v0.3.0` at that SHA with no Burns-derived attached artifacts.
+
+Any older post-release branches built around `convert`, `writer.py`, `conversion-report.json`, or legacy materializer IDs become obsolete when #70 lands and should be closed or explicitly re-scoped rather than rebased mechanically.

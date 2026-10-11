@@ -1,24 +1,20 @@
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 from .alignment import align_burns_source
 from .annotations import BurnsNormalizationError, normalize_workbook_records
 from .cuc_index import CucCompatibilityError, build_reviewed_cuc_index
-from .graph import build_tf_data
+from .feature_module import (
+    build_feature_module,
+    build_feature_module_report,
+    write_feature_module,
+)
 from .module import build_burns_module, build_burns_module_report, write_burns_module
 from .pdf_source import load_pdf_directory
-from .report import build_conversion_report
 from .source import SourceValidationError, load_csv_directory
-from .writer import write_artifact
 
-
-LEGACY_CONVERT_WARNING = (
-    "deprecated: 'convert' creates the legacy standalone Burns row-slot corpus; "
-    "use 'module' for the CUC-aligned feature module"
-)
 
 
 def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
@@ -27,29 +23,35 @@ def _add_source_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--output", type=Path, required=True)
 
 
+def _add_cuc_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--cuc",
+        type=Path,
+        required=True,
+        help="exact reviewed CUC 0.2.8 Text-Fabric directory (load before Burns at query time)",
+    )
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Materialize Burns Workbooks as a CUC-aligned Text-Fabric feature module"
+        description="Materialize Burns Workbooks as a CUC-aligned Text-Fabric module"
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
     module = sub.add_parser(
         "module",
-        help="primary CUC-aligned Text-Fabric feature-module materialization",
+        help="feature-only CUC module (existing nodes only; no warp replacement)",
     )
     _add_source_arguments(module)
-    module.add_argument(
-        "--cuc",
-        type=Path,
-        required=True,
-        help="exact reviewed CUC 0.2.8 Text-Fabric directory",
-    )
+    _add_cuc_argument(module)
 
-    convert = sub.add_parser(
-        "convert",
-        help="deprecated legacy standalone Burns row-slot corpus materialization",
+    module_v1 = sub.add_parser(
+        "module-v1",
+        help="explicit legacy v1 feature-module format (JSON annotations; compatibility only)",
     )
-    _add_source_arguments(convert)
+    _add_source_arguments(module_v1)
+    _add_cuc_argument(module_v1)
+
     return parser
 
 
@@ -62,6 +64,7 @@ def _load_source(args: argparse.Namespace):
 
 
 def _run_module(args: argparse.Namespace) -> int:
+    """Compatibility writer: only reachable through explicit ``module-v1``."""
     try:
         source = _load_source(args)
     except SourceValidationError as exc:
@@ -86,37 +89,65 @@ def _run_module(args: argparse.Namespace) -> int:
     print(
         f"materialized {len(source.files)} Workbook {args.input_format.upper()} files / "
         f"{len(normalized.records)} records / {len(normalized.annotations)} annotations "
-        f"as a CUC-aligned Burns feature module at {args.output}"
+        f"as a legacy v1 CUC-aligned Burns feature module at {args.output}"
     )
     return 0
 
 
-def _run_convert(args: argparse.Namespace) -> int:
-    print(LEGACY_CONVERT_WARNING, file=sys.stderr)
+def _reject_module_overlap(source: Path, cuc: Path, output: Path) -> None:
+    """Protect all three trees, including ``..`` and symlinked ancestors."""
+    source_root = source.resolve()
+    cuc_root = cuc.resolve()
+    output_root = output.resolve()
+    for root, label in ((source_root, "source"), (cuc_root, "CUC")):
+        if output_root == root or output_root.is_relative_to(root) or root.is_relative_to(output_root):
+            raise SystemExit(f"native Burns output overlaps {label} directory: {output}")
+
+
+def _run_feature_module(args: argparse.Namespace) -> int:
+    """Publish the corrected feature-only Burns module over reviewed CUC."""
+
     try:
         source = _load_source(args)
     except SourceValidationError as exc:
         raise SystemExit(f"source validation failed: {exc}") from exc
-    data = build_tf_data(source)
-    report = build_conversion_report(
-        source,
-        data,
-        source_format=args.input_format,
-    )
-    if not write_artifact(data, report, args.output):
-        raise SystemExit("Text-Fabric refused the generated dataset")
+
+    _reject_module_overlap(source.root, args.cuc, args.output)
+    if args.output.exists() or args.output.is_symlink():
+        raise SystemExit(
+            f"Burns feature-module output already exists (refusing to overwrite): {args.output}"
+        )
+
+    try:
+        normalized = normalize_workbook_records(source.records)
+    except BurnsNormalizationError as exc:
+        raise SystemExit(f"Burns normalization failed: {exc}") from exc
+    try:
+        index = build_reviewed_cuc_index(args.cuc)
+    except CucCompatibilityError as exc:
+        raise SystemExit(f"CUC validation failed: {exc}") from exc
+
+    alignments = align_burns_source(normalized, index)
+    module = build_feature_module(normalized, alignments, index)
+    report = build_feature_module_report(normalized, alignments, index, module)
+    if not write_feature_module(module, report, args.output):
+        raise SystemExit("Text-Fabric refused the Burns feature-only module")
+
     print(
-        f"converted {len(source.files)} Workbook {args.input_format.upper()} files / "
-        f"{len(source.records)} records to {args.output}"
+        f"materialized {len(source.files)} Workbook {args.input_format.upper()} files / "
+        f"{len(normalized.records)} records / {len(normalized.annotations)} annotations "
+        f"as a feature-only Burns module at {args.output}; "
+        f"load ordered Text-Fabric locations [{args.cuc.resolve()}, {args.output.resolve()}]"
     )
     return 0
-
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     if args.command == "module":
+        return _run_feature_module(args)
+    if args.command == "module-v1":
         return _run_module(args)
-    return _run_convert(args)
+    raise AssertionError(f"unhandled command: {args.command}")
 
 
 if __name__ == "__main__":

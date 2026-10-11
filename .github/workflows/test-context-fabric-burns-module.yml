@@ -3,6 +3,8 @@ name: Context-Fabric Burns module contract
 on:
   pull_request:
     paths:
+      - 'docs/releases/**'
+      - 'tests/test_release_version.py'
       - 'src/ugarit_context_parsing/alignment.py'
       - 'src/ugarit_context_parsing/annotations.py'
       - 'src/ugarit_context_parsing/cli.py'
