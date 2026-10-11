@@ -1,0 +1,7 @@
+# #124 — Plan
+
+1. **Test first / RED:** add `tests/test_agora_cuc_revision_alignment.py` that derives the expected commit from `REVIEWED_CUC_COMMIT`, asserts the exact `DT-UCPH/cuc` checkout ref in the real-Workbooks workflow, and AST-parses the Agora binding helper's `CUC_RELEASE` constant. Do not copy licensed data to tests. Commit on its own and observe Python CI failure.
+2. **Minimal GREEN:** change only the CUC ref in `.github/workflows/test-real-burns-source.yml`, `CUC_RELEASE` in `scripts/check_agora_burns_parent_binding.py`, and the obsolete literal in `tests/test_agora_parent_manifest.py`. The actual Agora host must continue verifying source revision, parent leaf, immutable manifest, Bubblewrap sandbox, and warp preservation.
+3. **Full exact-head gates:** Python 3.10/3.12/3.13; reviewed CUC index; Context-Fabric; real licensed Workbooks + pinned actual Agora Bubblewrap host; reviewed Burns feature module; Appendix concordance. Inspect real run evidence, not just workflow names.
+4. **Logically independent adversarial review:** re-evaluate drift, exact files, negative tests, parent provenance and source/data/licensing boundaries without relying on the implementation rationale. Post `COMMENT` anchored to exact SHA (not self-`APPROVE`).
+5. **Merge/release:** #124 fixes prerelease evidence for #16. Follow the existing release sequencing gate; do not claim `v0.3.0` published or register an unreleased producer in Agora.
