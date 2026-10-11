@@ -315,6 +315,39 @@ def audit(source_root: Path, cuc_root: Path, output: Path) -> None:
     if int(multitoken_residual_research["distinct_annotations"]) > multitoken_count:
         raise AssertionError("multitoken residual annotation count exceeds occurrences")
 
+    # #115 distinguishes cited-line multiplicity from independent Burns
+    # annotations within each *diagnostic* one-missing hypothesis. Reconcile
+    # those aggregates with the existing partition, without leaking source IDs.
+    hypotheses = multitoken_residual_research["one_missing_hypotheses"]
+    for kind, classification in (
+        ("unique_containment", "one_missing_unique_containment"),
+        ("unique_edit1", "one_missing_unique_edit1"),
+    ):
+        subset = hypotheses.get(kind, {
+            "occurrences": 0,
+            "distinct_annotations": 0,
+            "occurrences_per_annotation": {},
+            "exact_hit_order": {},
+            "workbook_distinct_annotations": {},
+        })
+        count = int(subset["occurrences"])
+        annotations = int(subset["distinct_annotations"])
+        if count != int(multitoken_residual_research["classes"].get(classification, 0)):
+            raise AssertionError(f"one-missing {kind} class occurrence denominator drifted")
+        if count != int(multitoken_residual_research["one_missing_local_evidence"].get(kind, 0)):
+            raise AssertionError(f"one-missing {kind} local diagnostic denominator drifted")
+        histogram = subset["occurrences_per_annotation"]
+        if sum(int(v) for v in histogram.values()) != annotations:
+            raise AssertionError(f"one-missing {kind} annotation multiplicity does not partition")
+        if sum(int(multiplicity) * int(n) for multiplicity, n in histogram.items()) != count:
+            raise AssertionError(f"one-missing {kind} repeated citations inflate evidence")
+        if sum(int(v) for v in subset["exact_hit_order"].values()) != count:
+            raise AssertionError(f"one-missing {kind} order evidence does not partition")
+        if sum(int(v) for v in subset["workbook_distinct_annotations"].values()) != annotations:
+            raise AssertionError(f"one-missing {kind} workbook annotation counts do not partition")
+        if not 0 <= annotations <= count:
+            raise AssertionError(f"one-missing {kind} independent evidence exceeds occurrences")
+
     expected_one_edit = int(
         residual_clean_gap_research["classes"].get("unique_single_token_edit1", 0)
     )
