@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import MappingProxyType
-from typing import Callable, Mapping, Protocol
+from typing import Callable, Iterator, Mapping, Protocol
 
 from .alignment import (
     BurnsAnchorKind,
@@ -759,7 +760,31 @@ def _owned_previous_module_files(output: Path) -> tuple[Path, ...]:
     return tuple(output / name for name in sorted(_EXPECTED_TF_FILES | {REPORT_FILE}))
 
 
+def _require_real_staging_root(stage: Path) -> None:
+    if stage.is_symlink() or not stage.is_dir():
+        raise RuntimeError("Text-Fabric Burns module stage root is symlinked or non-directory")
+
+
+@contextmanager
+def _protected_stage_directory(parent: Path) -> Iterator[Path]:
+    """Restore a real empty staging root if an injected Fabric swaps it.
+
+    TemporaryDirectory's cleanup cannot rmtree symlinks. Unlink only the
+    temporary alias and never traverse its external destination.
+    """
+    with TemporaryDirectory(prefix=".burns-module-stage-", dir=parent) as name:
+        stage = Path(name)
+        try:
+            yield stage
+        finally:
+            if stage.is_symlink() or not stage.is_dir():
+                if stage.is_symlink() or stage.exists():
+                    stage.unlink()
+                stage.mkdir()
+
+
 def _publish(stage: Path, output: Path) -> None:
+    _require_real_staging_root(stage)
     reject_symlinked_output_path(output)
     # Independently re-check staged data immediately before installation; a
     # Fabric adapter must not smuggle external file links into the live module.
@@ -819,8 +844,7 @@ def write_burns_module(
     _owned_previous_module_files(output)
 
     fabric = _make_fabric(fabric_factory)
-    with TemporaryDirectory(prefix=".burns-module-stage-", dir=output.parent) as stage_dir:
-        stage = Path(stage_dir)
+    with _protected_stage_directory(output.parent) as stage:
         node_features, metadata = _plain_module(module)
         ok = bool(
             fabric.save(
@@ -835,6 +859,7 @@ def write_burns_module(
         if not ok:
             return False
 
+        _require_real_staging_root(stage)
         staged_tf_paths = tuple(stage.glob("*.tf"))
         invalid_staged_tf = sorted(
             path.name for path in staged_tf_paths
@@ -859,6 +884,7 @@ def write_burns_module(
                 + "; ".join(details)
             )
 
+        _require_real_staging_root(stage)
         # Exclusive creation refuses an injected staged report, including a
         # symlink to user-local data. Plain write_text would follow that link.
         try:
