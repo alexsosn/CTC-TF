@@ -52,14 +52,14 @@ class ReviewedCucQuickstartDocumentationTests(unittest.TestCase):
         remote = f"https://github.com/{REVIEWED_CUC_REPOSITORY}.git"
 
         self.assertIn("python -m pip install .", script)
-        self.assertIn(f"git clone --filter=blob:none --no-checkout {remote} cuc", normalized)
+        self.assertIn(f'git clone --filter=blob:none --no-checkout {remote} "$CUC_DIR"', normalized)
         self.assertIn(
-            f"git -C cuc checkout --detach {REVIEWED_CUC_COMMIT}",
+            f'git -C "$CUC_DIR" checkout --detach {REVIEWED_CUC_COMMIT}',
             normalized,
         )
-        self.assertIn(f"git -C cuc rev-parse HEAD", script)
+        self.assertIn('git -C "$CUC_DIR" rev-parse HEAD', script)
         self.assertIn(REVIEWED_CUC_COMMIT, section)
-        self.assertIn(f"cuc/tf/{REVIEWED_CUC_VERSION}", script)
+        self.assertIn(f'tf/{REVIEWED_CUC_VERSION}', script)
         self.assertNotIn("git clone --depth", normalized)
         self.assertNotIn(f"fetch --depth 1 origin {REVIEWED_CUC_COMMIT}", normalized)
         self.assertNotIn("checkout --detach FETCH_HEAD", normalized)
@@ -69,9 +69,9 @@ class ReviewedCucQuickstartDocumentationTests(unittest.TestCase):
         normalized = _normalized(script)
         self.assertIn("ugarit-context-parsing module output", normalized)
         self.assertIn("--input-format csv", normalized)
-        self.assertIn("--cuc cuc/tf/0.2.8", normalized)
-        self.assertIn("--output tf/burns-module", normalized)
-        self.assertIn("test ! -e tf/burns-module", normalized)
+        self.assertIn('--cuc "$CUC_TF"', normalized)
+        self.assertIn('--output "$BURNS_MODULE"', normalized)
+        self.assertIn('test ! -e "$BURNS_MODULE"', normalized)
         syntax = subprocess.run(
             ["bash", "-n"], input=script, capture_output=True, text=True, check=False,
         )
