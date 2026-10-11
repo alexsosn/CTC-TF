@@ -25,28 +25,38 @@ The parsers can download source material if absent. For offline input use `--no-
 
 From this software checkout, after extracting licensed Burns Workbooks CSVs
 into the user-local `output/` directory, explicitly obtain the exact reviewed
-CUC commit. This is a **user-initiated Git download**, not a converter side
-effect. Use fresh `cuc` and `tf/burns-module` paths:
+CUC commit. Both the CUC checkout and generated Burns TF module are placed
+**outside this Git repository**, avoiding accidental staging or redistribution
+of external corpus data. The Git clone is a user-initiated download; the
+converter itself does not download CUC.
 
 ```bash
-python -m pip install .
-git clone --filter=blob:none --no-checkout https://github.com/DT-UCPH/cuc.git cuc
-git -C cuc checkout --detach ad69400f5446e1c8217af01659c7c10ab00c015b
-test "$(git -C cuc rev-parse HEAD)" = "ad69400f5446e1c8217af01659c7c10ab00c015b"
-test -f cuc/tf/0.2.8/otype.tf
-test ! -e tf/burns-module
-ugarit-context-parsing module output \
-  --input-format csv \
-  --cuc cuc/tf/0.2.8 \
-  --output tf/burns-module
+(
+  set -eu
+  CUC_DIR="$HOME/data/cuc-reviewed"
+  BURNS_MODULE="$HOME/data/burns-feature-module"
+  CUC_TF="$CUC_DIR/tf/0.2.8"
+  mkdir -p "$HOME/data"
+  test ! -e "$CUC_DIR"
+  git clone --filter=blob:none --no-checkout https://github.com/DT-UCPH/cuc.git "$CUC_DIR"
+  git -C "$CUC_DIR" checkout --detach ad69400f5446e1c8217af01659c7c10ab00c015b
+  test "$(git -C "$CUC_DIR" rev-parse HEAD)" = "ad69400f5446e1c8217af01659c7c10ab00c015b"
+  test -f "$CUC_TF/otype.tf"
+  test ! -e "$BURNS_MODULE"
+  ugarit-context-parsing module output \
+    --input-format csv \
+    --cuc "$CUC_TF" \
+    --output "$BURNS_MODULE"
+)
 ```
 
-The converter itself **does not download CUC** or redistribute it; its file
-fingerprints independently reject a wrong or altered checkout. The Burns CSVs
-remain **user-local** and subject to the Workbooks' licensing restrictions.
-Agora currently supports `cuc-burns` **local-module** consumption; fully
-managed installation and execution from local Burns CSVs with an Agora-bound,
-read-only CUC parent **remains tracked** in Agora #135, not generally available.
+The commands abort on a failed checkout, commit identity check or publication;
+the parent CUC file fingerprints independently reject modified/incompatible
+data. Burns CSVs and generated modules remain **user-local** and subject to
+the Workbooks' licensing restrictions. Agora currently supports `cuc-burns`
+**local-module** consumption; fully managed installation and execution from
+local Burns CSVs with an Agora-bound, read-only CUC parent **remains tracked**
+in Agora #135, not generally available.
 
 ```bash
 python -m pip install .
