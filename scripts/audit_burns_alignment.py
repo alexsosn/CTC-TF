@@ -2300,6 +2300,14 @@ def aggregate_multitoken_residual_research(
     signature_annotations: dict[str, set[str]] = defaultdict(set)
     workbook_classes: dict[int, Counter[str]] = defaultdict(Counter)
     worksheet_role_classes: dict[str, Counter[str]] = defaultdict(Counter)
+    # Hypotheses are source-safe diagnostics, not lexical matches. Keep
+    # annotation identities only in memory so repeated cited lines do not
+    # inflate the count of independent source evidence.
+    one_missing_annotations: dict[str, Counter[str]] = defaultdict(Counter)
+    one_missing_order: dict[str, Counter[str]] = defaultdict(Counter)
+    one_missing_workbooks: dict[str, dict[int, set[str]]] = defaultdict(
+        lambda: defaultdict(set)
+    )
 
     for alignment in alignments:
         annotation = annotations.get(alignment.annotation_id)
@@ -2389,6 +2397,21 @@ def aggregate_multitoken_residual_research(
             workbook_classes[annotation.workbook_number][classification] += 1
             worksheet_role_classes[annotation.worksheet_role.value][classification] += 1
 
+            if classification in {
+                "one_missing_unique_containment",
+                "one_missing_unique_edit1",
+            }:
+                kind = (
+                    "unique_containment"
+                    if classification == "one_missing_unique_containment"
+                    else "unique_edit1"
+                )
+                one_missing_annotations[kind][annotation.annotation_id] += 1
+                one_missing_order[kind][order] += 1
+                one_missing_workbooks[kind][annotation.workbook_number].add(
+                    annotation.annotation_id
+                )
+
     return {
         "occurrences": occurrences,
         "syntax_classes": _counter_payload(syntax_classes),
@@ -2397,6 +2420,24 @@ def aggregate_multitoken_residual_research(
         "exact_hit_order": _counter_payload(exact_hit_order),
         "unmatched_token_counts": _counter_payload(unmatched_counts),
         "one_missing_local_evidence": _counter_payload(local_evidence),
+        "one_missing_hypotheses": {
+            kind: {
+                "occurrences": sum(annotation_counts.values()),
+                "distinct_annotations": len(annotation_counts),
+                "occurrences_per_annotation": _counter_payload(
+                    Counter(annotation_counts.values())
+                ),
+                "exact_hit_order": _counter_payload(one_missing_order[kind]),
+                "workbook_distinct_annotations": {
+                    str(workbook): len(annotation_ids)
+                    for workbook, annotation_ids in sorted(
+                        one_missing_workbooks[kind].items()
+                    )
+                },
+            }
+            for kind in ("unique_containment", "unique_edit1")
+            if (annotation_counts := one_missing_annotations[kind])
+        },
         "burns_token_counts": _counter_payload(token_counts),
         "cuc_line_word_counts": _counter_payload(line_word_counts),
         "distinct_annotations": len(annotation_occurrences),
