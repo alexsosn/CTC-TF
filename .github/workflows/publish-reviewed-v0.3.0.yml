@@ -25,6 +25,7 @@ jobs:
     timeout-minutes: 12
     permissions:
       contents: write
+      actions: read
     steps:
       - name: Check out only the reviewed release-gate implementation
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
