@@ -33,6 +33,7 @@ converter itself does not download CUC.
 ```bash
 (
   set -eu
+  python -m pip install .
   CUC_DIR="$HOME/data/cuc-reviewed"
   BURNS_MODULE="$HOME/data/burns-feature-module"
   CUC_TF="$CUC_DIR/tf/0.2.8"
