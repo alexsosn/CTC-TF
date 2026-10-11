@@ -131,5 +131,38 @@ class ModuleV1OwnershipTests(unittest.TestCase):
                 self.assertEqual((output / name).read_bytes(), data)
 
 
+    def test_staged_expected_feature_symlink_is_rejected_without_publication(self):
+        """Expected feature filenames must not launder links to foreign data."""
+        _, _, _, module, report = _module_fixture()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "existing-module"
+            self.assertTrue(write_burns_module(module, report, output))
+            before = _snapshot(output)
+            foreign = root / "private-source.tf"
+            foreign.write_bytes(b"PRIVATE-SENTINEL\\n")
+
+            class _SymlinkFeatureFabric:
+                def save(self, **kwargs):
+                    stage = Path(kwargs["location"])
+                    stage.mkdir(parents=True, exist_ok=True)
+                    for name in EXPECTED_FILES:
+                        file = stage / name
+                        if name == "burns_headwords.tf":
+                            file.symlink_to(foreign)
+                        else:
+                            file.write_bytes(b"synthetic-stage-feature\\n")
+                    return True
+
+            with self.assertRaisesRegex(RuntimeError, "symlink|non-regular"):
+                write_burns_module(
+                    module, report, output,
+                    fabric_factory=lambda **kwargs: _SymlinkFeatureFabric(),
+                )
+            self.assertEqual(_snapshot(output), before)
+            self.assertEqual(foreign.read_bytes(), b"PRIVATE-SENTINEL\\n")
+            self.assertFalse(any(path.is_symlink() for path in output.iterdir()))
+
+
 if __name__ == "__main__":
     unittest.main()
