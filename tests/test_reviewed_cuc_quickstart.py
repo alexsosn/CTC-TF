@@ -101,8 +101,21 @@ class ReviewedCucQuickstartDocumentationTests(unittest.TestCase):
         self.assertIn("user-local", section)
         self.assertIn("cuc-burns", agora)
         self.assertIn("local-module", agora)
-        self.assertIn("fully managed execution", agora)
-        self.assertIn("remains tracked", agora)
+        # Agora #238/#240 are merged: the opt-in catalog-managed CLI exists.
+        self.assertIn("agora_compose_feature_module", agora)
+        self.assertIn(
+            "https://github.com/alexsosn/agora/blob/main/wiki/guides/cuc-burns-managed.md",
+            agora,
+        )
+        self.assertIn("approve-code-execution", agora)
+        self.assertIn("read-only", agora)
+        self.assertIn("sandbox", agora)
+        self.assertIn("release tracking", agora)
+        self.assertIn("no automatic", agora)
+        self.assertNotIn(
+            "fully managed execution from user-local burns source plus an agora-managed",
+            agora,
+        )
         self.assertNotIn("standalone row-slot materializers are registered", agora)
 
 
