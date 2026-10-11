@@ -54,10 +54,11 @@ converter itself does not download CUC.
 The commands abort on a failed checkout, commit identity check or publication;
 the parent CUC file fingerprints independently reject modified/incompatible
 data. Burns CSVs and generated modules remain **user-local** and subject to
-the Workbooks' licensing restrictions. Agora currently supports `cuc-burns`
-**local-module** consumption; fully managed installation and execution from
-local Burns CSVs with an Agora-bound, read-only CUC parent **remains tracked**
-in Agora #135, not generally available.
+the Workbooks' licensing restrictions. This is the **native** path, with a
+user-managed CUC checkout. Agora also offers an opt-in, catalog-managed
+local materialization command after separate approval of its pinned
+third-party producer; see *Agora status* below. Neither workflow
+automatically acquires restricted Workbooks.
 
 ### Alternative: an existing reviewed CUC checkout
 
@@ -159,9 +160,27 @@ ugarit-context-parsing module-v1 output \
 
 ### Agora status
 
-Agora PR `alexsosn/Agora#175` is merged and registers `cuc-burns` as a `feature-module` with parent `cuc`, exact parent-version compatibility, and `local-module` acquisition. Agora no longer registers or installs the standalone Burns row-slot materializers. Materialize this repository's `module` output locally, then let Agora compose it with the reviewed CUC parent.
+Agora #175 supports `cuc-burns` **local-module** consumption of the
+feature-only Burns overlay on existing CUC nodes. The old standalone
+Burns row-slot materializers remain removed. Independently, merged Agora
+PRs #238 and #240 add an **opt-in**, catalog-managed producer workflow:
+`cuc-burns-csv` runs from user-local licensed Workbooks CSVs against the
+separately managed, read-only CUC 0.2.8 parent in a required OS sandbox
+(Bubblewrap on Linux or `sandbox-exec` on macOS; Windows fails closed).
+The registered, approved public CLI is
+`python -m scripts.agora_compose_feature_module --module cuc-burns --source /absolute/path/to/burns-csv`.
+It requires separate passive fetch and explicit third-party installation
+with `install cuc-burns --approve-code-execution` before execution.
+See the [official Agora managed Burns guide](https://github.com/alexsosn/Agora/blob/main/wiki/guides/cuc-burns-managed.md)
+for full installation, cache and Context-Fabric MCP loading instructions.
 
-Fully managed execution from user-local Burns source plus an Agora-managed read-only CUC parent remains tracked in open `alexsosn/Agora#135`. Until that orchestration exists, this repository does not advertise a fake one-input materializer, copy CUC into Burns output, or enable a network fallback during materialization.
+This local workflow performs **no automatic** Burns source acquisition
+or materialization during corpus discovery; the producer never copies,
+changes or publishes the CUC warp. The current Agora registry pins the
+reviewed immutable CTC-TF producer commit `f58b162197ad8f113b7cd6fc0088ae5dd39a096d`,
+with **release tracking disabled** pending the separate GitHub `v0.3.0`
+publication and registry-pin review. The broader Agora #135 orchestration
+ticket remains open; that does not mean the opt-in CLI is unavailable.
 
 ### Appendix scope
 
