@@ -358,7 +358,7 @@ class AdvancedBaseProvenanceTests(unittest.TestCase):
             compare(ADVANCED_BASE),
         ]
         with patch(
-            "scripts.check_ci_provenance.urllib.request.urlopen",
+            "scripts.check_ci_provenance._open_github_request",
             side_effect=[FakeResponse(payload) for payload in responses],
         ) as get:
             self.assertTrue(verify_advanced_pr_base(
@@ -383,7 +383,7 @@ class AdvancedBaseProvenanceTests(unittest.TestCase):
             compare(ADVANCED_BASE),
         ]
         with patch(
-            "scripts.check_ci_provenance.urllib.request.urlopen",
+            "scripts.check_ci_provenance._open_github_request",
             side_effect=[FakeResponse(payload) for payload in malformed],
         ):
             self.assertFalse(verify_advanced_pr_base(
@@ -400,7 +400,7 @@ class AdvancedBaseProvenanceTests(unittest.TestCase):
             {"status": "ahead", "merge_base_commit": {"sha": OTHER}},
         ):
             with self.subTest(bad_response=bad_response), patch(
-                "scripts.check_ci_provenance.urllib.request.urlopen",
+                "scripts.check_ci_provenance._open_github_request",
                 return_value=FakeResponse(bad_response),
             ):
                 self.assertFalse(verify_advanced_pr_base(
