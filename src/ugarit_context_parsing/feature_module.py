@@ -26,7 +26,7 @@ from .alignment import (
 from .annotations import NormalizedBurnsSource
 from .cuc_index import ReviewedCucIndex, reviewed_cuc_compatibility_payload
 from .module import _compatibility_payload
-from .publication import publish_stage_noreplace
+from .publication import publish_stage_noreplace, reject_symlinked_output_path
 from .tablet_findspots import BurnsTabletFindspots, derive_tablet_findspots
 
 SCHEMA = "burns-feature-module-v3"
@@ -369,6 +369,7 @@ def write_feature_module(
     """Publish a complete feature-only Burns module to an absent path."""
 
     output = Path(output_dir)
+    reject_symlinked_output_path(output)
     if output.exists() or output.is_symlink():
         raise ValueError(f"refusing to overwrite an existing Burns feature module: {output}")
     if report.get("schema") != SCHEMA:
@@ -418,6 +419,7 @@ def write_feature_module(
     ) + "\n"
 
     output.parent.mkdir(parents=True, exist_ok=True)
+    reject_symlinked_output_path(output)
     stage = Path(tempfile.mkdtemp(prefix=".burns-feature-stage-", dir=output.parent))
     try:
         if fabric_factory is None:
@@ -445,6 +447,11 @@ def write_feature_module(
         )
         if not saved:
             return False
+
+        # A custom Fabric implementation could replace the staging directory
+        # itself with a link; validating only its child files is insufficient.
+        if stage.is_symlink() or not stage.is_dir():
+            raise RuntimeError("Burns feature-module stage root is symlinked or non-regular")
 
         entries = tuple(stage.iterdir())
         staged = {
@@ -475,10 +482,17 @@ def write_feature_module(
                 "Burns feature-module stage report already exists; "
                 "refusing overwrite or symlink"
             ) from exc
+        if stage.is_symlink() or not stage.is_dir():
+            raise RuntimeError("Burns feature-module stage root is symlinked or non-regular")
+        reject_symlinked_output_path(output)
         if output.exists() or output.is_symlink():
             raise ValueError(f"Burns feature-module output appeared during staging: {output}")
         publish_stage_noreplace(stage, output)
         return True
     finally:
-        if stage.exists():
+        # Never rmtree a stage root that has become a symlink (even a dangling
+        # one); unlink the alias without traversing or deleting foreign data.
+        if stage.is_symlink() or (stage.exists() and not stage.is_dir()):
+            stage.unlink()
+        elif stage.exists():
             shutil.rmtree(stage)
