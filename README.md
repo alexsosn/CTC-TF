@@ -112,7 +112,7 @@ ugarit-context-parsing module-v1 output \
   --output /path/to/legacy-burns-module
 ```
 
-`module-v1` retains the previous `burns_annotations.tf`, `burns_annotation_ids.tf`, `burns_semantic_statuses.tf`, `burns_worksheet_roles.tf`, `burns_sections.tf`, `burns_headwords.tf` and `burns-module-report.json` schema, including its existing output behavior for compatibility. Treat v1 and the corrected lane schema as separate module versions; materialize them into separate directories and load only the one your consumer expects. To roll back, restore the original base + retained v1 output.
+`module-v1` retains the previous `burns_annotations.tf`, `burns_annotation_ids.tf`, `burns_semantic_statuses.tf`, `burns_worksheet_roles.tf`, `burns_sections.tf`, `burns_headwords.tf` and `burns-module-report.json` schema. It accepts a new/empty output directory or replaces an existing **complete, report-identified v1 module** with exactly those six TF feature files; it refuses incomplete or unrecognized `*.tf` files, including arbitrary `burns_*.tf` names, rather than deleting them. Other non-TF files remain untouched. Treat v1 and the corrected lane schema as separate module versions; materialize them into separate directories and load only the one your consumer expects. To roll back, restore the original base + retained v1 output.
 
 ### Agora status
 

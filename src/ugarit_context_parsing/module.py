@@ -709,13 +709,68 @@ def _validate_module_for_write(module: BurnsModuleData, report: Mapping[str, obj
     )
 
 
+def _owned_previous_module_files(output: Path) -> tuple[Path, ...]:
+    """Prove that a nonempty prior TF inventory belongs to module-v1.
+
+    A `burns_` filename prefix alone is never permission to replace a file.
+    Identity metadata is cooperative ownership evidence, not a signed digest.
+    """
+
+    if not output.is_dir():
+        return ()
+    tf_entries = {path.name: path for path in output.iterdir() if path.suffix == ".tf"}
+    unknown_tf = sorted(set(tf_entries) - _EXPECTED_TF_FILES)
+    if unknown_tf:
+        raise ValueError(
+            "unknown TF files in Burns module-v1 output; refusing ownership: "
+            + ", ".join(unknown_tf)
+        )
+
+    report_path = output / REPORT_FILE
+    report_exists = report_path.exists() or report_path.is_symlink()
+    if not tf_entries and not report_exists:
+        return ()
+
+    if set(tf_entries) != _EXPECTED_TF_FILES:
+        raise ValueError(
+            "incomplete prior Burns module-v1 feature inventory; refusing ownership"
+        )
+    for name, path in sorted(tf_entries.items()):
+        if path.is_symlink() or not path.is_file():
+            raise ValueError(
+                f"invalid prior Burns module-v1 feature file: {name}"
+            )
+    if report_path.is_symlink() or not report_path.is_file():
+        raise ValueError(
+            "missing or non-regular Burns module-v1 report; refusing ownership"
+        )
+    try:
+        prior_report = json.loads(report_path.read_text(encoding="utf-8"))
+    except (UnicodeError, OSError, json.JSONDecodeError) as exc:
+        raise ValueError("invalid prior Burns module-v1 report; refusing ownership") from exc
+    if not isinstance(prior_report, dict) or (
+        prior_report.get("schema") != MODULE_REPORT_SCHEMA
+        or prior_report.get("feature_inventory") != sorted(FEATURES)
+        or prior_report.get("cuc_compatibility") != reviewed_cuc_compatibility_payload()
+    ):
+        raise ValueError("prior Burns module-v1 report ownership identity mismatch")
+
+    return tuple(output / name for name in sorted(_EXPECTED_TF_FILES | {REPORT_FILE}))
+
+
 def _publish(stage: Path, output: Path) -> None:
+    # Independently re-check staged data immediately before installation; a
+    # Fabric adapter must not smuggle external file links into the live module.
+    for name in sorted(_EXPECTED_TF_FILES | {REPORT_FILE}):
+        candidate = stage / name
+        if candidate.is_symlink() or not candidate.is_file():
+            raise RuntimeError(
+                f"Text-Fabric Burns module stage has symlink or non-regular file: {name}"
+            )
     output.mkdir(parents=True, exist_ok=True)
-    old_owned = sorted(
-        [path for path in output.glob("burns_*.tf") if path.is_file()]
-        + ([output / REPORT_FILE] if (output / REPORT_FILE).is_file() else []),
-        key=lambda path: path.name,
-    )
+    # Revalidate after staging: unknown files inserted during Fabric.save
+    # must neither be silently removed nor accepted into the live output.
+    old_owned = _owned_previous_module_files(output)
 
     with TemporaryDirectory(prefix=".burns-module-backup-", dir=output.parent) as backup_dir:
         backup = Path(backup_dir)
@@ -755,17 +810,8 @@ def write_burns_module(
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.exists() and not output.is_dir():
         raise ValueError(f"Burns module output path is not a directory: {output}")
-    if output.is_dir():
-        foreign_tf = sorted(
-            path.name
-            for path in output.glob("*.tf")
-            if path.is_file() and not path.name.startswith("burns_")
-        )
-        if foreign_tf:
-            raise ValueError(
-                "refusing to publish Burns module into directory containing non-Burns TF files: "
-                + ", ".join(foreign_tf)
-            )
+    # Reject incomplete/foreign output before constructing a Text-Fabric writer.
+    _owned_previous_module_files(output)
 
     fabric = _make_fabric(fabric_factory)
     with TemporaryDirectory(prefix=".burns-module-stage-", dir=output.parent) as stage_dir:
@@ -784,9 +830,17 @@ def write_burns_module(
         if not ok:
             return False
 
-        staged_tf = frozenset(
-            path.name for path in stage.glob("*.tf") if path.is_file()
+        staged_tf_paths = tuple(stage.glob("*.tf"))
+        invalid_staged_tf = sorted(
+            path.name for path in staged_tf_paths
+            if path.is_symlink() or not path.is_file()
         )
+        if invalid_staged_tf:
+            raise RuntimeError(
+                "Text-Fabric Burns module stage contains symlink or non-regular "
+                "feature file: " + ", ".join(invalid_staged_tf)
+            )
+        staged_tf = frozenset(path.name for path in staged_tf_paths)
         if staged_tf != _EXPECTED_TF_FILES:
             missing = sorted(_EXPECTED_TF_FILES - staged_tf)
             extra = sorted(staged_tf - _EXPECTED_TF_FILES)
@@ -800,9 +854,15 @@ def write_burns_module(
                 + "; ".join(details)
             )
 
-        (stage / REPORT_FILE).write_text(
-            _canonical_json(report) + "\n",
-            encoding="utf-8",
-        )
+        # Exclusive creation refuses an injected staged report, including a
+        # symlink to user-local data. Plain write_text would follow that link.
+        try:
+            with (stage / REPORT_FILE).open("x", encoding="utf-8") as handle:
+                handle.write(_canonical_json(report) + "\n")
+        except FileExistsError as exc:
+            raise RuntimeError(
+                "Text-Fabric Burns module stage report already exists; "
+                "refusing overwrite or symlink"
+            ) from exc
         _publish(stage, output)
     return True

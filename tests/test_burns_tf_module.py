@@ -402,66 +402,53 @@ class BurnsTfModuleTests(unittest.TestCase):
         _, _, _, module, report = _module_fixture()
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "module"
-            output.mkdir()
-            old = output / "burns_annotations.tf"
-            old.write_text("old-authoritative\n", encoding="utf-8")
-            old_report = output / REPORT_FILE
-            old_report.write_text('{"old":true}\n', encoding="utf-8")
-
-            self.assertFalse(
-                write_burns_module(
-                    module,
-                    report,
-                    output,
-                    fabric_factory=_FailingFabric,
-                )
+            self.assertTrue(write_burns_module(module, report, output))
+            previous = {p.name: p.read_bytes() for p in output.iterdir() if p.is_file()}
+            self.assertFalse(write_burns_module(
+                module, report, output, fabric_factory=_FailingFabric,
+            ))
+            self.assertEqual(
+                {p.name: p.read_bytes() for p in output.iterdir() if p.is_file()},
+                previous,
             )
-            self.assertEqual(old.read_text(encoding="utf-8"), "old-authoritative\n")
-            self.assertEqual(old_report.read_text(encoding="utf-8"), '{"old":true}\n')
 
     def test_unexpected_staged_tf_file_is_rejected_without_touching_previous_output(self):
         _, _, _, module, report = _module_fixture()
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "module"
-            output.mkdir()
-            sentinel = output / "burns_annotations.tf"
-            sentinel.write_text("old\n", encoding="utf-8")
+            self.assertTrue(write_burns_module(module, report, output))
+            previous = {p.name: p.read_bytes() for p in output.iterdir() if p.is_file()}
             with self.assertRaises(RuntimeError):
                 write_burns_module(
-                    module,
-                    report,
-                    output,
-                    fabric_factory=_UnexpectedFileFabric,
+                    module, report, output, fabric_factory=_UnexpectedFileFabric,
                 )
-            self.assertEqual(sentinel.read_text(encoding="utf-8"), "old\n")
+            self.assertEqual(
+                {p.name: p.read_bytes() for p in output.iterdir() if p.is_file()},
+                previous,
+            )
             self.assertFalse((output / "otype.tf").exists())
 
-    def test_successful_replacement_removes_stale_burns_tf_file(self):
+    def test_unrecognized_stale_burns_tf_file_must_not_be_removed(self):
         _, _, _, module, report = _module_fixture()
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "module"
-            output.mkdir()
-            (output / "burns_obsolete_projection.tf").write_text("stale\n", encoding="utf-8")
-            (output / REPORT_FILE).write_text('{"old":true}\n', encoding="utf-8")
             self.assertTrue(write_burns_module(module, report, output))
-            self.assertFalse((output / "burns_obsolete_projection.tf").exists())
+            unknown = output / "burns_obsolete_projection.tf"
+            unknown.write_text("private-unknown\n", encoding="utf-8")
+            previous = {p.name: p.read_bytes() for p in output.iterdir() if p.is_file()}
+            with self.assertRaisesRegex(ValueError, "unknown TF files"):
+                write_burns_module(module, report, output)
             self.assertEqual(
-                {path.name for path in output.iterdir() if path.is_file()},
-                EXPECTED_FILES | {REPORT_FILE},
+                {p.name: p.read_bytes() for p in output.iterdir() if p.is_file()},
+                previous,
             )
 
     def test_mid_publication_failure_rolls_back_previous_complete_module(self):
         _, _, _, module, report = _module_fixture()
         with tempfile.TemporaryDirectory() as tmp:
             output = Path(tmp) / "module"
-            output.mkdir()
-            previous = {
-                "burns_annotations.tf": "old-authoritative\n",
-                "burns_headwords.tf": "old-headwords\n",
-                REPORT_FILE: '{"old":true}\n',
-            }
-            for name, content in previous.items():
-                (output / name).write_text(content, encoding="utf-8")
+            self.assertTrue(write_burns_module(module, report, output))
+            previous = {p.name: p.read_bytes() for p in output.iterdir() if p.is_file()}
 
             original_replace = Path.replace
             install_count = 0
@@ -482,12 +469,8 @@ class BurnsTfModuleTests(unittest.TestCase):
                     write_burns_module(module, report, output)
 
             self.assertEqual(
-                {name: (output / name).read_text(encoding="utf-8") for name in previous},
+                {p.name: p.read_bytes() for p in output.iterdir() if p.is_file()},
                 previous,
-            )
-            self.assertEqual(
-                {path.name for path in output.iterdir() if path.is_file()},
-                set(previous),
             )
 
 
