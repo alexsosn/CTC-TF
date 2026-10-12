@@ -47,6 +47,19 @@ _GITHUB_REPOSITORY = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _GITHUB_BRANCH = re.compile(r"^[A-Za-z0-9._/-]+$")
 
 
+class _DenyAuthenticatedRedirects(urllib.request.HTTPRedirectHandler):
+    """Fail closed: urllib's default redirect copies Authorization to a new origin."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ValueError("GitHub ancestry API redirect refused")
+
+
+def _open_github_request(request: urllib.request.Request, *, timeout: int):
+    """Request-local opener, never forwarding an authenticated REST request."""
+    opener = urllib.request.build_opener(_DenyAuthenticatedRedirects())
+    return opener.open(request, timeout=timeout)
+
+
 def _github_json(url: str, token: str) -> dict[str, Any]:
     """Fetch read-only provider evidence; fail closed without leaking credentials."""
     request = urllib.request.Request(
@@ -58,7 +71,7 @@ def _github_json(url: str, token: str) -> dict[str, Any]:
         },
     )
     try:
-        with urllib.request.urlopen(request, timeout=12) as response:
+        with _open_github_request(request, timeout=12) as response:
             document = json.loads(response.read().decode("utf-8"))
     except (OSError, UnicodeError, ValueError) as exc:
         raise ValueError("GitHub ancestry API lookup failed closed") from exc
