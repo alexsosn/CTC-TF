@@ -427,5 +427,47 @@ class AdvancedBaseProvenanceTests(unittest.TestCase):
                     self.assertIn("GH_TOKEN: ${{ github.token }}", step)
 
 
+
+class AuthenticatedGithubTransportTests(unittest.TestCase):
+    def test_github_api_credentials_cannot_follow_http_redirect(self):
+        """urllib's default redirect copies Authorization to a new origin."""
+        from unittest.mock import patch
+        import urllib.request
+        from scripts.check_ci_provenance import _github_json
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return b'{}'
+
+        trusted_url = "https://api.github.com/repos/alexsosn/CTC-TF/git/ref/heads/master"
+        with (
+            patch(
+                "scripts.check_ci_provenance.urllib.request.urlopen",
+                side_effect=AssertionError("global urlopen may follow Authorization redirects"),
+            ),
+            patch("scripts.check_ci_provenance.urllib.request.build_opener") as factory,
+        ):
+            factory.return_value.open.return_value = FakeResponse()
+            self.assertEqual(_github_json(trusted_url, "synthetic-token"), {})
+            factory.return_value.open.assert_called_once()
+            req = factory.return_value.open.call_args.args[0]
+            self.assertEqual(req.full_url, trusted_url)
+            self.assertEqual(req.get_header("Authorization"), "Bearer synthetic-token")
+            handlers = factory.call_args.args
+            redirects = [h for h in handlers if isinstance(h, urllib.request.HTTPRedirectHandler)]
+            self.assertEqual(len(redirects), 1, "only one explicit no-follow handler")
+            with self.assertRaisesRegex(ValueError, "redirect"):
+                redirects[0].redirect_request(
+                    req, None, 302, "Found", {},
+                    "https://outside.example.invalid/receive-token",
+                )
+
+
 if __name__ == "__main__":
     unittest.main()
