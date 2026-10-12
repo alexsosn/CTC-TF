@@ -227,15 +227,246 @@ class CiProvenanceValidatorTests(unittest.TestCase):
                 parents=(BASE,),
             )
 
+    def test_manual_workflow_dispatch_attests_exact_checkout(self):
+        evidence = validate_provenance(
+            event_name="workflow_dispatch",
+            event={"inputs": {"release_confirmation": "synthetic"}},
+            github_sha=HEAD,
+            checked_out_sha=HEAD,
+            parents=(BASE,),
+        )
+        self.assertEqual(
+            evidence,
+            {"mode": "workflow_dispatch", "tested_sha": HEAD},
+        )
+
+    def test_manual_workflow_dispatch_rejects_checkout_mismatch(self):
+        with self.assertRaisesRegex(ValueError, "does not match GITHUB_SHA"):
+            validate_provenance(
+                event_name="workflow_dispatch",
+                event={},
+                github_sha=HEAD,
+                checked_out_sha=OTHER,
+                parents=(BASE,),
+            )
+
     def test_rejects_unsupported_event(self):
         with self.assertRaisesRegex(ValueError, "unsupported GitHub event"):
             validate_provenance(
-                event_name="workflow_dispatch",
+                event_name="schedule",
                 event={},
                 github_sha=HEAD,
                 checked_out_sha=HEAD,
                 parents=(BASE,),
             )
+
+
+ADVANCED_BASE = "6" * 40
+
+
+def _stale_base_event() -> dict:
+    event = _pull_request_event()
+    event["number"] = 17
+    event["pull_request"]["number"] = 17
+    event["pull_request"]["base"]["ref"] = "master"
+    event["pull_request"]["base"]["repo"] = {"full_name": "alexsosn/CTC-TF"}
+    return event
+
+
+class AdvancedBaseProvenanceTests(unittest.TestCase):
+    def test_legitimate_advanced_base_requires_proven_target_history(self):
+        calls = []
+
+        def trusted(event_base, actual_base, base_ref):
+            calls.append((event_base, actual_base, base_ref))
+            return True
+
+        evidence = validate_provenance(
+            event_name="pull_request",
+            event=_stale_base_event(),
+            github_sha=MERGE,
+            checked_out_sha=MERGE,
+            parents=(ADVANCED_BASE, HEAD),
+            github_ref="refs/pull/17/merge",
+            advanced_base_verifier=trusted,
+        )
+        self.assertEqual(calls, [(BASE, ADVANCED_BASE, "master")])
+        self.assertEqual(evidence["tested_sha"], MERGE)
+        self.assertEqual(evidence["head_sha"], HEAD)
+        self.assertEqual(evidence["base_sha"], BASE)
+        self.assertEqual(evidence["parents"], [ADVANCED_BASE, HEAD])
+        self.assertEqual(evidence["base_validation"], "verified_advanced_base")
+
+    def test_advanced_base_denies_forged_parent_or_merge_ref(self):
+        kwargs = dict(
+            event_name="pull_request", event=_stale_base_event(),
+            github_sha=MERGE, checked_out_sha=MERGE,
+            parents=(ADVANCED_BASE, HEAD),
+            github_ref="refs/pull/17/merge",
+        )
+        with self.assertRaisesRegex(ValueError, "base"):
+            validate_provenance(
+                **kwargs, advanced_base_verifier=lambda *_: False
+            )
+        with self.assertRaisesRegex(ValueError, "ref"):
+            validate_provenance(
+                **{**kwargs, "github_ref": "refs/heads/master"},
+                advanced_base_verifier=lambda *_: True,
+            )
+        with self.assertRaisesRegex(ValueError, "head|parents"):
+            validate_provenance(
+                **{**kwargs, "parents": (ADVANCED_BASE, OTHER)},
+                advanced_base_verifier=lambda *_: True,
+            )
+
+    def test_advanced_base_is_denied_when_no_verifier_supplied(self):
+        with self.assertRaisesRegex(ValueError, "base/head"):
+            validate_provenance(
+                event_name="pull_request", event=_stale_base_event(),
+                github_sha=MERGE, checked_out_sha=MERGE,
+                parents=(ADVANCED_BASE, HEAD),
+            )
+
+    def test_rest_proof_rejects_wrong_ancestry_and_accepts_valid_history(self):
+        import json
+        from unittest.mock import patch
+        from scripts.check_ci_provenance import verify_advanced_pr_base
+
+        class FakeResponse:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, exc_type, exc, tb):
+                return False
+
+            def read(self):
+                return json.dumps(self.payload).encode()
+
+        def compare(base, status="ahead", behind=0):
+            return {
+                "status": status, "behind_by": behind,
+                "base_commit": {"sha": base},
+                "merge_base_commit": {"sha": base},
+            }
+
+        responses = [
+            compare(BASE),
+            {"object": {"sha": OTHER, "type": "commit"}},
+            compare(ADVANCED_BASE),
+        ]
+        with patch(
+            "scripts.check_ci_provenance._open_github_request",
+            side_effect=[FakeResponse(payload) for payload in responses],
+        ) as get:
+            self.assertTrue(verify_advanced_pr_base(
+                repository="alexsosn/CTC-TF",
+                base_ref="master",
+                event_base_sha=BASE,
+                actual_base_sha=ADVANCED_BASE,
+                token="synthetic-readonly-token",
+            ))
+            self.assertEqual(get.call_count, 3)
+            urls = [call.args[0].full_url for call in get.call_args_list]
+            self.assertIn(f"{BASE}...{ADVANCED_BASE}", urls[0])
+            self.assertIn("/git/ref/heads/master", urls[1])
+            self.assertIn(f"{ADVANCED_BASE}...{OTHER}", urls[2])
+            self.assertNotIn("synthetic-readonly-token", "".join(urls))
+
+        # The target must be a branch pointing directly at a commit.
+        # A malformed ref payload lacking its object type is NOT proof.
+        malformed = [
+            compare(BASE),
+            {"object": {"sha": OTHER}},
+            compare(ADVANCED_BASE),
+        ]
+        with patch(
+            "scripts.check_ci_provenance._open_github_request",
+            side_effect=[FakeResponse(payload) for payload in malformed],
+        ):
+            self.assertFalse(verify_advanced_pr_base(
+                repository="alexsosn/CTC-TF",
+                base_ref="master",
+                event_base_sha=BASE,
+                actual_base_sha=ADVANCED_BASE,
+                token="synthetic-readonly-token",
+            ))
+
+        for bad_response in (
+            compare(BASE, "behind", behind=2),
+            compare(BASE, "diverged", behind=1),
+            {"status": "ahead", "merge_base_commit": {"sha": OTHER}},
+        ):
+            with self.subTest(bad_response=bad_response), patch(
+                "scripts.check_ci_provenance._open_github_request",
+                return_value=FakeResponse(bad_response),
+            ):
+                self.assertFalse(verify_advanced_pr_base(
+                    repository="alexsosn/CTC-TF",
+                    base_ref="master",
+                    event_base_sha=BASE,
+                    actual_base_sha=ADVANCED_BASE,
+                    token="synthetic-readonly-token",
+                ))
+
+    def test_provenance_workflows_inject_readonly_token_explicitly(self):
+        for path in _workflow_paths():
+            text = path.read_text(encoding="utf-8")
+            if "python scripts/check_ci_provenance.py" not in text:
+                continue
+            with self.subTest(workflow=path.name):
+                # Inspect the provenance *step*, not the whole workflow:
+                # actual release publication legitimately needs a write token.
+                step = text.split("run: python scripts/check_ci_provenance.py", 1)[1]
+                step = step.split("\n      - ", 1)[0]
+                if path.name == "publish-reviewed-v0.3.0.yml":
+                    self.assertNotIn("GH_TOKEN:", step)
+                else:
+                    self.assertIn("GH_TOKEN: ${{ github.token }}", step)
+
+
+
+class AuthenticatedGithubTransportTests(unittest.TestCase):
+    def test_github_api_credentials_cannot_follow_http_redirect(self):
+        """urllib's default redirect copies Authorization to a new origin."""
+        from unittest.mock import patch
+        import urllib.request
+        from scripts.check_ci_provenance import _github_json
+
+        class FakeResponse:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return b'{}'
+
+        trusted_url = "https://api.github.com/repos/alexsosn/CTC-TF/git/ref/heads/master"
+        with (
+            patch(
+                "scripts.check_ci_provenance.urllib.request.urlopen",
+                side_effect=AssertionError("global urlopen may follow Authorization redirects"),
+            ),
+            patch("scripts.check_ci_provenance.urllib.request.build_opener") as factory,
+        ):
+            factory.return_value.open.return_value = FakeResponse()
+            self.assertEqual(_github_json(trusted_url, "synthetic-token"), {})
+            factory.return_value.open.assert_called_once()
+            req = factory.return_value.open.call_args.args[0]
+            self.assertEqual(req.full_url, trusted_url)
+            self.assertEqual(req.get_header("Authorization"), "Bearer synthetic-token")
+            handlers = factory.call_args.args
+            redirects = [h for h in handlers if isinstance(h, urllib.request.HTTPRedirectHandler)]
+            self.assertEqual(len(redirects), 1, "only one explicit no-follow handler")
+            with self.assertRaisesRegex(ValueError, "redirect"):
+                redirects[0].redirect_request(
+                    req, None, 302, "Found", {},
+                    "https://outside.example.invalid/receive-token",
+                )
 
 
 if __name__ == "__main__":

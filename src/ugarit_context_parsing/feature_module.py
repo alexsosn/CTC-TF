@@ -471,13 +471,17 @@ def write_feature_module(
                 f"extra={sorted(staged - expected)}, invalid={invalid}"
             )
 
-        # Refuse a staged report installed after inventory inspection. Exclusive
-        # creation does not follow an already existing report symlink.
+        # The inventory snapshot above is not a lock: an instrumented writer
+        # or same-UID actor could introduce a link at the report path after
+        # enumeration. Exclusive creation prevents following that link.
         try:
             with (stage / REPORT_FILE).open("x", encoding="utf-8") as handle:
                 handle.write(report_text)
         except FileExistsError as exc:
-            raise RuntimeError("Burns feature-module staged report already exists") from exc
+            raise RuntimeError(
+                "Burns feature-module stage report already exists; "
+                "refusing overwrite or symlink"
+            ) from exc
         if stage.is_symlink() or not stage.is_dir():
             raise RuntimeError("Burns feature-module stage root is symlinked or non-regular")
         reject_symlinked_output_path(output)

@@ -8,6 +8,7 @@ on:
       - 'src/ugarit_context_parsing/alignment.py'
       - 'src/ugarit_context_parsing/annotations.py'
       - 'src/ugarit_context_parsing/cli.py'
+      - 'src/ugarit_context_parsing/feature_module.py'
       - 'src/ugarit_context_parsing/cuc_index.py'
       - 'src/ugarit_context_parsing/module.py'
       - 'src/ugarit_context_parsing/references.py'
@@ -15,6 +16,7 @@ on:
       - 'scripts/check_context_fabric_burns_module_contract.py'
       - '.github/workflows/test-context-fabric-burns-module.yml'
       - 'scripts/check_ci_provenance.py'
+      - 'tests/test_ci_provenance_contract.py'
       - 'pyproject.toml'
 
 permissions:
@@ -33,7 +35,8 @@ jobs:
 
       - name: Verify CI provenance
         run: python scripts/check_ci_provenance.py
-
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Check out exact reviewed CUC base
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
