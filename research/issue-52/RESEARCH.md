@@ -123,3 +123,10 @@ The original README claim that Agora cannot execute a parent-bound Burns materia
 - CTC-TF GitHub release/tag `v0.3.0` remains absent. Agora's producer registry pin is an immutable, reviewed but **unreleased** CTC commit, and release tracking is disabled.
 
 Documentation should now distinguish the native user-provided CUC quickstart and the optional Agora catalog-managed CLI. Link Agora's guide rather than duplicating commands. No claim of automatic licensed Workbooks acquisition, Windows sandbox, extra TF nodes or released producer version.
+
+
+## 2026-10-12 release-state reconfirmation after workflow_dispatch
+
+Live GitHub release and Git-data ref responses now establish that **v0.3.0 was published** at 2026-10-12T12:19:33Z: `refs/tags/v0.3.0` has direct commit target `ed6c7059803ff1adee057f5bd94d3ca661aac187`, the public non-draft/non-prerelease Release reports the same target and contains zero attachments. Current master has advanced after publication as post-release PRs merge. In contrast, the separately reviewed Agora registry still pins the earlier immutable producer `f58b162197ad8f113b7cd6fc0088ae5dd39a096d` and `release_tracking.mode: disabled`; publication alone does not automatically update registry execution identity.
+
+Adversarial documentation finding: the existing README's phrase `release tracking disabled pending the separate GitHub v0.3.0 publication and registry-pin review` is now factually wrong about publication. Update it without implying Agora already tracks releases, upgrades automatically, or changes its pinned producer; preserve the independently verified copy-paste native quickstart and all license/parent boundaries. This is a docs-only release-state correction and requires a preserved focused RED assertion followed by GREEN and exact-head CI review.
