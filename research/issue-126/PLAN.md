@@ -1,0 +1,18 @@
+# Issue #126 — plan (research → RED → GREEN → review)
+
+1. Preserve causal RED in a separate new `tests/test_feature_module_report_exclusive.py`: build *synthetic* Burns feature-module fixture, run actual `Fabric.save`, intercept only stage `Path.iterdir` to snapshot valid features then install a symlink from `stage/REPORT_FILE` to a foreign sentinel before returning that snapshot, and assert that publication fails while sentinel bytes remain unchanged and output is absent. On current `write_text` path, expect test failure (or explicit sentinel corruption) and preserve the failing CI run.
+2. GREEN exclusively create the report using `Path.open("x", encoding="utf-8")` (Python 3.10-compatible) and narrowly translate `FileExistsError` into a fail-closed `RuntimeError`. Do not change report serialization, staging ownership, feature inventory, or publication.
+3. Add a successful control assertion that the normal writer still creates the feature-only module and report unchanged, with native Text-Fabric loading covered by existing tests.
+4. Run exact final HEAD: Python 3.10/3.12/3.13, real licensed Burns Workbooks under actual pinned Agora Bubblewrap, reviewed CUC, Context-Fabric and Appendix concordance. CI runs must finish; cite actual job logs for real-source evidence.
+5. Independently adversarially review final code, tests and CI, including symlink/no-follow assumptions and remaining race/sandbox bounds; GitHub review COMMENT rather than self-APPROVE.
+6. Leave PR draft **unmerged** until GitHub Release `v0.3.0` exists at the reviewed baseline and post-release semantic-version strategy is determined. Do not change frozen v0.3.0 release notes.
+
+## CI coverage refinement (source inspection)
+
+`.github/workflows/test-context-fabric-burns-module.yml` currently does **not**
+include `src/ugarit_context_parsing/feature_module.py` in its PR path filter,
+although the consumer tests exercise the native feature-only module. Thus a
+publication-only change can pass the local/real Workbooks gates without invoking
+this consumer acceptance. Extend that trigger narrowly and add a source-safe
+test asserting coverage; do not expand to unrelated Appendix/index workflows.
+This is a CI verification fix, not an alteration of TF data or consumer behavior.

@@ -8,6 +8,7 @@ on:
       - 'src/ugarit_context_parsing/alignment.py'
       - 'src/ugarit_context_parsing/annotations.py'
       - 'src/ugarit_context_parsing/cli.py'
+      - 'src/ugarit_context_parsing/feature_module.py'
       - 'src/ugarit_context_parsing/cuc_index.py'
       - 'src/ugarit_context_parsing/module.py'
       - 'src/ugarit_context_parsing/references.py'

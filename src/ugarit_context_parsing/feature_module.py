@@ -464,7 +464,17 @@ def write_feature_module(
                 f"extra={sorted(staged - expected)}, invalid={invalid}"
             )
 
-        (stage / REPORT_FILE).write_text(report_text, encoding="utf-8")
+        # The inventory snapshot above is not a lock: an instrumented writer
+        # or same-UID actor could introduce a link at the report path after
+        # enumeration. Exclusive creation prevents following that link.
+        try:
+            with (stage / REPORT_FILE).open("x", encoding="utf-8") as handle:
+                handle.write(report_text)
+        except FileExistsError as exc:
+            raise RuntimeError(
+                "Burns feature-module stage report already exists; "
+                "refusing overwrite or symlink"
+            ) from exc
         if output.exists() or output.is_symlink():
             raise ValueError(f"Burns feature-module output appeared during staging: {output}")
         publish_stage_noreplace(stage, output)
