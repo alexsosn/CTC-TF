@@ -185,8 +185,7 @@ or materialization during corpus discovery; the producer never copies,
 changes or publishes the CUC warp. GitHub v0.3.0 was published as a stable release on 12 October 2026, at
 `ed6c7059803ff1adee057f5bd94d3ca661aac187`, with no corpus assets.
 Agora separately still pins the earlier immutable CTC-TF producer commit
-`f58b162197ad8f113b7cd6fc0088ae5dd39a096d`, with **release tracking
-disabled** pending the registry-pin and policy review; publishing upstream
+`f58b162197ad8f113b7cd6fc0088ae5dd39a096d`, with **release tracking disabled** pending registry-pin and policy review; publishing upstream
 does not implicitly update the installed Agora producer. The broader Agora #135 orchestration
 ticket remains open; that does not mean the opt-in CLI is unavailable.
 
