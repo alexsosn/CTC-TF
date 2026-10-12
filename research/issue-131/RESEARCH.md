@@ -23,3 +23,9 @@ This uses standard-library urllib; no additional Python dependency or full Git h
 ## Threat/limitations
 
 The GitHub runtime event and refs are trusted; a pull request can change checked-in scripts, so branch protection/reviewer gates remain necessary. The API proves ancestry at verification time, not a cryptographic guarantee against future forced master updates; a missing/verifiably rewritten target branch correctly fails closed. No Burns data or related corpus features are affected.
+
+## Independent review: token-bearing HTTP redirects (2026-10-12)
+
+Source audit of Python's standard-library `urllib.request.HTTPRedirectHandler.redirect_request` finds that it copies all request headers except `content-length` and `content-type` to a redirected GET, **including Authorization**. The new `_github_json` currently calls the globally configured `urllib.request.urlopen` with a GitHub token. Even though the initial REST endpoint is fixed HTTPS `api.github.com`, an HTTP 3xx response can forward the token to a different redirect origin before code has a chance to inspect the final URL. This is not evidence of GitHub actually redirecting ancestry endpoints, but it violates the intended fail-closed token boundary.
+
+Review-derived gate: preserve RED proof that the ancestry transport must not call redirect-following global `urlopen` and that the configured redirect handler refuses a 3xx to a different host; then GREEN by using a request-local no-redirect opener. Keep all existing pure ancestry and CI tests, no publisher write-token access, and no corpus changes.
