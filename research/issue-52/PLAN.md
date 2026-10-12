@@ -110,3 +110,11 @@ product claims and lose provenance guarantees. The actual CUC pin is unchanged.
 2. GREEN docs-only: update the quickstart boundary and `### Agora status` using the actual Agora guide and registry; avoid promising automatic discovery/source fetching. Retain precise native CLI, local-only rights and review pins.
 3. Run exact-head Python 3.10/3.12/3.13 and any path-triggered integration CI; do not claim workflows not triggered.
 4. Final logically-independent skeptical review of actual CTC README against merged Agora code/guide, GitHub CI evidence, release status and data licensing. Leave this issue's post-release PR draft/unmerged until an independently reviewed GitHub tag **and** Release exist.
+
+
+## 2026-10-12 post-publication adversarial documentation subloop
+
+1. Research and verify actual tag and stable GitHub Release at `ed6c7059803ff1adee057f5bd94d3ca661aac187` independently of Agora's still-disabled release tracking and earlier immutable producer pin.
+2. Preserve a focused **RED** docs assertion: README must say v0.3.0 is already published, identify the correct full release SHA, distinguish the existing Agora pin from publication, and reject wording that says publication itself is pending.
+3. **GREEN** by changing only the outdated Agora release-status prose in README; no behavior changes, version bump, source data, corpus output or new infrastructure.
+4. Re-run current-head Python matrix and docs contract, independently review against live GitHub release, current Agora registry and exact PR diff. Check base advancement/provenance and fix without relaxing CI security. Merge only with exact-head protection after green.
