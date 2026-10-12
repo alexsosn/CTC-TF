@@ -182,7 +182,7 @@ for full installation, cache and Context-Fabric MCP loading instructions.
 
 This local workflow performs **no automatic** Burns source acquisition
 or materialization during corpus discovery; the producer never copies,
-changes or publishes the CUC warp. The stable GitHub `v0.3.0` was published on 12 October 2026, at
+changes or publishes the CUC warp. GitHub v0.3.0 was published as a stable release on 12 October 2026, at
 `ed6c7059803ff1adee057f5bd94d3ca661aac187`, with no corpus assets.
 Agora separately still pins the earlier immutable CTC-TF producer commit
 `f58b162197ad8f113b7cd6fc0088ae5dd39a096d`, with **release tracking
