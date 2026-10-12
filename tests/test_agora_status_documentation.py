@@ -67,5 +67,14 @@ class AgoraStatusDocumentationContractTests(unittest.TestCase):
         self.assertIn("does not mean the opt-in cli is unavailable", section)
 
 
+
+    def test_published_release_is_not_confused_with_older_agora_pin(self):
+        section = _agora_status_section()
+        self.assertIn("v0.3.0 was published", section)
+        self.assertIn("ed6c7059803ff1adee057f5bd94d3ca661aac187", section)
+        self.assertIn("f58b162197ad8f113b7cd6fc0088ae5dd39a096d", section)
+        self.assertIn("release tracking disabled", section)
+        self.assertNotIn("pending the separate github `v0.3.0` publication", section)
+
 if __name__ == "__main__":
     unittest.main()
