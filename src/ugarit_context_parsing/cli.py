@@ -70,6 +70,10 @@ def _run_module(args: argparse.Namespace) -> int:
     except SourceValidationError as exc:
         raise SystemExit(f"source validation failed: {exc}") from exc
 
+    # The explicit compatibility writer may replace an existing owned module,
+    # but must never publish inside (or above) its source or reviewed CUC trees.
+    _reject_module_overlap(source.root, args.cuc, args.output)
+
     try:
         normalized = normalize_workbook_records(source.records)
     except BurnsNormalizationError as exc:
@@ -83,7 +87,11 @@ def _run_module(args: argparse.Namespace) -> int:
     alignments = align_burns_source(normalized, index)
     module = build_burns_module(normalized, alignments, index)
     report = build_burns_module_report(normalized, alignments, index, module)
-    if not write_burns_module(module, report, args.output):
+    try:
+        saved = write_burns_module(module, report, args.output)
+    except ValueError as exc:
+        raise SystemExit(f"legacy publication failed: {exc}") from exc
+    if not saved:
         raise SystemExit("Text-Fabric refused the generated Burns module")
 
     print(
@@ -130,7 +138,11 @@ def _run_feature_module(args: argparse.Namespace) -> int:
     alignments = align_burns_source(normalized, index)
     module = build_feature_module(normalized, alignments, index)
     report = build_feature_module_report(normalized, alignments, index, module)
-    if not write_feature_module(module, report, args.output):
+    try:
+        saved = write_feature_module(module, report, args.output)
+    except ValueError as exc:
+        raise SystemExit(f"module publication failed: {exc}") from exc
+    if not saved:
         raise SystemExit("Text-Fabric refused the Burns feature-only module")
 
     print(
