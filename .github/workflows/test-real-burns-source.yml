@@ -3,6 +3,8 @@ name: Real Burns Workbooks feature-only acceptance
 on:
   pull_request:
     paths:
+      - 'scripts/check_ci_provenance.py'
+      - 'tests/test_ci_provenance_contract.py'
       - 'docs/releases/**'
       - 'tests/test_release_version.py'
       - '.github/workflows/test-real-burns-source.yml'
@@ -28,6 +30,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Prove exact tested revision
         run: python scripts/check_ci_provenance.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Check out pinned external CUC without redistributing it
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:

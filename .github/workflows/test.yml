@@ -27,6 +27,8 @@ jobs:
           cache: pip
       - name: Verify CI provenance
         run: python scripts/check_ci_provenance.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Install project and runtime dependencies
         run: python -m pip install .
       - name: Record execution environment

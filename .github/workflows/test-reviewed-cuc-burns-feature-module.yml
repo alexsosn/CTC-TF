@@ -12,6 +12,7 @@ on:
       - 'scripts/check_reviewed_cuc_burns_feature_module.py'
       - '.github/workflows/test-reviewed-cuc-burns-feature-module.yml'
       - 'scripts/check_ci_provenance.py'
+      - 'tests/test_ci_provenance_contract.py'
       - 'pyproject.toml'
 
 permissions:
@@ -29,6 +30,8 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Verify CI provenance
         run: python scripts/check_ci_provenance.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - name: Check out exact reviewed CUC
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
