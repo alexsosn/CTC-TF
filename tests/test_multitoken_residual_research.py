@@ -255,6 +255,77 @@ class MultiTokenResidualResearchTests(unittest.TestCase):
         )
 
 
+    def test_out_of_order_evidence_counts_distinct_annotations_and_cross_class_overlap(self):
+        # Two citation lines from ONE authored annotation yield different
+        # diagnostics, but are not two independent linguistic observations.
+        repeated = replace(
+            _record(1, "a b c", 10),
+            references="I.10, 20",
+        )
+        independent = replace(
+            _record(2, "d e f", 30),
+            source_file="02 Synthetic/Worksheet 1.csv",
+        )
+        source = normalize_workbook_records((
+            repeated,
+            independent,
+            _record(3, "g h", 40),  # in-order negative control
+            _record(4, "i j", 50),  # all exact, reordered
+        ))
+        index = _index({
+            10: ("c", "bx", "a"),  # out-of-order, one missing containment
+            20: ("c", "x", "a"),   # out-of-order, one missing edit1
+            30: ("f", "x", "d"),   # out-of-order, one missing edit1
+            40: ("g", "x"),       # in-order exact-hit control
+            50: ("j", "i"),       # all tokens present, reordered
+        })
+        stats = aggregate_multitoken_residual_research(
+            source=source,
+            alignments=align_burns_source(source, index),
+            index=index,
+        )
+        self.assertEqual(stats["exact_hit_order"], {
+            "in_order": 1, "out_of_order": 4,
+        })
+        self.assertEqual(stats["out_of_order_research"], {
+            "occurrences": 4,
+            "distinct_annotations": 3,
+            "occurrences_per_annotation": {"1": 2, "2": 1},
+            "classes": {
+                "all_tokens_present_reordered": 1,
+                "one_missing_unique_containment": 1,
+                "one_missing_unique_edit1": 2,
+            },
+            "class_distinct_annotations": {
+                "all_tokens_present_reordered": 1,
+                "one_missing_unique_containment": 1,
+                "one_missing_unique_edit1": 2,
+            },
+            "annotations_in_multiple_classes": 1,
+            "workbook_distinct_annotations": {"1": 2, "2": 1},
+        })
+        # Multiple classes for one annotation must not be treated as
+        # independent matches, nor as authorization to reorder tokens.
+        self.assertEqual(stats["classes"]["all_tokens_present_reordered"], 1)
+
+    def test_no_out_of_order_hits_still_reports_zero_research_accounting(self):
+        source = normalize_workbook_records((_record(1, "a b c", 10),))
+        index = _index({10: ("a", "bx", "c")})
+        stats = aggregate_multitoken_residual_research(
+            source=source,
+            alignments=align_burns_source(source, index),
+            index=index,
+        )
+        self.assertEqual(stats["out_of_order_research"], {
+            "occurrences": 0,
+            "distinct_annotations": 0,
+            "occurrences_per_annotation": {},
+            "classes": {},
+            "class_distinct_annotations": {},
+            "annotations_in_multiple_classes": 0,
+            "workbook_distinct_annotations": {},
+        })
+
     def test_one_containing_word_with_multiple_embeddings_is_ambiguous(self):
         source = normalize_workbook_records((_record(1, "a aba c", 10),))
         index = _index({10: ("a", "ababa", "c")})

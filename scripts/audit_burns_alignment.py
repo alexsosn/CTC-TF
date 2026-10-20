@@ -2308,6 +2308,12 @@ def aggregate_multitoken_residual_research(
     one_missing_workbooks: dict[str, dict[int, set[str]]] = defaultdict(
         lambda: defaultdict(set)
     )
+    # A cited out-of-order occurrence does not equal an independent Burns
+    # annotation. Keep all source identities in memory, emit counts only.
+    out_of_order_annotations: Counter[str] = Counter()
+    out_of_order_classes: Counter[str] = Counter()
+    out_of_order_class_annotations: dict[str, set[str]] = defaultdict(set)
+    out_of_order_workbooks: dict[int, set[str]] = defaultdict(set)
 
     for alignment in alignments:
         annotation = annotations.get(alignment.annotation_id)
@@ -2397,6 +2403,16 @@ def aggregate_multitoken_residual_research(
             workbook_classes[annotation.workbook_number][classification] += 1
             worksheet_role_classes[annotation.worksheet_role.value][classification] += 1
 
+            if order == "out_of_order":
+                out_of_order_annotations[annotation.annotation_id] += 1
+                out_of_order_classes[classification] += 1
+                out_of_order_class_annotations[classification].add(
+                    annotation.annotation_id
+                )
+                out_of_order_workbooks[annotation.workbook_number].add(
+                    annotation.annotation_id
+                )
+
             if classification in {
                 "one_missing_unique_containment",
                 "one_missing_unique_edit1",
@@ -2418,6 +2434,34 @@ def aggregate_multitoken_residual_research(
         "classes": _counter_payload(classes),
         "presence_masks": _counter_payload(masks),
         "exact_hit_order": _counter_payload(exact_hit_order),
+        "out_of_order_research": {
+            "occurrences": sum(out_of_order_annotations.values()),
+            "distinct_annotations": len(out_of_order_annotations),
+            "occurrences_per_annotation": _counter_payload(
+                Counter(out_of_order_annotations.values())
+            ),
+            "classes": _counter_payload(out_of_order_classes),
+            "class_distinct_annotations": {
+                key: len(annotation_ids)
+                for key, annotation_ids in sorted(
+                    out_of_order_class_annotations.items()
+                )
+            },
+            "annotations_in_multiple_classes": sum(
+                count > 1
+                for count in Counter(
+                    annotation_id
+                    for annotation_ids in out_of_order_class_annotations.values()
+                    for annotation_id in annotation_ids
+                ).values()
+            ),
+            "workbook_distinct_annotations": {
+                str(workbook): len(annotation_ids)
+                for workbook, annotation_ids in sorted(
+                    out_of_order_workbooks.items()
+                )
+            },
+        },
         "unmatched_token_counts": _counter_payload(unmatched_counts),
         "one_missing_local_evidence": _counter_payload(local_evidence),
         # Group totals are not additive at the annotation level: one authored

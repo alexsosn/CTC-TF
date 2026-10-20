@@ -1,0 +1,7 @@
+# #114 — Plan / TDD / review
+
+1. Research current diagnostic, source-limited 19 out-of-order reports, mask with nonreused CUC words, unique annotation identity and class overlaps. Reject unsupported lexical reordering.
+2. RED: add tests to `tests/test_multitoken_residual_research.py` asserting new `out_of_order_research` payload with duplicated references from a single annotation, distinct annotations, in-order controls and class cross-tab; also check zero-out-of-order result and privacy. Ensure it fails on existing code before production implementation, preserving a separate git commit.
+3. GREEN: introduce small aggregate dictionaries in existing `aggregate_multitoken_residual_research` only, no new helper/framework and no production alignment edits. All output aggregate integer counts or ordinal workbook keys; fail closed on unknown annotations.
+4. Run full exact-head Python 3.10/3.12/3.13 suite and existing real 45-Workbook licensed CI; check unchanged 19 diagnostic occurrences, reproducible source-to-module CUC warp and real Context-Fabric acceptance. Compare new counts with existing `classes` and one-missing subset.
+5. Fresh logically independent adversarial review of actual patch, fixed assumptions, synthetic RED/GREEN and exact-head real CI logs. If counts or privacy fail, add a corrective RED/GREEN subloop. Merge only with expected-head SHA. Keep #114 open until the actual source forms/grammatical contexts are examined locally: aggregates alone do not resolve the philology.
