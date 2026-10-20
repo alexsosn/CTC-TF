@@ -190,10 +190,10 @@ Agora's canonical `cuc-burns` registry now pins that same immutable released
 producer revision (merged Agora PR #287). Its `release_tracking` policy is
 `github-releases`, `stable`, `tag_prefix: v`: subsequent stable upstream
 releases generate proposals for **review**, not automatic installation.
-Existing local materializer installations **do not automatically upgrade**;
-third-party Python code still requires explicit approval. The broader Agora
-#135 orchestration ticket remains open; that does not mean the opt-in CLI
-is unavailable.
+Release tracking is review-only. Existing local materializer installations
+**do not automatically upgrade**, and third-party Python code still requires
+explicit approval. The broader Agora #135 orchestration ticket remains open;
+that does not mean the opt-in CLI is unavailable.
 
 ### Appendix scope
 
