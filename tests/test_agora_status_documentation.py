@@ -53,7 +53,7 @@ class AgoraStatusDocumentationContractTests(unittest.TestCase):
         for phrase in (
             "user-local licensed", "no automatic", "source acquisition",
             "never copies", "cuc warp", "windows fails closed",
-            "release tracking disabled", "v0.3.0",
+            "github-releases", "stable", "v0.3.0",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, section)
@@ -68,12 +68,17 @@ class AgoraStatusDocumentationContractTests(unittest.TestCase):
 
 
 
-    def test_published_release_is_not_confused_with_older_agora_pin(self):
+    def test_agora_registry_tracks_the_released_revision_for_review_only(self):
         section = _agora_status_section()
         self.assertIn("v0.3.0 was published", section)
         self.assertIn("ed6c7059803ff1adee057f5bd94d3ca661aac187", section)
-        self.assertIn("f58b162197ad8f113b7cd6fc0088ae5dd39a096d", section)
-        self.assertIn("release tracking disabled", section)
+        self.assertIn("github-releases", section)
+        self.assertIn("stable", section)
+        self.assertIn("tag_prefix: v", section)
+        self.assertIn("review", section)
+        self.assertIn("do not automatically upgrade", section)
+        self.assertNotIn("f58b162197ad8f113b7cd6fc0088ae5dd39a096d", section)
+        self.assertNotIn("release tracking disabled", section)
         self.assertNotIn("pending the separate github `v0.3.0` publication", section)
 
 if __name__ == "__main__":
