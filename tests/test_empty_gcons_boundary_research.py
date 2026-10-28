@@ -46,6 +46,25 @@ class EmptyGConsBoundaryResearchTests(unittest.TestCase):
             {"alt": 1, "cert": 1, "emen": 1, "sign": 2},
         )
 
+    def test_trailing_zero_words_expose_distinct_window_positions_without_lexical_skip(self):
+        source = normalize_workbook_records((_record(1, "ab cd", 10),))
+        index = _index({10: ("abcd", "", "")})
+        stats = aggregate_empty_g_cons_boundary_research(
+            source=source,
+            alignments=align_burns_source(source, index),
+            index=index,
+            sign_values={1: "letter", 2: "editorial", 3: "editorial"},
+            sign_emen={}, sign_cert={}, sign_alt={},
+        )
+        self.assertEqual(stats["occurrences_with_empty_g_cons"], 1)
+        self.assertEqual(stats["target_windows_with_empty_g_cons"], 2)
+        self.assertEqual(stats["distinct_burns_annotations"], 1)
+        self.assertEqual(stats["boundary_unique_cuc_empty_words"], 2)
+        self.assertEqual(stats["empty_word_window_positions"], {
+            "last": 2, "middle": 1,
+        })
+        self.assertEqual(stats["window_empty_word_counts"], {"1": 1, "2": 1})
+
     def test_absent_word_slot_extent_fails_closed(self):
         source, index, alignments = self._fixture()
         broken = replace(index, word_slots=MappingProxyType({}))
