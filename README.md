@@ -137,6 +137,30 @@ Lane count is derived from the supplied exact alignments rather than hard-coded.
 
 `burns_headword_N` is the source headword label, **not** a verified lemma. `burns_match_rule_N` records which exact candidate rule produced the published span, so non-literal recovery remains queryable provenance rather than an invisible normalization. The matcher now interprets narrowly evidenced headword-expression classes: one balanced non-nested parenthesized group contributes the exact **core with that group omitted**; one token-internal slash contributes exact left/right alternatives; and bracket/slash markup that lies wholly inside an already-omitted parenthesized group may remain opaque because none of its characters enter the lexical anchor. This raises the pinned real-source exact count from 4,357 to 7,402. Another 1,841 resolved-line occurrences still have no exact lexical span, and 276 have multiple exact candidate spans; those remain in the local alignment report and are **not** emitted as lexical features on line/tablet nodes. Square brackets that survive into the lexical core are still not stripped: the current real data supplied no supported exact case that would justify a restoration-aware `emen` rule.
 
+### Source-safe local alignment research
+
+To inspect aggregate multi-token lexical-gap diagnostics on **local PDF Workbooks**
+against the exact reviewed CUC without exporting individual Burns headwords
+or CUC line locators, run from the software checkout:
+
+```bash
+python scripts/audit_burns_alignment.py \
+  --workbooks /path/to/local/Workbooks \
+  --cuc /path/to/cuc/tf/0.2.8 \
+  --research-multitoken
+```
+
+The JSON output retains the usual alignment totals and additionally includes
+`multitoken_residual_research`, with occurrence/independent-annotation counts,
+exact-hit order and one-missing-token *diagnostic hypotheses*. The flag never
+promotes containment/edit-distance candidates to lexical matches and creates
+no TF nodes or module features. Without it, the output schema is unchanged.
+An explicit `--workbooks` path avoids automatic source acquisition; this
+script expects the original local **PDF worksheets**, not extracted CSVs.
+Restricted source strings and reference-level detail are written only if
+`--report /private/path/report.json` is separately requested; keep that
+owner-only report outside your Git checkout.
+
 ### Tablet-scoped excavation observations
 
 `burns_locus`, `burns_room`, `burns_point`, `burns_depth`, and `burns_disputed` may appear on an existing CUC `tablet` node only when all applicable Workbook observations consistently support that value. Conflicts/incomplete evidence remain in the local report. No fragment, line, word, or annotation node is invented for findspot data.
