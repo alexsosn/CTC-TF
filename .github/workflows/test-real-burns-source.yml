@@ -56,6 +56,33 @@ jobs:
         run: python scripts/parse_workbooks_to_csv.py --output "$RUNNER_TEMP/burns-csv"
       - name: Validate real source coverage, feature-only output, and disk-memory cost
         run: python scripts/check_real_burns_source.py "$RUNNER_TEMP/burns-csv" .cuc/tf/0.2.8 "$RUNNER_TEMP/burns-native"
+      - name: Smoke-test opt-in aggregate-only audit CLI on real Workbooks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/audit_burns_alignment.py \
+            --workbooks Workbooks \
+            --cuc .cuc/tf/0.2.8 \
+            --research-multitoken > "$RUNNER_TEMP/burns-multitoken-audit.json"
+          python - "$RUNNER_TEMP/burns-multitoken-audit.json" <<'PY'
+          import json
+          from pathlib import Path
+          import sys
+
+          payload = json.loads(Path(sys.argv[1]).read_text(encoding="utf-8"))
+          research = payload["multitoken_residual_research"]
+          assert payload["source"]["files"] == 45
+          assert research["occurrences"] == 380
+          assert sum(research["classes"].values()) == 380
+          assert research["exact_hit_order"]["out_of_order"] == 19
+          assert research["out_of_order_research"]["occurrences"] == 19
+          assert research["one_missing_hypothesis_union"]["occurrences"] == 62
+          assert research["classes"]["one_missing_unique_containment"] == 23
+          assert research["classes"]["one_missing_unique_edit1"] == 39
+          # The entire JSON stays runner-local; no licensed lexical values
+          # or KTU/annotation/node locators are printed in CI logs.
+          print("Aggregate-only user-facing multi-token audit smoke: PASS")
+          PY
       - name: Install Agora host requirements and Linux network-denial sandbox
         run: |
           python -m pip install -r .agora/requirements-dev.txt
