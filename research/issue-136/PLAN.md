@@ -1,0 +1,7 @@
+# #136 Plan: TDD and evidence gates
+
+1. **Research** actual `_token_boundary_spans`, existing `tests/test_token_boundary_research.py` and `tests/test_empty_gcons_boundary_research.py`; distinguish exact same-word segmentation from a lexical boundary change.
+2. **RED** add synthetic tests for one trailing empty CUC word, multiple trailing empties, middle and leading empties, equivalent exact window excluded but longer window admitted, no duplicate windows and unchanged nonempty cases. Assert new diagnostic cardinality/empty positions. Preserve separately committed RED and actual failing CI.
+3. **GREEN** remove premature equality `break` while retaining the early `len(combined)>len(wanted)` bound; never alter production `alignment.py`, `headword_expression.py`, or TF module writer. Avoid empty-string in printed payload.
+4. Run exact-head CI Python 3.10/3.12/3.13 and real licensed 45-Workbook audit/Agora Bubblewrap/CUC composed consumer. Extract aggregate before-after deltas; review whether old fixtures' assumptions were undercounting and update only with explicit justified counters.
+5. **Independent adversarial review** on exact final SHA: real code diff, all candidate-window negative controls, source-safe outputs, 528 empty CUC words, unchanged CUC warp and existing word carriers, no auto lexical alignment. Address findings with RED/GREEN correction; merge with head lease only on green.

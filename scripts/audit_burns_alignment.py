@@ -1272,7 +1272,9 @@ def _token_boundary_spans(
             if combined == wanted:
                 if values[start : end + 1] != tokens:
                     matches.append(tuple(words[start : end + 1]))
-                break
+                # Keep scanning: trailing empty-g_cons words preserve the
+                # consonants yet create additional diagnostic windows.
+                # Never infer that such words are lexically ignorable.
     return tuple(matches)
 
 

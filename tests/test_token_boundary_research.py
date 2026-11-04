@@ -95,6 +95,44 @@ class TokenBoundaryResearchTests(unittest.TestCase):
         self.assertEqual(stats["target_windows_with_empty_g_cons"], 1)
         self.assertEqual(stats["occurrences_with_empty_g_cons"], 1)
 
+    def test_equal_consonant_windows_with_trailing_empty_cuc_words_are_not_hidden(self):
+        # No exact lexical word span exists: the initial CUC word merges
+        # Burns tokens; each following zero-g_cons CUC word gives a distinct
+        # diagnostic span with the same consonantal concatenation.
+        source = normalize_workbook_records((_record(1, "ab cd", 10),))
+        index = _index({10: ("abcd", "", "")})
+        stats = aggregate_token_boundary_research(
+            source=source,
+            alignments=align_burns_source(source, index),
+            index=index,
+        )
+        self.assertEqual(stats["occurrences"], 1)
+        self.assertEqual(stats["span_cardinality"], {"2+": 1})
+        self.assertEqual(stats["window_directions"], {
+            "merge": 1, "resegment": 1, "split": 1,
+        })
+        self.assertEqual(stats["target_windows_with_empty_g_cons"], 2)
+        self.assertEqual(stats["occurrences_with_empty_g_cons"], 1)
+
+    def test_exact_word_tokens_are_not_counted_as_boundary_but_longer_zero_window_is(self):
+        from scripts.audit_burns_alignment import _token_boundary_spans
+
+        index = _index({10: ("ab", "cd", "")})
+        line = index.line_nodes[("KTU 1.14", "I", 10)]
+        words = index.line_words[line]
+        # The exact two-word lexical match must not become boundary evidence.
+        # But the longer window is a separate, still-diagnostic span.
+        self.assertEqual(
+            _token_boundary_spans(("ab", "cd"), line, index),
+            (words,),
+        )
+        # No empty word: unchanged exact-match exclusion.
+        plain = _index({10: ("ab", "cd")})
+        plain_line = plain.line_nodes[("KTU 1.14", "I", 10)]
+        self.assertEqual(
+            _token_boundary_spans(("ab", "cd"), plain_line, plain), (),
+        )
+
     def test_payload_contains_no_lexical_strings_ids_locators_or_nodes(self):
         source = normalize_workbook_records((_record(1, "secretlexeme otherlexeme", 10),))
         index = _index({10: ("secretlexemeotherlexeme",)})
