@@ -2707,6 +2707,11 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="explicit local path for the full Burns-derived alignment report",
     )
+    parser.add_argument(
+        "--research-multitoken",
+        action="store_true",
+        help="include aggregate-only multi-token residual research in stdout",
+    )
     args = parser.parse_args(argv)
 
     workbooks_path = (
@@ -2724,6 +2729,10 @@ def main(argv: list[str] | None = None) -> int:
         source=normalized,
         alignments=alignments,
     )
+    if args.research_multitoken:
+        stats["multitoken_residual_research"] = aggregate_multitoken_residual_research(
+            source=normalized, alignments=alignments, index=index,
+        )
     print(
         json.dumps(
             stats,
