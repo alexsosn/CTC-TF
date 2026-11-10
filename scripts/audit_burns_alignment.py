@@ -2810,6 +2810,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="include aggregate-only multi-token residual research in stdout",
     )
+    parser.add_argument(
+        "--private-out-of-order",
+        type=Path,
+        help="explicit local 0600 JSON path for private out-of-order case review",
+    )
     args = parser.parse_args(argv)
 
     workbooks_path = (
@@ -2844,6 +2849,16 @@ def main(argv: list[str] | None = None) -> int:
         _write_private_report(
             args.report,
             alignment_report_json(normalized, alignments, index),
+        )
+    if args.private_out_of_order is not None:
+        _write_private_report(
+            args.private_out_of_order,
+            json.dumps(
+                private_out_of_order_review(
+                    source=normalized, alignments=alignments, index=index,
+                ),
+                ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+            ),
         )
     return 0
 
