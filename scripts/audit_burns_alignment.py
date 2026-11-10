@@ -2521,6 +2521,104 @@ def aggregate_multitoken_residual_research(
     }
 
 
+def private_out_of_order_review(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Explicitly private cases for manual #114 source/edition adjudication.
+
+    This result contains copyrighted Burns text, CUC words and precise
+    locators. Never print it, store it in Git, or include it in CI logs.
+    Exact-hit reordering is diagnostic and is never a lexical match.
+    """
+
+    annotations = {a.annotation_id: a for a in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in private out-of-order review")
+
+    reverse_lines: dict[int, tuple[str, str, int]] = {}
+    for identity, line_node in index.line_nodes.items():
+        if line_node in reverse_lines:
+            raise ValueError("CUC line node has multiple structural identities")
+        reverse_lines[line_node] = identity
+
+    cases: list[dict[str, object]] = []
+    annotation_ids: set[str] = set()
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("unknown Burns annotation in private out-of-order review")
+        syntax_class = str(
+            classify_headword_expression(annotation.headword)["exclusive_class"]
+        )
+        if syntax_class not in {"clean", "marker_only"}:
+            continue
+        candidates = headword_candidates(annotation.headword)
+        if len(candidates) != 1:
+            raise ValueError("clean/marker multi-token review has multiple candidates")
+        _rule, tokens = candidates[0]
+        if len(tokens) < 2:
+            continue
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            line_node = occurrence.context_line_node
+            if line_node is None or line_node not in index.line_words:
+                raise ValueError("private out-of-order gap lacks indexed CUC line")
+            if _neighbor_candidate_outcome(
+                annotation=annotation, line_node=line_node, index=index,
+                reverse_lines=reverse_lines,
+            ) != "no_neighbor_match":
+                continue
+            if _token_boundary_spans(tokens, line_node, index):
+                continue
+
+            values = tuple(
+                nfc(index.word_g_cons[word]) for word in index.line_words[line_node]
+            )
+            mask, _missing, _remaining = _multitoken_presence_mask(tokens, values)
+            matched = tuple(
+                token for token, present in zip(tokens, mask, strict=True)
+                if present == "1"
+            )
+            if not matched or _is_subsequence(matched, values):
+                continue
+
+            annotation_ids.add(annotation.annotation_id)
+            cases.append({
+                "annotation_id": annotation.annotation_id,
+                "occurrence_id": occurrence.occurrence_id,
+                "workbook_number": annotation.workbook_number,
+                "worksheet_id": annotation.worksheet_id,
+                "source_row": annotation.first_source_row,
+                "source_reference": annotation.references,
+                "headword": annotation.headword,
+                "burns_tokens": list(tokens),
+                "target": {
+                    "tablet": occurrence.target.tablet,
+                    "column": occurrence.target.column,
+                    "line": occurrence.target.line,
+                },
+                "cuc_g_cons": list(values),
+                "presence_mask": mask,
+            })
+
+    expected = aggregate_multitoken_residual_research(
+        source=source, alignments=alignments, index=index,
+    )["out_of_order_research"]
+    if (len(cases) != expected["occurrences"]
+            or len(annotation_ids) != expected["distinct_annotations"]):
+        raise ValueError("private out-of-order selection differs from source-safe audit")
+    return {
+        "schema": "burns-private-out-of-order-v1",
+        "occurrences": len(cases),
+        "distinct_annotations": len(annotation_ids),
+        "cases": cases,
+    }
+
 def aggregate_lexical_gap_stats(
     *,
     source: NormalizedBurnsSource,
@@ -2712,6 +2810,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="include aggregate-only multi-token residual research in stdout",
     )
+    parser.add_argument(
+        "--private-out-of-order",
+        type=Path,
+        help="explicit local 0600 JSON path for private out-of-order case review",
+    )
     args = parser.parse_args(argv)
 
     workbooks_path = (
@@ -2719,6 +2822,19 @@ def main(argv: list[str] | None = None) -> int:
         if args.workbooks is not None
         else ensure(WORKBOOKS, root=ROOT)
     )
+    if args.private_out_of_order is not None:
+        # This deliberately restricted report must never overwrite our own
+        # checkout, licensed Burns source, or the reviewed CUC parent warp.
+        # resolve() also catches existing symlink aliases of those inputs.
+        destination = args.private_out_of_order.expanduser().resolve()
+        protected_roots = (ROOT, workbooks_path, args.cuc.expanduser())
+        if any(
+            destination.is_relative_to(root.resolve())
+            for root in protected_roots
+        ):
+            raise ValueError(
+                "private out-of-order output overlaps software or source input tree"
+            )
     workbook_source = load_pdf_directory(workbooks_path)
     normalized = normalize_workbook_records(workbook_source.records)
     index = build_reviewed_cuc_index(args.cuc.expanduser())
@@ -2746,6 +2862,16 @@ def main(argv: list[str] | None = None) -> int:
         _write_private_report(
             args.report,
             alignment_report_json(normalized, alignments, index),
+        )
+    if args.private_out_of_order is not None:
+        _write_private_report(
+            args.private_out_of_order,
+            json.dumps(
+                private_out_of_order_review(
+                    source=normalized, alignments=alignments, index=index,
+                ),
+                ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+            ),
         )
     return 0
 
