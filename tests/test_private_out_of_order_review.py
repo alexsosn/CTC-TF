@@ -134,7 +134,8 @@ class PrivateOutOfOrderReviewTests(unittest.TestCase):
                 alias / 'oslots.tf',
             )
             for destination in forbidden_destinations:
-                with self.subTest(destination=destination), (
+                with (
+                    self.subTest(destination=destination),
                     patch.object(audit, 'ROOT', checkout),
                     patch.object(audit, 'load_pdf_directory',
                                  return_value=SimpleNamespace(files=('synthetic.pdf',), records=records)),
