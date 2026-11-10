@@ -116,5 +116,39 @@ class PrivateOutOfOrderReviewTests(unittest.TestCase):
             self.assertEqual(list(Path(tmp).iterdir()), [])
 
 
+    def test_private_report_rejects_checkout_source_and_cuc_output_overlap(self):
+        records, _source, index, _alignments = self._fixture()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            checkout = root / 'checkout'
+            workbooks = root / 'Workbooks'
+            cuc = root / 'cuc' / 'tf' / '0.2.8'
+            for directory in (checkout, workbooks, cuc):
+                directory.mkdir(parents=True)
+            alias = root / 'cuc-alias'
+            alias.symlink_to(cuc, target_is_directory=True)
+            forbidden_destinations = (
+                checkout / 'private.json',
+                workbooks / 'private.json',
+                cuc / 'otype.tf',
+                alias / 'oslots.tf',
+            )
+            for destination in forbidden_destinations:
+                with self.subTest(destination=destination), (
+                    patch.object(audit, 'ROOT', checkout),
+                    patch.object(audit, 'load_pdf_directory',
+                                 return_value=SimpleNamespace(files=('synthetic.pdf',), records=records)),
+                    patch.object(audit, 'build_reviewed_cuc_index', return_value=index),
+                    patch.object(audit, 'ensure', side_effect=AssertionError('no download')),
+                    redirect_stdout(io.StringIO()),
+                ):
+                    with self.assertRaisesRegex(ValueError, 'overlaps'):
+                        audit.main([
+                            '--workbooks', str(workbooks),
+                            '--cuc', str(cuc),
+                            '--private-out-of-order', str(destination),
+                        ])
+                    self.assertFalse(destination.exists())
+
 if __name__ == '__main__':
     unittest.main()
