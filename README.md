@@ -161,8 +161,9 @@ The complete alignment report is written only when
 `--report /private/path/report.json` is separately requested. Both private
 report options require destinations outside the software checkout, local
 Workbooks and reviewed CUC input tree, and refuse paths that resolve to the
-same file (including symlink aliases). Owner-only reports remain local; do
-not commit or redistribute their restricted source provenance.
+same file (including symlink aliases). Unsafe destinations fail before
+any implicit Workbooks download. Owner-only reports remain local; do not
+commit or redistribute their restricted source provenance.
 
 ### Private source-case adjudication for out-of-order words
 
