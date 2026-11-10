@@ -177,7 +177,10 @@ python scripts/audit_burns_alignment.py \
 ```
 
 `--private-out-of-order` writes a UTF-8 JSON file atomically with mode 0600
-containing the original Burns headword/tokens, annotation and occurrence
+and rejects destinations inside the software checkout, Burns Workbooks or
+reviewed CUC directory (including resolved symlink aliases). This preflight
+check does not prevent malicious concurrent filesystem replacement. The file
+contains the original Burns headword/tokens, annotation and occurrence
 identities, reference/worksheet provenance, the resolved CUC citation, and
 its ordered `g_cons` words for each case. Repeated citations remain separate
 while the independent annotation count is deduplicated. Counts are checked
