@@ -2822,6 +2822,19 @@ def main(argv: list[str] | None = None) -> int:
         if args.workbooks is not None
         else ensure(WORKBOOKS, root=ROOT)
     )
+    if args.private_out_of_order is not None:
+        # This deliberately restricted report must never overwrite our own
+        # checkout, licensed Burns source, or the reviewed CUC parent warp.
+        # resolve() also catches existing symlink aliases of those inputs.
+        destination = args.private_out_of_order.expanduser().resolve()
+        protected_roots = (ROOT, workbooks_path, args.cuc.expanduser())
+        if any(
+            destination.is_relative_to(root.resolve())
+            for root in protected_roots
+        ):
+            raise ValueError(
+                "private out-of-order output overlaps software or source input tree"
+            )
     workbook_source = load_pdf_directory(workbooks_path)
     normalized = normalize_workbook_records(workbook_source.records)
     index = build_reviewed_cuc_index(args.cuc.expanduser())
