@@ -2820,7 +2820,7 @@ def main(argv: list[str] | None = None) -> int:
     workbooks_path = (
         args.workbooks.expanduser()
         if args.workbooks is not None
-        else ensure(WORKBOOKS, root=ROOT)
+        else WORKBOOKS.path(ROOT)
     )
     # Both explicitly requested private reports must preserve the inputs.
     # Resolve aliases before comparing, and reject colliding report names
@@ -2844,6 +2844,9 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError(
                 "private audit report output overlaps software or source input tree"
             )
+    # Resolve and validate output paths before any optional source download.
+    if args.workbooks is None:
+        workbooks_path = ensure(WORKBOOKS, root=ROOT)
     workbook_source = load_pdf_directory(workbooks_path)
     normalized = normalize_workbook_records(workbook_source.records)
     index = build_reviewed_cuc_index(args.cuc.expanduser())
