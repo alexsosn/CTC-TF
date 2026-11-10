@@ -103,5 +103,19 @@ class AuditPrivateOutputPolicyTests(unittest.TestCase):
                 self.assertNotIn(restricted, output)
 
 
+    def test_unsafe_implicit_workbooks_report_fails_before_source_acquisition(self):
+        with tempfile.TemporaryDirectory() as temp:
+            checkout, _workbooks, cuc = self._roots(Path(temp))
+            target = checkout / 'private.json'
+            with (
+                patch.object(audit, 'ROOT', checkout),
+                patch.object(audit, 'ensure', side_effect=AssertionError('download before preflight')),
+                patch.object(audit, 'load_pdf_directory',
+                             side_effect=AssertionError('parse before preflight')),
+            ):
+                with self.assertRaisesRegex(ValueError, 'overlaps'):
+                    audit.main(['--cuc', str(cuc), '--report', str(target)])
+            self.assertFalse(target.exists())
+
 if __name__ == '__main__':
     unittest.main()
