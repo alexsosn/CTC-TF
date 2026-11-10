@@ -161,6 +161,32 @@ Restricted source strings and reference-level detail are written only if
 `--report /private/path/report.json` is separately requested; keep that
 owner-only report outside your Git checkout.
 
+### Private source-case adjudication for out-of-order words
+
+The public aggregate report above identifies out-of-order exact-token residual
+occurrences, but checking their Burns/CUC source forms requires a **restricted
+local file**. Explicitly request it only on your own machine, with a
+destination outside the software repository and both source directories:
+
+```bash
+python scripts/audit_burns_alignment.py \
+  --workbooks /path/to/local/Workbooks \
+  --cuc /path/to/cuc/tf/0.2.8 \
+  --research-multitoken \
+  --private-out-of-order "$HOME/data/burns-out-of-order-private.json"
+```
+
+`--private-out-of-order` writes a UTF-8 JSON file atomically with mode 0600
+containing the original Burns headword/tokens, annotation and occurrence
+identities, reference/worksheet provenance, the resolved CUC citation, and
+its ordered `g_cons` words for each case. Repeated citations remain separate
+while the independent annotation count is deduplicated. Counts are checked
+against the existing source-safe research aggregate. **This JSON contains
+copyrighted source-derived text and exact locators: do not commit, share,
+or upload it.** The command still prints aggregate-only JSON to stdout;
+without this explicit flag no private case file is created. Inspect the
+cases manually against their editions before proposing any new alignment rule.
+
 ### Tablet-scoped excavation observations
 
 `burns_locus`, `burns_room`, `burns_point`, `burns_depth`, and `burns_disputed` may appear on an existing CUC `tablet` node only when all applicable Workbook observations consistently support that value. Conflicts/incomplete evidence remain in the local report. No fragment, line, word, or annotation node is invented for findspot data.
