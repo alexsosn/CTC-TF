@@ -157,9 +157,13 @@ promotes containment/edit-distance candidates to lexical matches and creates
 no TF nodes or module features. Without it, the output schema is unchanged.
 An explicit `--workbooks` path avoids automatic source acquisition; this
 script expects the original local **PDF worksheets**, not extracted CSVs.
-Restricted source strings and reference-level detail are written only if
-`--report /private/path/report.json` is separately requested; keep that
-owner-only report outside your Git checkout.
+The complete alignment report is written only when
+`--report /private/path/report.json` is separately requested. Both private
+report options require destinations outside the software checkout, local
+Workbooks and reviewed CUC input tree, and refuse paths that resolve to the
+same file (including symlink aliases). Unsafe destinations fail before
+any implicit Workbooks download. Owner-only reports remain local; do not
+commit or redistribute their restricted source provenance.
 
 ### Private source-case adjudication for out-of-order words
 

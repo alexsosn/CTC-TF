@@ -110,6 +110,32 @@ jobs:
           # Never print, publish or upload source strings, target locators or case IDs.
           print("Private out-of-order local-only source review smoke: PASS")
           PY
+      - name: Smoke-test legacy private full alignment report without source leaks
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/audit_burns_alignment.py \
+            --workbooks Workbooks \
+            --cuc .cuc/tf/0.2.8 \
+            --report "$RUNNER_TEMP/private-burns-full-report.json" \
+            > "$RUNNER_TEMP/private-full-aggregate.json"
+          python - "$RUNNER_TEMP/private-burns-full-report.json" "$RUNNER_TEMP/private-full-aggregate.json" <<'PY'
+          import json
+          import stat
+          import sys
+          from pathlib import Path
+
+          private_path = Path(sys.argv[1])
+          assert stat.S_IMODE(private_path.stat().st_mode) == 0o600
+          private = json.loads(private_path.read_text(encoding="utf-8"))
+          public = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          assert private["schema"] == "burns-cuc-alignment-report-v1"
+          assert private["counts"]["records"] == 13857
+          assert private["counts"]["annotations"] == 10419
+          assert public["source"]["files"] == 45
+          # Private report content and locators stay only in runner-local files.
+          print("Legacy private full-alignment audit smoke: PASS")
+          PY
       - name: Install Agora host requirements and Linux network-denial sandbox
         run: |
           python -m pip install -r .agora/requirements-dev.txt

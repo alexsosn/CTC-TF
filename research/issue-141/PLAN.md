@@ -1,0 +1,11 @@
+# #141 Plan: narrowly harden explicit private audit destinations
+
+1. Research legacy `--report`, new `--private-out-of-order`, `_write_private_report`, reviewed CUC input roots, and symlink/collision paths. Record scope and nonclaims (completed separately in RESEARCH.md).
+2. RED synthetic CLI tests committed before code changes: legacy `--report` within checkout, Workbooks and CUC (direct and symlink alias) must refuse overwrite; both report flags same real/resolved alias destination must refuse; valid two outside outputs must be different, 0600 and contain correct private schemas; default stdout must stay aggregate-only. Tests use tempfile synthetic Workbooks/CUC values only.
+3. Capture witnessed RED in GitHub Actions if available. GREEN by moving existing private path-overlap logic to a minimal shared report-destination preflight in the audit CLI `main` used by both options. Reject same resolved destination before loading files. Avoid changing any other parser/matcher/writer behavior.
+4. Run exact-head Python 3.10/3.12/3.13, end-user real 45-Workbook report smoke with local 0600 output and no raw content in logs, reviewed CUC 0.2.8, and existing Agora Bubblewrap consumer with parent warp unchanged.
+5. Independently re-read exact final patch and real CI logs. Challenge symlink aliases, duplicate destinations, default compatibility, failure before source processing, mode 0600, zero implicit output, and any accidental leak. If any defect is found, preserve review-derived RED/GREEN before final review. Merge with expected HEAD SHA only after full successful gates; close #141 only then.
+
+## Adversarial review-derived preflight sequencing
+
+The initial shared guard still runs after `ensure(WORKBOOKS, root=ROOT)` when `--workbooks` is omitted, potentially downloading a source before rejecting an obviously unsafe report path. Preserve a RED test that mocks `ensure` to fail if called for a rejected checkout destination without an explicit `--workbooks`. GREEN must determine the default target path from the pinned `WORKBOOKS` source metadata first, preflight both reports, and only then invoke `ensure` when needed. Normal valid default acquisition semantics must remain unchanged. Re-run exact-head CI and review after this correction.
