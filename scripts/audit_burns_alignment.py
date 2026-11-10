@@ -2822,18 +2822,27 @@ def main(argv: list[str] | None = None) -> int:
         if args.workbooks is not None
         else ensure(WORKBOOKS, root=ROOT)
     )
-    if args.private_out_of_order is not None:
-        # This deliberately restricted report must never overwrite our own
-        # checkout, licensed Burns source, or the reviewed CUC parent warp.
-        # resolve() also catches existing symlink aliases of those inputs.
-        destination = args.private_out_of_order.expanduser().resolve()
-        protected_roots = (ROOT, workbooks_path, args.cuc.expanduser())
+    # Both explicitly requested private reports must preserve the inputs.
+    # Resolve aliases before comparing, and reject colliding report names
+    # before loading/parsing the source or publishing either file.
+    destinations = tuple(
+        path.expanduser().resolve()
+        for path in (args.report, args.private_out_of_order)
+        if path is not None
+    )
+    if len(destinations) != len(set(destinations)):
+        raise ValueError("private report options resolve to the same destination")
+    if destinations:
+        protected_roots = tuple(
+            root.resolve() for root in (ROOT, workbooks_path, args.cuc.expanduser())
+        )
         if any(
-            destination.is_relative_to(root.resolve())
+            destination.is_relative_to(root)
+            for destination in destinations
             for root in protected_roots
         ):
             raise ValueError(
-                "private out-of-order output overlaps software or source input tree"
+                "private audit report output overlaps software or source input tree"
             )
     workbook_source = load_pdf_directory(workbooks_path)
     normalized = normalize_workbook_records(workbook_source.records)
