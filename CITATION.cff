@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: >-
+  If you use this software in your research, please cite it using these
+  metadata. Cite Burns's thesis and the Copenhagen Ugaritic Corpus separately
+  as appropriate.
+type: software
+title: "Ugarit Context Parsing (CTC-TF)"
+abstract: >-
+  Software for extracting contextual vocabulary from Duncan Coe Burns's
+  Ugaritic Workbooks and materializing feature-only Text-Fabric modules over
+  the Copenhagen Ugaritic Corpus (CUC). Source Workbooks, CUC data, and
+  generated corpus modules are not distributed by this repository.
+authors:
+  - family-names: Sosnovshchenko
+    given-names: Oleksandr
+repository-code: "https://github.com/alexsosn/CTC-TF"
+url: "https://github.com/alexsosn/CTC-TF"
+version: "0.3.0"
+date-released: "2026-10-12"
+license: MIT
+keywords:
+  - Ugaritic
+  - Text-Fabric
+  - corpus linguistics
