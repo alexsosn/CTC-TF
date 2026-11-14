@@ -153,9 +153,20 @@ jobs:
               assert dict(Counter(case["exact_hit_order"] for case in subset)) == (
                   safe["one_missing_hypotheses"][kind]["exact_hit_order"]
               )
-          assert all(case["cuc_candidate_g_cons"] in case["cuc_g_cons"] for case in cases)
-          assert all(case["missing_token"] not in case["cuc_g_cons"] or
-                     case["presence_mask"].count("0") == 1 for case in cases)
+          # Reconstruct token consumption from the private case fields.
+          # Exact words cannot be reused as near-match candidates.
+          from scripts.audit_burns_alignment import (
+              _missing_token_local_evidence, _multitoken_presence_mask,
+          )
+          for case in cases:
+              words = tuple(case["cuc_g_cons"])
+              mask, missing, remaining = _multitoken_presence_mask(
+                  tuple(case["burns_tokens"]), words,
+              )
+              assert mask == case["presence_mask"]
+              assert missing == (case["missing_token"],)
+              assert case["cuc_candidate_g_cons"] in remaining
+              assert _missing_token_local_evidence(missing[0], remaining) == case["local_evidence"]
           # No source strings, identifiers, private paths, or locators in CI logs.
           # The private JSON stays only in RUNNER_TEMP, never an Actions artifact.
           print("Private one-missing source review smoke: PASS")
