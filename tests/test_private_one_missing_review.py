@@ -64,7 +64,18 @@ class PrivateOneMissingReviewTests(unittest.TestCase):
             "unique_containment": 2, "unique_edit1": 1,
         })
         self.assertEqual(result["annotations_in_both_classes"], 1)
+        self.assertEqual(result["class_distinct_annotations"], {
+            "unique_containment": 2, "unique_edit1": 1,
+        })
         cases = result["cases"]
+        for kind in ("unique_containment", "unique_edit1"):
+            class_cases = [case for case in cases if case["local_evidence"] == kind]
+            independent_count = len({case["annotation_id"] for case in class_cases})
+            self.assertEqual(independent_count, result["class_distinct_annotations"][kind])
+            self.assertEqual(
+                independent_count,
+                safe["one_missing_hypotheses"][kind]["distinct_annotations"],
+            )
         self.assertEqual([case["missing_token"] for case in cases], ["b", "b", "e"])
         self.assertEqual([case["cuc_candidate_g_cons"] for case in cases], ["bx", "x", "ez"])
         self.assertEqual([case["local_evidence"] for case in cases],
