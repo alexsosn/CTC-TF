@@ -146,10 +146,9 @@ jobs:
           for kind in ("unique_containment", "unique_edit1"):
               subset = [case for case in cases if case["local_evidence"] == kind]
               assert len(subset) == safe["one_missing_hypotheses"][kind]["occurrences"]
-              assert len({case["annotation_id"] for case in subset}) == (
-                  safe["one_missing_hypotheses"][kind]["distinct_annotations"]
-                  == private["class_distinct_annotations"][kind]
-              )
+              independent_count = len({case["annotation_id"] for case in subset})
+              assert independent_count == safe["one_missing_hypotheses"][kind]["distinct_annotations"]
+              assert independent_count == private["class_distinct_annotations"][kind]
               assert dict(Counter(case["exact_hit_order"] for case in subset)) == (
                   safe["one_missing_hypotheses"][kind]["exact_hit_order"]
               )
