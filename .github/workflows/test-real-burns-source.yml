@@ -110,6 +110,66 @@ jobs:
           # Never print, publish or upload source strings, target locators or case IDs.
           print("Private out-of-order local-only source review smoke: PASS")
           PY
+      - name: Smoke-test private one-missing hypothesis cases without exposing content
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/audit_burns_alignment.py \
+            --workbooks Workbooks \
+            --cuc .cuc/tf/0.2.8 \
+            --research-multitoken \
+            --private-one-missing "$RUNNER_TEMP/private-burns-one-missing.json" \
+            > "$RUNNER_TEMP/private-one-missing-aggregate.json"
+          python - "$RUNNER_TEMP/private-burns-one-missing.json" "$RUNNER_TEMP/private-one-missing-aggregate.json" <<'PY'
+          import json
+          import stat
+          import sys
+          from collections import Counter
+          from pathlib import Path
+
+          private_path = Path(sys.argv[1])
+          assert stat.S_IMODE(private_path.stat().st_mode) == 0o600
+          private = json.loads(private_path.read_text(encoding="utf-8"))
+          public = json.loads(Path(sys.argv[2]).read_text(encoding="utf-8"))
+          safe = public["multitoken_residual_research"]
+          union = safe["one_missing_hypothesis_union"]
+          cases = private["cases"]
+          assert public["source"]["files"] == 45
+          assert private["schema"] == "burns-private-one-missing-v1"
+          assert len(cases) == private["occurrences"] == union["occurrences"] == 62
+          assert private["class_occurrences"] == {
+              "unique_containment": 23, "unique_edit1": 39,
+          }
+          assert private["distinct_annotations"] == union["distinct_annotations"]
+          assert private["annotations_in_both_classes"] == union["annotations_in_both_classes"]
+          assert len({case["annotation_id"] for case in cases}) == union["distinct_annotations"]
+          for kind in ("unique_containment", "unique_edit1"):
+              subset = [case for case in cases if case["local_evidence"] == kind]
+              assert len(subset) == safe["one_missing_hypotheses"][kind]["occurrences"]
+              independent_count = len({case["annotation_id"] for case in subset})
+              assert independent_count == safe["one_missing_hypotheses"][kind]["distinct_annotations"]
+              assert independent_count == private["class_distinct_annotations"][kind]
+              assert dict(Counter(case["exact_hit_order"] for case in subset)) == (
+                  safe["one_missing_hypotheses"][kind]["exact_hit_order"]
+              )
+          # Reconstruct token consumption from the private case fields.
+          # Exact words cannot be reused as near-match candidates.
+          from scripts.audit_burns_alignment import (
+              _missing_token_local_evidence, _multitoken_presence_mask,
+          )
+          for case in cases:
+              words = tuple(case["cuc_g_cons"])
+              mask, missing, remaining = _multitoken_presence_mask(
+                  tuple(case["burns_tokens"]), words,
+              )
+              assert mask == case["presence_mask"]
+              assert missing == (case["missing_token"],)
+              assert case["cuc_candidate_g_cons"] in remaining
+              assert _missing_token_local_evidence(missing[0], remaining) == case["local_evidence"]
+          # No source strings, identifiers, private paths, or locators in CI logs.
+          # The private JSON stays only in RUNNER_TEMP, never an Actions artifact.
+          print("Private one-missing source review smoke: PASS")
+          PY
       - name: Smoke-test legacy private full alignment report without source leaks
         shell: bash
         run: |

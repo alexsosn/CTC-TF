@@ -158,7 +158,7 @@ no TF nodes or module features. Without it, the output schema is unchanged.
 An explicit `--workbooks` path avoids automatic source acquisition; this
 script expects the original local **PDF worksheets**, not extracted CSVs.
 The complete alignment report is written only when
-`--report /private/path/report.json` is separately requested. Both private
+`--report /private/path/report.json` is separately requested. All private
 report options require destinations outside the software checkout, local
 Workbooks and reviewed CUC input tree, and refuse paths that resolve to the
 same file (including symlink aliases). Unsafe destinations fail before
@@ -193,6 +193,40 @@ copyrighted source-derived text and exact locators: do not commit, share,
 or upload it.** The command still prints aggregate-only JSON to stdout;
 without this explicit flag no private case file is created. Inspect the
 cases manually against their editions before proposing any new alignment rule.
+
+### Private review of one-missing-token hypotheses
+
+The `--research-multitoken` aggregate reports cases with exactly one
+Burns token absent from the CUC line but one locally unique containing word
+or edit-distance-1 word. These **diagnostic** candidates are not verified
+morphology, substitutions, or lexical matches. To inspect the original
+source forms on your own machine, explicitly request a restricted file:
+
+```bash
+python scripts/audit_burns_alignment.py \
+  --workbooks /path/to/local/Workbooks \
+  --cuc /path/to/cuc/tf/0.2.8 \
+  --research-multitoken \
+  --private-one-missing "$HOME/data/burns-one-missing-private.json"
+```
+
+The private `burns-private-one-missing-v1` JSON contains each eligible
+citation's original Burns headword/tokens, worksheet and reference provenance,
+CUC line `g_cons` words, the unconsumed local candidate and missing
+token, exact-hit presence mask and ordered/out-of-order status. Duplicate
+citations are preserved but independent Burns annotation counts are
+deduplicated, including cross-class overlap. Counts are reconciled against
+the aggregate. The 62 pinned-source **occurrences** (23 containment and
+39 edit-1) are not 62 independently justified equivalences.
+
+The file is created atomically with mode 0600 outside the checkout,
+Workbooks and reviewed CUC roots, with symlink aliases resolved before writing.
+The path preflight does not protect against malicious concurrent filesystem
+replacement. The file contains restricted source strings, IDs and locators:
+**keep it locally; never commit, upload, publish or share it.**
+The default CLI writes no private report and prints only aggregates.
+Manual philological/source-edition review is required before proposing
+a narrowly scoped deterministic production rule.
 
 ### Tablet-scoped excavation observations
 

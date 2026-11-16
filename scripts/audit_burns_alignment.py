@@ -2619,6 +2619,157 @@ def private_out_of_order_review(
         "cases": cases,
     }
 
+def private_one_missing_review(
+    *,
+    source: NormalizedBurnsSource,
+    alignments: tuple[BurnsAnnotationAlignment, ...],
+    index: ReviewedCucIndex,
+) -> dict[str, object]:
+    """Restricted #115 cases for local philological review, never public output.
+
+    A one-edit or containment candidate is a diagnostic, not a lexical match.
+    This payload includes restricted words, reference strings and case IDs:
+    only use it with the explicitly requested private 0600 file writer.
+    """
+
+    annotations = {a.annotation_id: a for a in source.annotations}
+    if len(annotations) != len(source.annotations):
+        raise ValueError("duplicate annotation id in private one-missing review")
+
+    reverse_lines: dict[int, tuple[str, str, int]] = {}
+    for identity, line_node in index.line_nodes.items():
+        if line_node in reverse_lines:
+            raise ValueError("CUC line node has multiple structural identities")
+        reverse_lines[line_node] = identity
+
+    cases: list[dict[str, object]] = []
+    class_annotations: dict[str, set[str]] = {
+        "unique_containment": set(),
+        "unique_edit1": set(),
+    }
+    class_counts: Counter[str] = Counter()
+    class_orders: dict[str, Counter[str]] = defaultdict(Counter)
+
+    for alignment in alignments:
+        annotation = annotations.get(alignment.annotation_id)
+        if annotation is None:
+            raise ValueError("unknown Burns annotation in private one-missing review")
+        syntax_class = str(
+            classify_headword_expression(annotation.headword)["exclusive_class"]
+        )
+        if syntax_class not in {"clean", "marker_only"}:
+            continue
+        candidates = headword_candidates(annotation.headword)
+        if len(candidates) != 1:
+            raise ValueError("clean/marker one-missing review has multiple candidates")
+        _rule, tokens = candidates[0]
+        if len(tokens) < 2:
+            continue
+
+        for occurrence in alignment.occurrences:
+            if occurrence.reason is not BurnsAlignmentReason.HEADWORD_NOT_FOUND:
+                continue
+            line_node = occurrence.context_line_node
+            if line_node is None or line_node not in index.line_words:
+                raise ValueError("private one-missing gap lacks indexed CUC line")
+            if _neighbor_candidate_outcome(
+                annotation=annotation, line_node=line_node, index=index,
+                reverse_lines=reverse_lines,
+            ) != "no_neighbor_match":
+                continue
+            if _token_boundary_spans(tokens, line_node, index):
+                continue
+
+            values = tuple(
+                nfc(index.word_g_cons[word]) for word in index.line_words[line_node]
+            )
+            mask, missing, remaining = _multitoken_presence_mask(tokens, values)
+            if len(missing) != 1 or "1" not in mask:
+                continue
+            token = missing[0]
+            evidence = _missing_token_local_evidence(token, remaining)
+            if evidence not in class_annotations:
+                continue
+
+            if evidence == "unique_containment":
+                possible = tuple(
+                    value for value in remaining if value != token and token in value
+                )
+            else:
+                possible = tuple(
+                    value for value in remaining
+                    if value != token and _levenshtein_distance(token, value) == 1
+                )
+            # Never arbitrarily pick a word if a future helper change makes
+            # "unique" disagree with actual unconsumed CUC candidates.
+            if len(possible) != 1:
+                raise ValueError("private candidate cardinality disagrees with aggregate")
+            candidate = possible[0]
+            exact_hits = tuple(
+                word for word, present in zip(tokens, mask, strict=True)
+                if present == "1"
+            )
+            order = "in_order" if _is_subsequence(exact_hits, values) else "out_of_order"
+
+            class_counts[evidence] += 1
+            class_orders[evidence][order] += 1
+            class_annotations[evidence].add(annotation.annotation_id)
+            cases.append({
+                "annotation_id": annotation.annotation_id,
+                "occurrence_id": occurrence.occurrence_id,
+                "workbook_number": annotation.workbook_number,
+                "worksheet_id": annotation.worksheet_id,
+                "source_row": annotation.first_source_row,
+                "source_reference": annotation.references,
+                "headword": annotation.headword,
+                "burns_tokens": list(tokens),
+                "target": {
+                    "tablet": occurrence.target.tablet,
+                    "column": occurrence.target.column,
+                    "line": occurrence.target.line,
+                },
+                "cuc_g_cons": list(values),
+                "presence_mask": mask,
+                "missing_token": token,
+                "local_evidence": evidence,
+                "cuc_candidate_g_cons": candidate,
+                "exact_hit_order": order,
+            })
+
+    safe = aggregate_multitoken_residual_research(
+        source=source, alignments=alignments, index=index,
+    )
+    union = safe["one_missing_hypothesis_union"]
+    all_annotations = (
+        class_annotations["unique_containment"] | class_annotations["unique_edit1"]
+    )
+    both = (
+        class_annotations["unique_containment"] & class_annotations["unique_edit1"]
+    )
+    if (len(cases) != union["occurrences"]
+            or len(all_annotations) != union["distinct_annotations"]
+            or len(both) != union["annotations_in_both_classes"]):
+        raise ValueError("private one-missing cases diverge from aggregate union")
+    for kind in class_annotations:
+        expected = safe["one_missing_hypotheses"].get(kind, {})
+        if (class_counts[kind] != expected.get("occurrences", 0)
+                or len(class_annotations[kind]) != expected.get("distinct_annotations", 0)
+                or _counter_payload(class_orders[kind]) != expected.get("exact_hit_order", {})):
+            raise ValueError("private one-missing class disagrees with aggregate")
+
+    return {
+        "schema": "burns-private-one-missing-v1",
+        "occurrences": len(cases),
+        "distinct_annotations": len(all_annotations),
+        "annotations_in_both_classes": len(both),
+        "class_occurrences": _counter_payload(class_counts),
+        "class_distinct_annotations": {
+            kind: len(ids) for kind, ids in class_annotations.items()
+        },
+        "cases": cases,
+    }
+
+
 def aggregate_lexical_gap_stats(
     *,
     source: NormalizedBurnsSource,
@@ -2815,6 +2966,11 @@ def main(argv: list[str] | None = None) -> int:
         type=Path,
         help="explicit local 0600 JSON path for private out-of-order case review",
     )
+    parser.add_argument(
+        "--private-one-missing",
+        type=Path,
+        help="explicit local 0600 JSON path for private one-missing source cases",
+    )
     args = parser.parse_args(argv)
 
     workbooks_path = (
@@ -2827,7 +2983,7 @@ def main(argv: list[str] | None = None) -> int:
     # before loading/parsing the source or publishing either file.
     destinations = tuple(
         path.expanduser().resolve()
-        for path in (args.report, args.private_out_of_order)
+        for path in (args.report, args.private_out_of_order, args.private_one_missing)
         if path is not None
     )
     if len(destinations) != len(set(destinations)):
@@ -2880,6 +3036,16 @@ def main(argv: list[str] | None = None) -> int:
             args.private_out_of_order,
             json.dumps(
                 private_out_of_order_review(
+                    source=normalized, alignments=alignments, index=index,
+                ),
+                ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+            ),
+        )
+    if args.private_one_missing is not None:
+        _write_private_report(
+            args.private_one_missing,
+            json.dumps(
+                private_one_missing_review(
                     source=normalized, alignments=alignments, index=index,
                 ),
                 ensure_ascii=False, sort_keys=True, separators=(",", ":"),
