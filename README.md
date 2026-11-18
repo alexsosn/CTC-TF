@@ -1,5 +1,7 @@
 # CTC-TF / ugarit-context-parsing
 
+> Agent work selection and researcher acceptance are governed by [PRODUCT_GOALS.md](PRODUCT_GOALS.md); source/licensing and correctness requirements remain mandatory.
+
 Local extraction and Text-Fabric materialization of Duncan Coe Burns's cultic-vocabulary **Workbooks**. The workbooks yield per-worksheet CSV files; the thesis Appendix has a separate KTU findspot table. The primary Text-Fabric product is a **feature-only module over the existing Copenhagen Ugaritic Corpus (CUC) warp**: Burns adds queryable node/edge features on existing CUC words/tablets, never new nodes and never replacement `otype.tf`/`oslots.tf`. No generated Burns corpus is distributed here.
 
 ## Source and extraction
