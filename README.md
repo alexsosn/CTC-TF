@@ -135,6 +135,11 @@ s -burns_span_1> m""",
 
 Lane count is derived from the supplied exact alignments rather than hard-coded. On the current pinned real-source audit, 7,402 exact lexical occurrences occupy 5,909 start words. Lane-depth distribution is 4,837 starts at depth 1, 724 at depth 2, 303 at depth 3, 30 at depth 4, 2 at depth 5, and 13 at depth 6. Consumers must inspect the feature inventory/report rather than hard-code a maximum.
 
+For a read-only Python helper that discovers **every lane**, preserves distinct
+occurrences on shared carrier words, and reconstructs multiword spans, see the
+[researcher query guide](docs/feature-only-module.md#researcher-api-query-all-exact-occurrences-not-just-lane-1).
+The one-lane examples above are illustrative, not exhaustive occurrence counts.
+
 `burns_headword_N` is the source headword label, **not** a verified lemma. `burns_match_rule_N` records which exact candidate rule produced the published span, so non-literal recovery remains queryable provenance rather than an invisible normalization. The matcher now interprets narrowly evidenced headword-expression classes: one balanced non-nested parenthesized group contributes the exact **core with that group omitted**; one token-internal slash contributes exact left/right alternatives; and bracket/slash markup that lies wholly inside an already-omitted parenthesized group may remain opaque because none of its characters enter the lexical anchor. This raises the pinned real-source exact count from 4,357 to 7,402. Another 1,841 resolved-line occurrences still have no exact lexical span, and 276 have multiple exact candidate spans; those remain in the local alignment report and are **not** emitted as lexical features on line/tablet nodes. Square brackets that survive into the lexical core are still not stripped: the current real data supplied no supported exact case that would justify a restoration-aware `emen` rule.
 
 ### Source-safe local alignment research
