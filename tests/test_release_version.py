@@ -40,6 +40,13 @@ class ReleaseVersionContractTests(unittest.TestCase):
         self.assertNotIn("not yet registered", notes)
         self.assertNotIn("fully managed source+parent materializer execution remains", notes.lower())
 
+    def test_release_pdf_quickstart_uses_single_shell_line_continuations(self):
+        notes = (ROOT / "docs" / "releases" / "v0.3.1.md").read_text(encoding="utf-8")
+        commands = notes.split("```sh", 1)[1].split("```", 1)[0]
+        continuations = [line for line in commands.splitlines() if line.endswith("\\")]
+        self.assertEqual(len(continuations), 2)
+        self.assertTrue(all(not line.endswith("\\\\") for line in continuations))
+
     def test_release_manifest_and_project_metadata_agree_without_legacy_conversion(self):
         import json
         import re
