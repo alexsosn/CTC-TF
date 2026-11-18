@@ -143,7 +143,7 @@ class ReviewedRelease031Tests(unittest.TestCase):
         workflow = (Path(__file__).resolve().parents[1]
                     / ".github/workflows/publish-reviewed-v0.3.1.yml").read_text()
         self.assertIn("workflow_dispatch:", workflow)
-        self.assertIn("scripts/publish_reviewed_v031.py --publish", workflow)
+        self.assertIn("python -m scripts.publish_reviewed_v031 --publish", workflow)
         self.assertIn("refs/heads/master", workflow)
         self.assertIn("persist-credentials: false", workflow)
         for forbidden in ("  push:", "  pull_request:", "  schedule:", "upload-artifact"):
