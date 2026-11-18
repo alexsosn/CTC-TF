@@ -100,6 +100,41 @@ def _tree(api: Any, sha: str) -> tuple[str, list[str]]:
     return tree, parents
 
 
+def _reviewed_head_for_merge(api: Any, sha: str) -> str:
+    """Resolve a squash-merged PR by GitHub's commit→PR association.
+
+    An associated PR is insufficient on its own: the exact squash commit,
+    merged status, target repository, and reviewed head tree must all agree.
+    This helper is read-only and does not weaken the legacy v0.3.0 publisher.
+    """
+    tree, parents = _tree(api, sha)
+    _require(len(parents) == 1 and _SHA.fullmatch(parents[0]),
+             "squash release candidate must have exactly one parent")
+    prs = _get(api, f"commits/{sha}/pulls")
+    _require(isinstance(prs, list) and len(prs) == 1,
+             "release squash commit must identify exactly one merged PR")
+    pr = prs[0]
+    _require(isinstance(pr, dict), "invalid squash commit PR association")
+    base = pr.get("base")
+    head = pr.get("head")
+    reviewed_head = head.get("sha") if isinstance(head, dict) else None
+    _require(
+        isinstance(pr.get("number"), int) and pr["number"] > 0
+        and pr.get("state") == "closed"
+        and isinstance(pr.get("merged_at"), str) and bool(pr["merged_at"])
+        and pr.get("merge_commit_sha") == sha
+        and isinstance(base, dict) and base.get("ref") == "master"
+        and isinstance(base.get("repo"), dict)
+        and base["repo"].get("full_name") == REPOSITORY
+        and isinstance(reviewed_head, str) and bool(_SHA.fullmatch(reviewed_head)),
+        "squash commit is not an exact merged PR into this repository's master",
+    )
+    reviewed_tree, _ = _tree(api, reviewed_head)
+    _require(reviewed_tree == tree,
+             "squash merge tree differs from the reviewed PR head tree")
+    return reviewed_head
+
+
 def _latest_successful_workflows(
     api: Any, sha: str, *, event: str, required: frozenset[str],
 ) -> None:
