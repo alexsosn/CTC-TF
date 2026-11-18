@@ -6,20 +6,20 @@ from ugarit_context_parsing.cuc_index import REVIEWED_CUC_COMMIT
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TARGET_VERSION = "0.3.0"
+TARGET_VERSION = "0.3.1"
 class ReleaseVersionContractTests(unittest.TestCase):
     def test_installed_package_uses_release_version(self):
         self.assertEqual(metadata.version("ugarit-context-parsing"), TARGET_VERSION)
 
     def test_release_notes_describe_feature_only_primary_product(self):
-        notes = (ROOT / "docs" / "releases" / "v0.3.0.md").read_text(encoding="utf-8")
+        notes = (ROOT / "docs" / "releases" / "v0.3.1.md").read_text(encoding="utf-8")
         self.assertIn("feature-only", notes)
         self.assertIn("module-v1", notes)
         self.assertIn("no `otype.tf`", notes)
         self.assertNotIn("otype=entity", notes)
 
     def test_release_notes_describe_actual_agora_parent_bound_adapter_and_frozen_evidence(self):
-        notes = (ROOT / "docs" / "releases" / "v0.3.0.md").read_text(encoding="utf-8")
+        notes = (ROOT / "docs" / "releases" / "v0.3.1.md").read_text(encoding="utf-8")
         for evidence in (
             "agora.materializer.json",
             "cuc-burns-csv",
@@ -62,7 +62,7 @@ class ReleaseVersionContractTests(unittest.TestCase):
         self.assertEqual(materializer["acquisition"][0]["type"], "user-local")
 
     def test_release_notes_preserve_distribution_boundaries(self):
-        notes = (ROOT / "docs" / "releases" / "v0.3.0.md").read_text(encoding="utf-8")
+        notes = (ROOT / "docs" / "releases" / "v0.3.1.md").read_text(encoding="utf-8")
         self.assertNotIn("standalone `convert` command is retained", notes)
         self.assertNotIn("burns-workbooks-csv-text-fabric", notes)
         self.assertNotIn("burns-workbooks-pdf-text-fabric", notes)
