@@ -38,4 +38,4 @@ jobs:
           RELEASE_EXPECTED_SHA: ${{ inputs.expected_sha }}
           RELEASE_CONFIRMATION: ${{ inputs.release_confirmation }}
         run: |
-          python scripts/publish_reviewed_v031.py --publish
+          python -m scripts.publish_reviewed_v031 --publish
