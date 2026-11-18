@@ -108,3 +108,54 @@ bracket/slash markup wholly contained in an already-omitted parenthesized group
 may remain opaque. This last rule does not debracket lexical text or assert a
 restoration reading. Square brackets that survive into the lexical core and
 other complex/mixed punctuation still fail closed.
+
+## Researcher API: query all exact occurrences, not just lane 1
+
+The example above intentionally examines one lane. It does **not** count all
+Burns occurrences: several independently identified occurrences may begin on
+the same existing CUC word. The following installed Python API discovers every
+available lane and reconstructs the CUC word spans without additional nodes:
+
+```python
+from collections import Counter
+from tf.fabric import Fabric
+from ugarit_context_parsing.research_queries import iter_burns_occurrences
+
+api = Fabric(
+    locations=["/path/to/cuc/tf/0.2.8", "/path/to/burns-module"],
+    modules=[""], silent="deep",
+).loadAll(silent="deep")
+assert api is not None
+
+occurrences = tuple(iter_burns_occurrences(api))
+print("exact lexical occurrences:", len(occurrences))
+print("categories:", Counter(o.category for o in occurrences))
+print("semantic statuses:", Counter(o.semantic_status for o in occurrences))
+
+# Each result identifies an occurrence, its lane, and the ordered CUC words.
+divine = tuple(iter_burns_occurrences(api, category="divine_name"))
+for occurrence in divine[:5]:
+    print(occurrence.occurrence_id, occurrence.span_nodes,
+          occurrence.headword, occurrence.semantic_status)
+
+# Optional exact status filter, if a question requires only Burns-positive cases:
+positive = tuple(iter_burns_occurrences(api, semantic_status="positive_fixed"))
+```
+
+The iterator returns immutable `BurnsOccurrence` values. Fields include
+`carrier_node`, `lane`, `span_nodes`, `occurrence_id`,
+`annotation_id`, `headword`, `root`, `category`,
+`semantic_status`, `match_rule`, `worksheet_role`, and `section`.
+It enumerates **exact lexical alignments only**; unresolved/ambiguous cases
+remain report-only, so the result is not a complete census of all references
+in Burns. One annotation may have several textual occurrences. Distinct
+`headword` strings are *not* certified lemmas or resolved deity identities.
+The API does not silently exclude `homograph_excluded`,
+`no_secure_cultic` or `unsupported` statuses: choose the interpretation
+appropriate to the question and report that choice with the results.
+
+Results may expose copyrighted Burns-derived labels and locators. Run this
+locally on your own licensed source data; do not publish exported occurrence
+lists without permission. There are no network requests or output files in
+`iter_burns_occurrences` itself. A base-only or legacy v1 TF API produces a
+clear `ValueError` instead of a misleading empty count.

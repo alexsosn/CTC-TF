@@ -20,6 +20,7 @@ from ugarit_context_parsing.annotations import normalize_workbook_records
 from ugarit_context_parsing.cli import main as materialize_cli
 from ugarit_context_parsing.cuc_index import build_reviewed_cuc_index
 from ugarit_context_parsing.feature_module import REPORT_FILE, SCHEMA
+from ugarit_context_parsing.research_queries import iter_burns_occurrences
 from ugarit_context_parsing.source import WORKBOOK_FIELDS, WorkbookRecord
 
 
@@ -147,6 +148,25 @@ def run(cuc_dir: Path) -> None:
             [str(cuc), str(directory)], name="reviewed-cuc-with-burns-feature-module"
         )
         _, api = corpus_manager.get("reviewed-cuc-with-burns-feature-module")
+        # Public researcher iterator must work with real reviewed CUC and the
+        # exact Context-Fabric consumer, not merely synthetic test doubles.
+        research_rows = tuple(iter_burns_occurrences(api))
+        if len(research_rows) != 3 or len({r.occurrence_id for r in research_rows}) != 3:
+            raise AssertionError("researcher iterator dropped or duplicated exact Burns occurrences")
+        if {r.category for r in research_rows} != {
+            "divine_name", "cultic_action", "cultic_jargon"
+        }:
+            raise AssertionError("researcher iterator lost same-word cross-category lanes")
+        shared_word_categories = {
+            r.category for r in research_rows if r.carrier_node == word
+        }
+        if not {"divine_name", "cultic_action"}.issubset(shared_word_categories):
+            raise AssertionError("researcher iterator collapsed same-word occurrences")
+        phrase_rows = [r for r in research_rows if r.category == "cultic_jargon"]
+        if len(phrase_rows) != 1 or phrase_rows[0].span_nodes != phrase_words:
+            raise AssertionError("researcher iterator lost ordered CUC multiword span")
+        if len(tuple(iter_burns_occurrences(api, category="divine_name"))) != 1:
+            raise AssertionError("researcher category filter selected wrong occurrences")
         if base_info.max_slot != combined_info.max_slot or combined_info.max_slot != old_slots:
             raise AssertionError("Burns module changed CUC sign slots")
         if base_info.max_node != combined_info.max_node or combined_info.max_node != old_max:
