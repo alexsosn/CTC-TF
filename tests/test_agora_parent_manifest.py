@@ -15,7 +15,7 @@ class AgoraBurnsManifestTests(unittest.TestCase):
         manifest = json.loads(MANIFEST.read_text(encoding="utf-8"))
         self.assertEqual(manifest["schema_version"], 1)
         self.assertEqual(manifest["plugin"]["id"], "cuc-burns")
-        self.assertEqual(manifest["plugin"]["version"], "0.3.0")
+        self.assertEqual(manifest["plugin"]["version"], "0.3.1")
         self.assertEqual(len(manifest["materializers"]), 1)
         m = manifest["materializers"][0]
         self.assertEqual(m["id"], "cuc-burns-csv")
