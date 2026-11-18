@@ -102,6 +102,11 @@ def iter_burns_occurrences(
         for carrier, occurrence_id in api.Fs(f"burns_occurrence_id_{lane}").items():
             observed_category = value("burns_category", carrier)
             observed_status = value("burns_semantic_status", carrier)
+            # A corrupt lane must not be filtered out and silently undercounted.
+            if not observed_category:
+                raise ValueError(f"missing Burns category at word {carrier}, lane {lane}")
+            if not observed_status:
+                raise ValueError(f"missing Burns semantic status at word {carrier}, lane {lane}")
             if category is not None and observed_category != category:
                 continue
             if semantic_status is not None and observed_status != semantic_status:
