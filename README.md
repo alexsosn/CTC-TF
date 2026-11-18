@@ -137,7 +137,7 @@ s -burns_span_1> m""",
 
 Lane count is derived from the supplied exact alignments rather than hard-coded. On the current pinned real-source audit, 7,402 exact lexical occurrences occupy 5,909 start words. Lane-depth distribution is 4,837 starts at depth 1, 724 at depth 2, 303 at depth 3, 30 at depth 4, 2 at depth 5, and 13 at depth 6. Consumers must inspect the feature inventory/report rather than hard-code a maximum.
 
-The all-lanes helper is included in the **v0.3.1** release candidate.
+The all-lanes helper is included in software version **v0.3.1**.
 See [v0.3.1 release notes](docs/releases/v0.3.1.md) for the install,
 query, licensing and manual-publication contract. The latest published tag
 remains verifiable on [GitHub Releases](https://github.com/alexsosn/CTC-TF/releases).
