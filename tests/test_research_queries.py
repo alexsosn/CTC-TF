@@ -147,6 +147,35 @@ class ResearchQueryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "incomplete Burns occurrence lane 2"):
                 list(iter_burns_occurrences(missing_metadata))
 
+    def test_valid_findspot_only_module_returns_zero_occurrences(self):
+        from test_burns_tf_module import _index, _record
+        from ugarit_context_parsing.alignment import align_burns_source
+        from ugarit_context_parsing.annotations import normalize_workbook_records
+        from ugarit_context_parsing.feature_module import (
+            build_feature_module, build_feature_module_report,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base = root / "base"
+            overlay = root / "burns"
+            _write_synthetic_base(base)
+            source = normalize_workbook_records((
+                _record(1, headword="not-in-line", references="I.2"),
+            ))
+            index = _index()
+            alignments = align_burns_source(source, index)
+            module = build_feature_module(source, alignments, index)
+            self.assertEqual(module.max_lane, 0)
+            self.assertIn("burns_locus", module.node_features)
+            report = build_feature_module_report(source, alignments, index, module)
+            self.assertTrue(write_feature_module(module, report, overlay))
+            api = Fabric(
+                locations=[str(base), str(overlay)], modules=[""], silent="deep"
+            ).loadAll(silent="deep")
+            self.assertIsNotNone(api)
+            self.assertEqual(tuple(iter_burns_occurrences(api)), ())
+
     def test_base_without_burns_module_fails_clearly(self):
         with tempfile.TemporaryDirectory() as temp:
             api, base = self._open_corpus(Path(temp))
