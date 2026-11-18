@@ -156,6 +156,7 @@ class ReviewedRelease031Tests(unittest.TestCase):
         self.assertIn("workflow_dispatch:", workflow)
         self.assertIn("python -m scripts.publish_reviewed_v031 --publish", workflow)
         self.assertIn("refs/heads/master", workflow)
+        self.assertIn("pull-requests: read", workflow)
         self.assertIn("persist-credentials: false", workflow)
         for forbidden in ("  push:", "  pull_request:", "  schedule:", "upload-artifact"):
             self.assertNotIn(forbidden, workflow)
