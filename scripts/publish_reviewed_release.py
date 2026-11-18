@@ -45,7 +45,7 @@ class GitHubCLI:
     def request(
         self, method: str, path: str, payload: dict[str, Any] | None = None,
         *, allow_missing: bool = False,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any] | list[Any] | None:
         _require(method in {"GET", "POST"}, "unsupported GitHub HTTP method")
         cmd = ["gh", "api", f"repos/{REPOSITORY}/{path}"]
         data = None
@@ -69,11 +69,14 @@ class GitHubCLI:
             raise ReleaseGateError(
                 f"GitHub API {method} {path} returned non-JSON data"
             ) from exc
-        _require(isinstance(doc, dict), "GitHub API returned non-object JSON")
+        _require(
+            isinstance(doc, dict) if method == "POST" else isinstance(doc, (dict, list)),
+            "GitHub API returned unexpected JSON shape",
+        )
         return doc
 
 
-def _get(api: Any, path: str, *, allow_missing: bool = False) -> dict | None:
+def _get(api: Any, path: str, *, allow_missing: bool = False) -> dict | list | None:
     return api.request("GET", path, allow_missing=allow_missing)
 
 
