@@ -78,8 +78,7 @@ class ReleaseVersionContractTests(unittest.TestCase):
         import json
         import re
 
-        # Python 3.10 is in the release matrix; stdlib tomllib exists only
-        # from Python 3.11. Scope the version extraction to [project].
+        # Scope the version extraction to [project] regardless of other TOML tables.
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         project_section = pyproject.split("[project]", 1)[1].split("\n[", 1)[0]
         version = re.search(r'^version\s*=\s*"([^"]+)"', project_section, re.MULTILINE)
