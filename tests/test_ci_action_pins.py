@@ -56,7 +56,8 @@ class CiActionPinTests(unittest.TestCase):
         # #117 adds one immutable Agora checkout for real sandboxed Burns
         # integration. The reviewed manual release publisher adds one more pinned
         # checkout, but no unpinned third-party publishing action.
-        expected = Counter({CHECKOUT: 15, SETUP_PYTHON: 6})
+        # v0.3.1 adds one more pinned checkout for its separate manual release.
+        expected = Counter({CHECKOUT: 16, SETUP_PYTHON: 6})
         self.assertEqual(actual, expected)
 
 

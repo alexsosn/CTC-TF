@@ -3,7 +3,7 @@
   "plugin": {
     "id": "cuc-burns",
     "name": "Burns contextual feature module for reviewed CUC",
-    "version": "0.3.0",
+    "version": "0.3.1",
     "repository": "alexsosn/CTC-TF"
   },
   "materializers": [

@@ -45,7 +45,7 @@ class GitHubCLI:
     def request(
         self, method: str, path: str, payload: dict[str, Any] | None = None,
         *, allow_missing: bool = False,
-    ) -> dict[str, Any] | None:
+    ) -> dict[str, Any] | list[Any] | None:
         _require(method in {"GET", "POST"}, "unsupported GitHub HTTP method")
         cmd = ["gh", "api", f"repos/{REPOSITORY}/{path}"]
         data = None
@@ -69,11 +69,14 @@ class GitHubCLI:
             raise ReleaseGateError(
                 f"GitHub API {method} {path} returned non-JSON data"
             ) from exc
-        _require(isinstance(doc, dict), "GitHub API returned non-object JSON")
+        _require(
+            isinstance(doc, dict) if method == "POST" else isinstance(doc, (dict, list)),
+            "GitHub API returned unexpected JSON shape",
+        )
         return doc
 
 
-def _get(api: Any, path: str, *, allow_missing: bool = False) -> dict | None:
+def _get(api: Any, path: str, *, allow_missing: bool = False) -> dict | list | None:
     return api.request("GET", path, allow_missing=allow_missing)
 
 
@@ -98,6 +101,41 @@ def _tree(api: Any, sha: str) -> tuple[str, list[str]]:
     _require(doc.get("sha") == sha and isinstance(tree, str) and _SHA.fullmatch(tree),
              f"GitHub commit {sha} tree identity is invalid")
     return tree, parents
+
+
+def _reviewed_head_for_merge(api: Any, sha: str) -> str:
+    """Resolve a squash-merged PR by GitHub's commit→PR association.
+
+    An associated PR is insufficient on its own: the exact squash commit,
+    merged status, target repository, and reviewed head tree must all agree.
+    This helper is read-only and does not weaken the legacy v0.3.0 publisher.
+    """
+    tree, parents = _tree(api, sha)
+    _require(len(parents) == 1 and _SHA.fullmatch(parents[0]),
+             "squash release candidate must have exactly one parent")
+    prs = _get(api, f"commits/{sha}/pulls")
+    _require(isinstance(prs, list) and len(prs) == 1,
+             "release squash commit must identify exactly one merged PR")
+    pr = prs[0]
+    _require(isinstance(pr, dict), "invalid squash commit PR association")
+    base = pr.get("base")
+    head = pr.get("head")
+    reviewed_head = head.get("sha") if isinstance(head, dict) else None
+    _require(
+        isinstance(pr.get("number"), int) and pr["number"] > 0
+        and pr.get("state") == "closed"
+        and isinstance(pr.get("merged_at"), str) and bool(pr["merged_at"])
+        and pr.get("merge_commit_sha") == sha
+        and isinstance(base, dict) and base.get("ref") == "master"
+        and isinstance(base.get("repo"), dict)
+        and base["repo"].get("full_name") == REPOSITORY
+        and isinstance(reviewed_head, str) and bool(_SHA.fullmatch(reviewed_head)),
+        "squash commit is not an exact merged PR into this repository's master",
+    )
+    reviewed_tree, _ = _tree(api, reviewed_head)
+    _require(reviewed_tree == tree,
+             "squash merge tree differs from the reviewed PR head tree")
+    return reviewed_head
 
 
 def _latest_successful_workflows(
@@ -130,13 +168,15 @@ def _latest_successful_workflows(
         )
 
 
-def _validate_materializer_and_notes(api: Any, sha: str) -> str:
+def _validate_materializer_and_notes(
+    api: Any, sha: str, *, version: str = VERSION,
+) -> str:
     package = _contents(api, "pyproject.toml", sha)
     _require("[project]" in package, "release package lacks [project] metadata")
     section = package.split("[project]", 1)[1].split("\n[", 1)[0]
     match = re.search(r'^version\s*=\s*"([^"]+)"', section, re.MULTILINE)
-    _require(match is not None and match.group(1) == VERSION,
-             "release package version does not equal 0.3.0")
+    _require(match is not None and match.group(1) == version,
+             f"release package version does not equal {version}")
 
     try:
         manifest = json.loads(_contents(api, "agora.materializer.json", sha))
@@ -145,7 +185,7 @@ def _validate_materializer_and_notes(api: Any, sha: str) -> str:
         item = materializers[0]
         _require(
             manifest["plugin"]["id"] == "cuc-burns"
-            and manifest["plugin"]["version"] == VERSION
+            and manifest["plugin"]["version"] == version
             and item["id"] == "cuc-burns-csv"
             and item["acquisition"][0]["type"] == "user-local"
             and item["input"]["allow_symlinks"] is False
@@ -160,21 +200,26 @@ def _validate_materializer_and_notes(api: Any, sha: str) -> str:
     except (ValueError, TypeError, KeyError, IndexError) as exc:
         raise ReleaseGateError("release manifest is invalid or unreviewed") from exc
 
-    notes = _contents(api, "docs/releases/v0.3.0.md", sha)
+    notes = _contents(api, f"docs/releases/v{version}.md", sha)
     _require(
-        "# Ugarit Context Parsing v0.3.0" in notes
+        f"# Ugarit Context Parsing v{version}" in notes
         and "feature-only" in notes
         and "agora.materializer.json" in notes
         and "No Burns-derived data files are attached to the release." in notes,
         "release notes lack immutable feature-only / licensed-data boundaries",
     )
+    if version == "0.3.1":
+        query_api = _contents(api, "src/ugarit_context_parsing/research_queries.py", sha)
+        _require("def iter_burns_occurrences(" in query_api
+                 and "all-lanes" in notes,
+                 "v0.3.1 release omits the documented all-lanes researcher API")
     return notes
 
 
-def _tag_commit(api: Any, tag: dict | None) -> str | None:
+def _tag_commit(api: Any, tag: dict | None, *, tag_name: str = TAG) -> str | None:
     if tag is None:
         return None
-    _require(tag.get("ref") == f"refs/tags/{TAG}", "unexpected Git tag ref")
+    _require(tag.get("ref") == f"refs/tags/{tag_name}", "unexpected Git tag ref")
     obj = tag.get("object")
     for _ in range(4):
         _require(isinstance(obj, dict), "malformed Git tag object")
@@ -189,11 +234,11 @@ def _tag_commit(api: Any, tag: dict | None) -> str | None:
     raise ReleaseGateError("Git tag dereference exceeds allowed depth")
 
 
-def _verify_existing_tag(api: Any, sha: str) -> bool:
-    tag = _get(api, f"git/ref/tags/{TAG}", allow_missing=True)
-    current = _tag_commit(api, tag)
+def _verify_existing_tag(api: Any, sha: str, *, tag_name: str = TAG) -> bool:
+    tag = _get(api, f"git/ref/tags/{tag_name}", allow_missing=True)
+    current = _tag_commit(api, tag, tag_name=tag_name)
     _require(current is None or current == sha,
-             "existing v0.3.0 tag points to an unreviewed commit")
+             f"existing {tag_name} tag points to an unreviewed commit")
     return current is not None
 
 
@@ -212,28 +257,33 @@ def _verify_current_master(api: Any, sha: str) -> None:
 def publish_reviewed_release(
     api: Any, *, repository: str, expected_sha: str, confirmation: str,
     github_ref: str, github_sha: str, publish: bool = False,
+    version: str = VERSION,
 ) -> dict[str, object]:
     """Validate immutable release evidence; write only with explicit publish=True."""
+    _require(version in {"0.3.0", "0.3.1"}, "unsupported manual release version")
+    tag_name = f"v{version}"
     _require(repository == REPOSITORY, "release must run in the upstream CTC-TF repo")
     _require(github_ref == "refs/heads/master", "release must run on master only")
     _require(isinstance(expected_sha, str) and _SHA.fullmatch(expected_sha),
              "expected release commit must be a full lowercase SHA")
     _require(
         github_sha == expected_sha
-        and confirmation == f"{TAG}@{expected_sha}",
+        and confirmation == f"{tag_name}@{expected_sha}",
         "typed release confirmation or workflow commit SHA mismatch",
     )
 
     _verify_current_master(api, expected_sha)
-    tree, parents = _tree(api, expected_sha)
-    _require(len(parents) == 2 and _SHA.fullmatch(parents[1]),
-             "release candidate must be a reviewed two-parent PR merge commit")
-    reviewed_head = parents[1]
-    reviewed_tree, _ = _tree(api, reviewed_head)
-    _require(
-        reviewed_tree == tree,
-        "release merge tree differs from the independently reviewed PR head tree",
-    )
+    if version == "0.3.0":
+        tree, parents = _tree(api, expected_sha)
+        _require(len(parents) == 2 and _SHA.fullmatch(parents[1]),
+                 "release candidate must be a reviewed two-parent PR merge commit")
+        reviewed_head = parents[1]
+        reviewed_tree, _ = _tree(api, reviewed_head)
+        _require(reviewed_tree == tree,
+                 "release merge tree differs from the independently reviewed PR head tree")
+    else:
+        reviewed_head = _reviewed_head_for_merge(api, expected_sha)
+        tree, _ = _tree(api, expected_sha)
 
     _latest_successful_workflows(
         api, reviewed_head, event="pull_request", required=EXPECTED_PR_WORKFLOWS,
@@ -241,16 +291,16 @@ def publish_reviewed_release(
     _latest_successful_workflows(
         api, expected_sha, event="push", required=frozenset({"Tests"}),
     )
-    notes = _validate_materializer_and_notes(api, expected_sha)
+    notes = _validate_materializer_and_notes(api, expected_sha, version=version)
 
     _require(
-        _get(api, f"releases/tags/{TAG}", allow_missing=True) is None,
-        "GitHub Release v0.3.0 already exists; never overwrite a release",
+        _get(api, f"releases/tags/{tag_name}", allow_missing=True) is None,
+        f"GitHub Release {tag_name} already exists; never overwrite a release",
     )
-    tag_exists = _verify_existing_tag(api, expected_sha)
+    tag_exists = _verify_existing_tag(api, expected_sha, tag_name=tag_name)
     if not publish:
         return {"commit": expected_sha, "reviewed_head": reviewed_head,
-                "tree": tree, "tag": TAG, "published": False,
+                "tree": tree, "tag": tag_name, "published": False,
                 "matching_tag_exists": tag_exists}
 
     # Recheck the only moving input immediately before the first write. A
@@ -259,15 +309,15 @@ def publish_reviewed_release(
     _verify_current_master(api, expected_sha)
     if not tag_exists:
         api.request("POST", "git/refs", {
-            "ref": f"refs/tags/{TAG}", "sha": expected_sha,
+            "ref": f"refs/tags/{tag_name}", "sha": expected_sha,
         })
-    _require(_verify_existing_tag(api, expected_sha),
+    _require(_verify_existing_tag(api, expected_sha, tag_name=tag_name),
              "created tag was not visible at the reviewed SHA")
 
     release_payload = {
-        "tag_name": TAG,
+        "tag_name": tag_name,
         "target_commitish": expected_sha,
-        "name": TAG,
+        "name": tag_name,
         "body": notes,
         "draft": False,
         "prerelease": False,
@@ -276,27 +326,27 @@ def publish_reviewed_release(
     api.request("POST", "releases", release_payload)
 
     # GitHub Release publication is a separate API write; always verify it.
-    published = _get(api, f"releases/tags/{TAG}")
+    published = _get(api, f"releases/tags/{tag_name}")
     _require(
         isinstance(published, dict)
-        and published.get("tag_name") == TAG
+        and published.get("tag_name") == tag_name
         and published.get("body") == notes
         and published.get("draft") is False
         and published.get("prerelease") is False
         and published.get("assets") == []
-        and _verify_existing_tag(api, expected_sha),
+        and _verify_existing_tag(api, expected_sha, tag_name=tag_name),
         "GitHub Release post-publication verification failed",
     )
     return {"commit": expected_sha, "reviewed_head": reviewed_head,
-            "tree": tree, "tag": TAG, "published": True,
+            "tree": tree, "tag": tag_name, "published": True,
             "matching_tag_exists": True}
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None, *, version: str = VERSION) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "--publish", action="store_true",
-        help="explicitly create v0.3.0 tag and Release after all gates",
+        help=f"explicitly create v{version} tag and Release after all gates",
     )
     args = parser.parse_args(argv)
     if not os.environ.get("GH_TOKEN"):
@@ -312,7 +362,7 @@ def main(argv: list[str] | None = None) -> int:
             confirmation=os.environ.get("RELEASE_CONFIRMATION", ""),
             github_ref=os.environ.get("GITHUB_REF", ""),
             github_sha=os.environ.get("GITHUB_SHA", ""),
-            publish=args.publish,
+            publish=args.publish, version=version,
         )
     except ReleaseGateError as exc:
         print(f"Release gate denied: {exc}", file=sys.stderr)
