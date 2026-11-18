@@ -1,0 +1,74 @@
+"""Researcher-facing Burns occurrence queries against a saved, combined Text-Fabric API."""
+from __future__ import annotations
+
+import tempfile
+import unittest
+from pathlib import Path
+
+from tf.fabric import Fabric
+
+from test_burns_tf_module import _write_synthetic_base
+from test_feature_only_module import _fixture
+from ugarit_context_parsing.feature_module import write_feature_module
+from ugarit_context_parsing.research_queries import iter_burns_occurrences
+
+
+class ResearchQueryTests(unittest.TestCase):
+    def _open_corpus(self, root: Path):
+        _, _, _, module, report = _fixture()
+        base = root / "base"
+        overlay = root / "burns"
+        _write_synthetic_base(base)
+        self.assertTrue(write_feature_module(module, report, overlay))
+        api = Fabric(
+            locations=[str(base), str(overlay)], modules=[""], silent="deep"
+        ).loadAll(silent="deep")
+        self.assertIsNotNone(api)
+        return api, base
+
+    def test_all_lanes_preserve_five_distinct_exact_occurrences_and_spans(self):
+        with tempfile.TemporaryDirectory() as temp:
+            api, _ = self._open_corpus(Path(temp))
+            rows = list(iter_burns_occurrences(api))
+            self.assertEqual(len(rows), 5)
+            self.assertEqual(len({row.occurrence_id for row in rows}), 5)
+            self.assertEqual(
+                {(row.carrier_node, row.lane) for row in rows},
+                {(8, 1), (8, 2), (10, 1), (11, 1), (11, 2)},
+            )
+            self.assertEqual(
+                {row.span_nodes for row in rows},
+                {(8,), (10, 11), (11,), (11, 12)},
+            )
+            self.assertEqual(sum(len(row.span_nodes) > 1 for row in rows), 2)
+            self.assertTrue(all(row.category == "divine_name" for row in rows))
+            self.assertTrue(all(row.match_rule == "literal" for row in rows))
+            self.assertEqual([row.carrier_node for row in rows], [8, 8, 10, 11, 11])
+
+    def test_filters_are_explicit_and_do_not_silently_hide_negative_statuses(self):
+        with tempfile.TemporaryDirectory() as temp:
+            api, _ = self._open_corpus(Path(temp))
+            rows = list(iter_burns_occurrences(api))
+            self.assertEqual(len(list(iter_burns_occurrences(api, category="divine_name"))), 5)
+            self.assertEqual(len(list(iter_burns_occurrences(api, category="personal_name"))), 0)
+            selected = rows[0].semantic_status
+            self.assertEqual(
+                {x.occurrence_id for x in iter_burns_occurrences(api, semantic_status=selected)},
+                {x.occurrence_id for x in rows if x.semantic_status == selected},
+            )
+            self.assertEqual(
+                len(list(iter_burns_occurrences(api, semantic_status="homograph_excluded"))),
+                sum(x.semantic_status == "homograph_excluded" for x in rows),
+            )
+
+    def test_base_without_burns_module_fails_clearly(self):
+        with tempfile.TemporaryDirectory() as temp:
+            api, base = self._open_corpus(Path(temp))
+            base_only = Fabric(locations=[str(base)], modules=[""], silent="deep").loadAll(silent="deep")
+            self.assertIsNotNone(base_only)
+            with self.assertRaisesRegex(ValueError, "Burns.*module|Burns.*features"):
+                list(iter_burns_occurrences(base_only))
+
+
+if __name__ == "__main__":
+    unittest.main()
