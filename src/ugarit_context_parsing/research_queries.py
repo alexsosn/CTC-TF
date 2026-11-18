@@ -11,6 +11,8 @@ import re
 from dataclasses import dataclass
 from typing import Iterator
 
+from .feature_module import SCHEMA, _FINDSPOT_FIELDS
+
 
 _OCCURRENCE_FEATURE = re.compile(r"^burns_occurrence_id_([1-9][0-9]*)$")
 _REQUIRED_LANE_FIELDS = (
@@ -67,6 +69,15 @@ def iter_burns_occurrences(
         if (match := _OCCURRENCE_FEATURE.fullmatch(name))
     )
     if not lanes:
+        # A legitimate v3 overlay may have only tablet-level findspot features
+        # when none of its lexical citations align exactly. Distinguish it from
+        # a base-only or legacy overlay via the writer's feature metadata.
+        if any(
+            name in available
+            and api.Fs(name).meta.get("moduleSchema") == SCHEMA
+            for name in _FINDSPOT_FIELDS
+        ):
+            return
         raise ValueError(
             "Burns feature-module occurrence features are not loaded; "
             "load the reviewed CUC first and the v3 Burns module second"
