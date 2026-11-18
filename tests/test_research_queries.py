@@ -128,6 +128,29 @@ class ResearchQueryTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "missing Burns span edges"):
                 list(iter_burns_occurrences(missing_edges))
 
+    def test_filtered_queries_reject_missing_category_instead_of_silent_undercount(self):
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as temp:
+            api, _ = self._open_corpus(Path(temp))
+            feature = api.Fs("burns_category_2")
+            corrupt_category = SimpleNamespace(
+                v=lambda node: None if node == 8 else feature.v(node),
+                items=feature.items,
+            )
+            corrupt_api = SimpleNamespace(
+                Fall=api.Fall,
+                Fs=lambda name: (
+                    corrupt_category if name == "burns_category_2" else api.Fs(name)
+                ),
+                Eall=api.Eall,
+                Es=api.Es,
+                F=api.F,
+                N=api.N,
+            )
+            with self.assertRaisesRegex(ValueError, "missing Burns category"):
+                list(iter_burns_occurrences(corrupt_api, category="divine_name"))
+
     def test_required_lane_metadata_missing_fails_closed(self):
         from types import SimpleNamespace
 
