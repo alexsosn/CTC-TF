@@ -61,6 +61,52 @@ class ResearchQueryTests(unittest.TestCase):
                 sum(x.semantic_status == "homograph_excluded" for x in rows),
             )
 
+    def test_homograph_exclusions_remain_visible_and_filterable(self):
+        from dataclasses import replace
+
+        from test_burns_tf_module import _index, _record
+        from ugarit_context_parsing.alignment import align_burns_source
+        from ugarit_context_parsing.annotations import normalize_workbook_records
+        from ugarit_context_parsing.feature_module import (
+            build_feature_module, build_feature_module_report,
+        )
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            base = root / "base"
+            overlay = root / "burns"
+            _write_synthetic_base(base)
+            source = normalize_workbook_records((
+                _record(1, headword="bʿl", references="I.2", section="Section α"),
+                replace(
+                    _record(2, headword="bʿl", references="I.2", section="Section β"),
+                    source_file="02 Synthetic/Worksheet 1.csv",
+                ),
+            ))
+            index = _index()
+            alignments = align_burns_source(source, index)
+            module = build_feature_module(source, alignments, index)
+            report = build_feature_module_report(source, alignments, index, module)
+            self.assertTrue(write_feature_module(module, report, overlay))
+            api = Fabric(
+                locations=[str(base), str(overlay)], modules=[""], silent="deep"
+            ).loadAll(silent="deep")
+            self.assertIsNotNone(api)
+            both = tuple(iter_burns_occurrences(api))
+            self.assertEqual(len(both), 2)
+            self.assertEqual({x.semantic_status for x in both}, {
+                "positive_fixed", "homograph_excluded",
+            })
+            self.assertEqual(
+                len(tuple(iter_burns_occurrences(api, semantic_status="positive_fixed"))),
+                1,
+            )
+            self.assertEqual(
+                len(tuple(iter_burns_occurrences(api, semantic_status="homograph_excluded"))),
+                1,
+            )
+            self.assertEqual({x.category for x in both}, {"divine_name", "personal_name"})
+
     def test_missing_multiword_edges_fail_instead_of_underreporting(self):
         from types import SimpleNamespace
 
