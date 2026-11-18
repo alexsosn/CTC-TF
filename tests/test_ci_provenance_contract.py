@@ -421,7 +421,10 @@ class AdvancedBaseProvenanceTests(unittest.TestCase):
                 # actual release publication legitimately needs a write token.
                 step = text.split("run: python scripts/check_ci_provenance.py", 1)[1]
                 step = step.split("\n      - ", 1)[0]
-                # Manual publishers do not need an API token during the local\n                # checkout attestation step. Keep their write token scoped to\n                # the separate publication step.\n                if path.name in {"publish-reviewed-v0.3.0.yml", "publish-reviewed-v0.3.1.yml"}:
+                # Manual publishers do not need an API token during the local
+                # checkout attestation step. Keep their write token scoped to
+                # the separate publication step.
+                if path.name in {"publish-reviewed-v0.3.0.yml", "publish-reviewed-v0.3.1.yml"}:
                     self.assertNotIn("GH_TOKEN:", step)
                 else:
                     self.assertIn("GH_TOKEN: ${{ github.token }}", step)
