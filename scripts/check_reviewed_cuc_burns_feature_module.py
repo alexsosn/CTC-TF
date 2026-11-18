@@ -157,8 +157,11 @@ def run(cuc_dir: Path) -> None:
             "divine_name", "cultic_action", "cultic_jargon"
         }:
             raise AssertionError("researcher iterator lost same-word cross-category lanes")
-        if sum(r.carrier_node == word for r in research_rows) != 2:
-            raise AssertionError("researcher iterator collapsed two occurrences on one CUC word")
+        shared_word_categories = {
+            r.category for r in research_rows if r.carrier_node == word
+        }
+        if not {"divine_name", "cultic_action"}.issubset(shared_word_categories):
+            raise AssertionError("researcher iterator collapsed same-word occurrences")
         phrase_rows = [r for r in research_rows if r.category == "cultic_jargon"]
         if len(phrase_rows) != 1 or phrase_rows[0].span_nodes != phrase_words:
             raise AssertionError("researcher iterator lost ordered CUC multiword span")
