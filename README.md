@@ -4,6 +4,8 @@
 
 Local extraction and Text-Fabric materialization of Duncan Coe Burns's cultic-vocabulary **Workbooks**. The workbooks yield per-worksheet CSV files; the thesis Appendix has a separate KTU findspot table. The primary Text-Fabric product is a **feature-only module over the existing Copenhagen Ugaritic Corpus (CUC) warp**: Burns adds queryable node/edge features on existing CUC words/tablets, never new nodes and never replacement `otype.tf`/`oslots.tf`. No generated Burns corpus is distributed here.
 
+Current development support: **CPython 3.12–3.15** (3.14 is the local default and the reviewed-CUC feature-module integration target). The full test matrix includes 3.12, 3.13, 3.14 and 3.15. Previously published immutable tags retain their own historical packaging metadata.
+
 ## Source and extraction
 
 Burns, Duncan Coe (2003), *Contents, texts and contexts: a contextualist approach to the Ugaritic texts and their cultic vocabulary*, PhD thesis, University of Sheffield: <https://etheses.whiterose.ac.uk/id/eprint/15038/>.

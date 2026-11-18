@@ -48,7 +48,7 @@ jobs:
           persist-credentials: false
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: '3.13'
+          python-version: '3.14'
           cache: pip
       - name: Install producer and exact consumer
         run: python -m pip install . .context-fabric/libs/core '.context-fabric/libs/mcp[dev]'

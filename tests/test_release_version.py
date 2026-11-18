@@ -1,4 +1,6 @@
+import ast
 from importlib import metadata
+import re
 from pathlib import Path
 import unittest
 
@@ -7,6 +9,25 @@ from ugarit_context_parsing.cuc_index import REVIEWED_CUC_COMMIT
 
 ROOT = Path(__file__).resolve().parents[1]
 TARGET_VERSION = "0.3.1"
+
+
+class PythonSupportContractTests(unittest.TestCase):
+    def test_package_rejects_retired_python_baseline(self):
+        project = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+        section = project.split("[project]", 1)[1].split("\n[", 1)[0]
+        self.assertRegex(section, r'(?m)^requires-python\s*=\s*">=3\.12"$')
+
+    def test_ci_exercises_current_python_and_local_default(self):
+        workflow = (ROOT / ".github" / "workflows" / "test.yml").read_text(
+            encoding="utf-8"
+        )
+        matrix = re.search(r"(?m)^\s+python-version:\s*(\[[^\n]+\])", workflow)
+        self.assertIsNotNone(matrix)
+        versions = ast.literal_eval(matrix.group(1))
+        self.assertEqual(versions, ["3.12", "3.13", "3.14", "3.15"])
+        self.assertEqual((ROOT / ".python-version").read_text().strip(), "3.14")
+
+
 class ReleaseVersionContractTests(unittest.TestCase):
     def test_installed_package_uses_release_version(self):
         self.assertEqual(metadata.version("ugarit-context-parsing"), TARGET_VERSION)
@@ -57,8 +78,7 @@ class ReleaseVersionContractTests(unittest.TestCase):
         import json
         import re
 
-        # Python 3.10 is in the release matrix; stdlib tomllib exists only
-        # from Python 3.11. Scope the version extraction to [project].
+        # Scope the version extraction to [project] regardless of other TOML tables.
         pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
         project_section = pyproject.split("[project]", 1)[1].split("\n[", 1)[0]
         version = re.search(r'^version\s*=\s*"([^"]+)"', project_section, re.MULTILINE)
