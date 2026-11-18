@@ -40,6 +40,12 @@ class ReleaseVersionContractTests(unittest.TestCase):
         self.assertNotIn("not yet registered", notes)
         self.assertNotIn("fully managed source+parent materializer execution remains", notes.lower())
 
+    def test_citation_version_matches_candidate_without_an_invented_release_date(self):
+        citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+        self.assertIn('version: "0.3.1"', citation)
+        self.assertNotIn('date-released: "2026-10-12"', citation)
+        self.assertIn("Cite Burns's thesis", citation)
+
     def test_release_pdf_quickstart_uses_single_shell_line_continuations(self):
         notes = (ROOT / "docs" / "releases" / "v0.3.1.md").read_text(encoding="utf-8")
         commands = notes.split("```sh", 1)[1].split("```", 1)[0]
