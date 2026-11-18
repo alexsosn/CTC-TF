@@ -2,11 +2,13 @@
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
+from unittest.mock import patch
 from pathlib import Path
 import unittest
 
 from scripts.publish_reviewed_release import (
-    REPOSITORY, ReleaseGateError, publish_reviewed_release,
+    GitHubCLI, REPOSITORY, ReleaseGateError, publish_reviewed_release,
 )
 from test_reviewed_release_publisher import (
     FakeGitHub, MERGE, PR_HEAD, TREE, encoded,
@@ -75,6 +77,15 @@ def call(api, *, publish=False, confirm=None):
 
 
 class ReviewedRelease031Tests(unittest.TestCase):
+    def test_real_github_cli_bridge_accepts_commit_to_pr_list(self):
+        payload = '[{"number":152,"merge_commit_sha":"' + MERGE + '"}]'
+        response = SimpleNamespace(returncode=0, stdout=payload, stderr="")
+        with patch("scripts.publish_reviewed_release.subprocess.run", return_value=response):
+            self.assertEqual(
+                GitHubCLI().request("GET", f"commits/{MERGE}/pulls"),
+                [{"number": 152, "merge_commit_sha": MERGE}],
+            )
+
     def test_new_version_preflight_is_read_only(self):
         api = FakeRelease031()
         result = call(api)
