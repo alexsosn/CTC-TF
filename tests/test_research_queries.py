@@ -61,6 +61,46 @@ class ResearchQueryTests(unittest.TestCase):
                 sum(x.semantic_status == "homograph_excluded" for x in rows),
             )
 
+    def test_missing_multiword_edges_fail_instead_of_underreporting(self):
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as temp:
+            api, _ = self._open_corpus(Path(temp))
+            # Adversarial TF facade: all node features remain, but the edge
+            # feature that carries multiword members has not been loaded.
+            missing_edges = SimpleNamespace(
+                Fall=api.Fall,
+                Fs=api.Fs,
+                Eall=lambda: tuple(
+                    feature for feature in api.Eall()
+                    if feature != "burns_span_1"
+                ),
+                Es=api.Es,
+                F=api.F,
+                N=api.N,
+            )
+            with self.assertRaisesRegex(ValueError, "missing Burns span edges"):
+                list(iter_burns_occurrences(missing_edges))
+
+    def test_required_lane_metadata_missing_fails_closed(self):
+        from types import SimpleNamespace
+
+        with tempfile.TemporaryDirectory() as temp:
+            api, _ = self._open_corpus(Path(temp))
+            missing_metadata = SimpleNamespace(
+                Fall=lambda: tuple(
+                    feature for feature in api.Fall()
+                    if feature != "burns_semantic_status_2"
+                ),
+                Fs=api.Fs,
+                Eall=api.Eall,
+                Es=api.Es,
+                F=api.F,
+                N=api.N,
+            )
+            with self.assertRaisesRegex(ValueError, "incomplete Burns occurrence lane 2"):
+                list(iter_burns_occurrences(missing_metadata))
+
     def test_base_without_burns_module_fails_clearly(self):
         with tempfile.TemporaryDirectory() as temp:
             api, base = self._open_corpus(Path(temp))
