@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
@@ -388,15 +389,9 @@ def _snapshot_from_tf(
     T = api.T  # type: ignore[attr-defined]
     L = api.L  # type: ignore[attr-defined]
 
-    counts = tuple(
-        sorted(
-            (
-                otype,
-                len(tuple(F.otype.s(otype))),
-            )
-            for otype in REVIEWED_CUC_COUNTS
-        )
-    )
+    # Read the complete warp inventory, not just the types expected by a
+    # particular reviewed version. Unknown types must reach the count gate.
+    counts = tuple(sorted(Counter(otype for _, otype in F.otype.items()).items()))
 
     tablets: list[CucTabletRow] = []
     for node in F.otype.s("tablet"):
@@ -419,11 +414,21 @@ def _snapshot_from_tf(
         if not section or len(section) != 3:
             raise CucCompatibilityError(f"CUC line node {node} has invalid section: {section!r}")
         tablet, column, line = section
+        # The current Burns reference model accepts integer addresses only.
+        # Canonical decimal strings in newer CUC section features are safe;
+        # primes, suffixes and alternative numeric spellings are not aliases.
         try:
-            line_number = int(line)
+            if type(line) is int:
+                line_number = line
+            elif isinstance(line, str):
+                line_number = int(line)
+                if str(line_number) != line:
+                    raise ValueError("noncanonical integer address")
+            else:
+                raise TypeError("unsupported address type")
         except (TypeError, ValueError) as exc:
             raise CucCompatibilityError(
-                f"CUC line node {node} has non-integer line number: {line!r}"
+                f"CUC line node {node} has noncanonical integer line address: {line!r}"
             ) from exc
         words = tuple(int(word) for word in L.d(node, otype="word"))
         lines.append(
